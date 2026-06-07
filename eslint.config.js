@@ -20,6 +20,10 @@ export default tseslint.config(
       '@typescript-eslint/no-unused-vars': 'warn',
       '@typescript-eslint/no-explicit-any': 'warn',
       'vue/multi-word-component-names': 'off',
+      // TypeScript (vue-tsc) already resolves globals and undefined names, so
+      // the core no-undef rule is redundant and misfires on browser/DOM globals.
+      // See typescript-eslint.io/troubleshooting/faqs/eslint/#i-get-errors-from-no-undef
+      'no-undef': 'off',
     },
   },
   {

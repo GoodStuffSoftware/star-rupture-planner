@@ -394,6 +394,159 @@ angular/chamfered panel corners, uppercase tracked headers.
 - Header: rate `text-2xl`→`text-3xl` (orange), name `text-xl`→`text-2xl`.
 - Totals + Options: bump icon sizes (~22-24) and row text one step.
 
+---
+
+# v4 FEATURES (persistence + sharing)
+
+## I. Default expand level = 2
+`expandLevel` default changes from `Infinity` to `2`. It is a persisted view preference (localStorage),
+NOT shown as a chip in the collapsed Options panel.
+
+## J. Persisted state (localStorage) + shareable URL
+Split state into:
+- **Plan** (shareable): `version`, `targetItemId`, `targetRate`, `tier`, `overrides`.
+- **View prefs** (local only): `showExtractors`, `showIcons`, `expandLevel`, `optionsCollapsed`.
+
+New module `src/lib/persistState.ts`:
+- `save(plan, prefs)` / `loadSaved()` → `localStorage['srp:state:v1']` as JSON. Serialize
+  `expandLevel === Infinity` ↔ `'all'`. try/catch everything.
+- `encodePlan(plan)` → `${origin}${pathname}?plan=<base64url(JSON)>`; `decodePlanFromUrl()` → PlanState|null
+  (unicode-safe base64url; validate shape).
+
+Store:
+- `expandLevel` default `2`.
+- `init()` (called on mount instead of `load(version)`): apply saved prefs; choose
+  `plan = urlPlan ?? savedPlan ?? null`; `await load(plan?.version ?? DEFAULT_VERSION, plan)`.
+- `load(v, plan?)`: after loading data, if `plan && plan.version === v` apply a VALIDATED plan
+  (tier → only production baseIds, value 'v1'|'v2'; overrides → only entries whose item exists AND whose
+  building actually produces it via fullProducerIndex; targetItemId → only if it exists else default
+  first component; targetRate → positive number else `defaultRateForItem`). Otherwise keep current
+  default-reset behavior. `setVersion(v)` stays a hard reset (no plan).
+- `buildShareUrl()` → `encodePlan(currentPlan)`. Debounced `watch` over plan+prefs → `save(...)`.
+
+UI: a **Share** button in the header — copies `buildShareUrl()` to the clipboard (graceful fallback if
+the clipboard API is unavailable), with a transient "Copied!" state. No expand-level chip in Options.
+
+---
+
+# v5 FEATURES (theme switch + bigger machine icons)
+
+## K. Theme switch — "Star Rupture" (default) and "Cyan"
+Abstract all CHROME colors into CSS variables so a root `data-theme` swaps the palette. Define
+defaults on `:root` (Star Rupture) and overrides on `:root[data-theme="cyan"]` (higher specificity).
+Components reference `var(--token)` via Tailwind arbitrary values (`bg-[var(--panel)]`, etc.).
+
+Hex → token map (replace these literals everywhere they appear as chrome):
+`#0d0c0b`→`--bg`, `#1a1714`→`--panel`, `#24201b`→`--panel-2`, `#34302a`→`--border`,
+`#ee8b22`→`--accent`, `#f7a23f`→`--accent-hover`, `#22d3ee`→`--accent-2`, `#f3f1ee`→`--text`,
+`#f6f4f1`→`--text-strong`, `#d8d3cc`→`--text-2`, `#a8a29a`→`--muted`, `#736d64`→`--muted-2`.
+Also: accent-button text `text-black`→`text-[var(--accent-on)]`; `bg-[#ee8b22]/20`→`bg-[var(--accent-soft)]`;
+`border-[#ee8b22]/30|40`→`border-[var(--accent-soft-border)]`; GameIcon fallback `bg-slate-700`→`bg-[var(--panel-2)]`;
+CraftTree spinner `text-cyan-400`→`text-[var(--accent)]`.
+
+LEAVE theme-independent informative colors as-is: item-type chips (emerald/blue/purple/amber/red),
+depth-guide border colors, the `raw`/`cycle` badges, error red, and the amber override `•` marker.
+
+Palettes:
+- `:root` (Star Rupture): bg #0d0c0b, panel #1a1714, panel-2 #24201b, border #34302a, accent #ee8b22,
+  accent-hover #f7a23f, accent-on #000, accent-soft rgba(238,139,34,.18), accent-soft-border
+  rgba(238,139,34,.35), accent-2 #22d3ee, text #f3f1ee, text-strong #f6f4f1, text-2 #d8d3cc,
+  muted #a8a29a, muted-2 #736d64.
+- `:root[data-theme="cyan"]` (original cyan/slate): bg #0f172a, panel #1e293b, panel-2 #334155,
+  border #475569, accent #22d3ee, accent-hover #67e8f9, accent-on #07252b, accent-soft
+  rgba(34,211,238,.16), accent-soft-border rgba(34,211,238,.35), accent-2 #34d399, text #f1f5f9,
+  text-strong #fff, text-2 #cbd5e1, muted #94a3b8, muted-2 #64748b.
+
+State/persistence: add `theme: 'starrupture' | 'cyan'` (default `'starrupture'`) to the store + to
+`ViewPrefs` in `persistState.ts`. `setTheme(t)` action sets it and applies
+`document.documentElement.dataset.theme = t === 'cyan' ? 'cyan' : ''`. `init()` applies it from saved
+prefs. Include `theme` in the persistence watch. UI: a small segmented "Theme: Star Rupture / Cyan"
+control in the Options → Display subsection. No collapsed chip for theme.
+
+## L. Bigger machine icons
+Building/machine icons in `CraftTreeNode.vue` go from `:size="26"` to `:size="35"` (≈1/3 larger).
+Item icons stay 30. Do NOT change row padding (`py-2`/`py-2.5`) — icons grow, padding unchanged.
+
+---
+
+# v6 FEATURES (detail drawer + hover + construction cost)
+
+Turn the planner into a browsable database: hover = quick card, click = full bottom drawer. Built on
+data we already have (flexsurfer + corporations file). Construction cost is data-gated on an OPTIONAL
+bundled file (an explorer is sourcing it) — build the DISPLAY now; it stays hidden until the file exists.
+
+## M. Derived lookups (new — put pure builders in `src/lib/derived.ts`, expose via store computeds)
+- `usedInIndex: Map<itemId, { buildingId: string; recipe: Recipe }[]>` — scan ALL buildings' recipes'
+  inputs; for each input id, record (building, recipe) that consumes it. (Reference data → use all buildings.)
+- `exportsByItem: Map<itemId, { corp: string; corpId: string; level: number; points: number }[]>` —
+  from `corporations_components.json`: for each corp → each level → each `components[{id, points}]`,
+  push `{corp: <corp display name>, corpId, level, points}` under that item id.
+- `buildingUnlock: Map<buildingId, { corp: string; level: number }>` — from corp `levels[].rewards[].name`:
+  if a building's `name` matches a reward name (case-insensitive, trimmed), record the LOWEST such level.
+  Best-effort; most rewards won't match a building.
+- `buildingCosts: Map<buildingId, { id: string; amount: number }[]>` — loaded from an OPTIONAL file
+  `public/game-data/{version}/building_costs.json` shaped `{ "<buildingId>": [{ "id", "amount" }] }`.
+  Loader fetches it; on 404/parse-error → empty map (no error). Reuse the existing `fullProducerIndex`
+  for "made by".
+
+## N. Drawer + hover state (store, transient — NOT persisted)
+- `detail: { kind: 'item' | 'building'; id: string } | null`; actions `openItemDetail(id)`,
+  `openBuildingDetail(id)`, `closeDetail()`.
+- `hover: { kind: 'item' | 'building'; id: string; rect: DOMRect } | null`; actions `setHover(kind, id, el)`
+  (with a ~350ms open delay handled in the component), `clearHover()`.
+
+## O. Components
+- `HoverCard.vue` — a SINGLE app-level instance (teleported to body), driven by `store.hover`. Renders the
+  simple card: icon · NAME · type chip · short stat row. For an item: type + "Made by <building>". For a
+  building: ⚡power · 🔥heat · ↓<#distinct inputs> · ↑<#recipes/outputs> · tier. Positioned near
+  `hover.rect` (above if room, else below); never clipped (fixed + high z-index).
+- `DetailDrawer.vue` — a SINGLE app-level bottom drawer (slide-up, ~`max-h-[70vh]`, fixed bottom, full
+  width, with a dimmed backdrop). Close on ✕ button, Esc, and backdrop click. Driven by `store.detail`.
+  - **Item view:** header (icon, name, type chip, stack/value IF available else omit) · **Made by**
+    (building + recipe: inputs → output, /min) · **Used in** (chips of consuming items/buildings — each a
+    cross-link) · **Exports** (corp + level + points rows) · description IF available · a **Set as target**
+    button (calls `selectTargetItem(id)` + `closeDetail`).
+  - **Building view:** header (icon, name, type chip, power/heat) · tier link (v1↔v2, cross-link) ·
+    **Unlocked by** (corp + level, if matched) · **Construction** (materials from `buildingCosts`, IF
+    available) · **Recipes** (a compact table: output → inputs, /min — all rows).
+  - Every related item/machine is a cross-link that calls `openItemDetail`/`openBuildingDetail` (the drawer
+    swaps content in place). Style with the theme tokens + `clip-chamfer`.
+
+## P. Make things clickable + hoverable
+- `CraftTreeNode.vue`: the item icon+name → `@click` `openItemDetail(node.itemId)`; the producer machine
+  icon+name → `@click` `openBuildingDetail(node.building.id)`. Add `@mouseenter`/`@mouseleave` →
+  `setHover`/`clearHover` on those two targets. Use `cursor-pointer`. Keep the version picker working
+  (clicking a picker button must NOT open the drawer — stop propagation there).
+- `TotalsPanel.vue`: raw-material rows → `openItemDetail`; building rows → `openBuildingDetail` (+ hover).
+- Mount `<DetailDrawer />` and `<HoverCard />` once in `App.vue`.
+
+## Q. Construction cost "under the machines" (data-gated on `buildingCosts`)
+- `CraftTreeNode.vue`: under a producer machine line, if `buildingCosts.get(node.building.id)` exists,
+  render a small muted sub-line: `🔧 <material> ×<amount × Math.ceil(buildingsNeeded)>` for each material
+  (item name + icon). Hidden entirely when no cost data. (Applies to extractor nodes too when shown.)
+- `TotalsPanel.vue`: add a **Construction materials** section aggregating across the whole tree —
+  for each building node, `Math.ceil(buildingsNeeded) × material.amount`, summed by material id. Hidden
+  when `buildingCosts` is empty.
+- `DetailDrawer` building view shows the per-machine construction cost (see O).
+
+## Acceptance criteria (v6)
+20. Clicking an item or machine (tree or totals) opens a bottom drawer with its details + cross-links;
+    Set-as-target works; Esc/backdrop/✕ closes. Hovering shows the simple card.
+21. Exports + used-in + unlock are derived correctly from existing data; no console errors; build clean.
+22. With no `building_costs.json`, nothing construction-related shows (no errors). When the file is added,
+    per-machine cost lines appear under machines and a Construction-materials total appears.
+
+## Acceptance criteria (v5)
+18. A theme toggle switches the whole UI between the orange Star Rupture palette and the cyan/slate
+    palette; choice persists across reloads; default is Star Rupture.
+19. Machine icons are ~1/3 larger; row padding is visually unchanged.
+
+## Acceptance criteria (v4)
+15. Reloading the page restores version, target item+rate, tier, overrides, and view prefs.
+16. Default expand level is 2 on a fresh load (no saved state).
+17. The Share button yields a URL that, opened in a clean context, reproduces the plan; invalid
+    overrides/targets across versions are dropped without errors.
+
 ## Acceptance criteria (v3)
 12. Selecting an item sets the rate to one building's output; changing the number still works.
 13. Tree starts fully expanded; the level control collapses/expands to any depth; per-node carets still

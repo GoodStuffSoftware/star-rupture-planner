@@ -2,7 +2,7 @@
 import { ref } from 'vue'
 import { usePlannerStore } from '../stores/plannerStore'
 
-const props = withDefaults(
+withDefaults(
   defineProps<{
     kind: 'building' | 'item'
     id: string
@@ -36,7 +36,7 @@ function fallbackLabel(name: string): string {
   <!-- When showIcons is on but image failed: render letter glyph -->
   <span
     v-else-if="failed"
-    class="inline-flex items-center justify-center rounded bg-slate-700 text-slate-300 font-bold select-none shrink-0"
+    class="inline-flex items-center justify-center rounded bg-[var(--panel-2)] text-[var(--muted)] font-bold select-none shrink-0"
     :style="{ width: `${size}px`, height: `${size}px`, fontSize: `${Math.max(8, size * 0.45)}px` }"
     :title="name"
   >

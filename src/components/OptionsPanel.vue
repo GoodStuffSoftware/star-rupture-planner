@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { usePlannerStore } from '../stores/plannerStore'
 import GameIcon from './GameIcon.vue'
+import ChamferToggle from './ChamferToggle.vue'
 
 const store = usePlannerStore()
 
@@ -49,17 +50,17 @@ function selectedBuildingId(chain: { baseId: string; upgradedId: string }): stri
 </script>
 
 <template>
-  <div class="bg-[#1a1714] border border-[#34302a] clip-chamfer">
+  <div class="chamfer">
     <!-- Header row (always visible) -->
     <button
-      class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-[#24201b] transition-colors"
-      :class="store.optionsCollapsed ? '' : 'border-b border-[#34302a]'"
+      class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-[var(--panel-2)] transition-colors"
+      :class="store.optionsCollapsed ? '' : 'border-b border-[var(--border)]'"
       @click="store.toggleOptions()"
     >
       <!-- Caret -->
       <svg
         :class="store.optionsCollapsed ? '' : 'rotate-90'"
-        class="w-4 h-4 text-[#a8a29a] shrink-0 transition-transform"
+        class="w-4 h-4 text-[var(--muted)] shrink-0 transition-transform"
         fill="currentColor"
         viewBox="0 0 20 20"
       >
@@ -71,7 +72,7 @@ function selectedBuildingId(chain: { baseId: string; upgradedId: string }): stri
       </svg>
 
       <!-- Title -->
-      <span class="text-sm font-semibold text-[#f3f1ee] uppercase tracking-wider shrink-0">
+      <span class="text-sm font-semibold text-[var(--text)] uppercase tracking-wider shrink-0">
         Options
       </span>
 
@@ -79,14 +80,14 @@ function selectedBuildingId(chain: { baseId: string; upgradedId: string }): stri
       <div v-if="store.optionsCollapsed" class="flex flex-wrap gap-1.5 ml-1">
         <span
           v-if="summaryChips.length === 0"
-          class="text-xs px-2 py-0.5 rounded bg-[#24201b] text-[#736d64] font-medium border border-[#34302a]"
+          class="text-xs px-2 py-0.5 rounded bg-[var(--panel-2)] text-[var(--muted-2)] font-medium border border-[var(--border)]"
         >
           All defaults
         </span>
         <span
           v-for="chip in summaryChips"
           :key="chip"
-          class="text-xs px-2 py-0.5 rounded bg-[#ee8b22]/20 text-[#ee8b22] font-medium border border-[#ee8b22]/30"
+          class="text-xs px-2 py-0.5 rounded bg-[var(--accent-soft)] text-[var(--accent)] font-medium border border-[var(--accent-soft-border)]"
         >
           {{ chip }}
         </span>
@@ -95,30 +96,32 @@ function selectedBuildingId(chain: { baseId: string; upgradedId: string }): stri
 
     <!-- Expanded body -->
     <div v-if="!store.optionsCollapsed" class="px-4 py-3 space-y-5">
-
       <!-- Building versions subsection -->
       <div>
         <div class="flex items-center justify-between mb-2">
-          <h4 class="text-xs font-semibold text-[#a8a29a] uppercase tracking-wider">
+          <h4 class="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider">
             Building versions
           </h4>
           <div class="flex gap-1">
             <button
+              class="chamfer-sm [--cf-fill:var(--panel-2)] hover:[--cf-fill:var(--border)] text-xs px-2.5 py-1 text-[var(--muted)] hover:text-[var(--text)] transition-colors"
               @click="setAll('v1')"
-              class="clip-chamfer-sm text-xs px-2.5 py-1 bg-[#24201b] hover:bg-[#34302a] text-[#a8a29a] hover:text-[#f3f1ee] transition-colors border border-[#34302a]"
             >
               All v1
             </button>
             <button
+              class="chamfer-sm [--cf-fill:var(--panel-2)] hover:[--cf-fill:var(--border)] text-xs px-2.5 py-1 text-[var(--muted)] hover:text-[var(--text)] transition-colors"
               @click="setAll('v2')"
-              class="clip-chamfer-sm text-xs px-2.5 py-1 bg-[#24201b] hover:bg-[#34302a] text-[#a8a29a] hover:text-[#f3f1ee] transition-colors border border-[#34302a]"
             >
               All v2
             </button>
           </div>
         </div>
 
-        <div v-if="store.productionChains.length === 0" class="text-[#736d64] text-sm italic">
+        <div
+          v-if="store.productionChains.length === 0"
+          class="text-[var(--muted-2)] text-sm italic"
+        >
           No upgradeable buildings
         </div>
 
@@ -128,50 +131,50 @@ function selectedBuildingId(chain: { baseId: string; upgradedId: string }): stri
             :key="chain.baseId"
             class="flex items-center justify-between gap-3"
           >
-            <!-- Building icon + name -->
+            <!-- Building icon (swaps to the v2 building) + name + a 'v2' tag when active -->
             <div class="flex items-center gap-2 min-w-0">
               <GameIcon
-                kind="building"
                 :id="selectedBuildingId(chain)"
+                kind="building"
                 :name="buildingName(selectedBuildingId(chain))"
-                :size="22"
+                :size="38"
               />
-              <div class="min-w-0">
-                <span class="text-base text-[#f3f1ee] truncate block">
-                  {{ buildingName(chain.baseId) }}
-                </span>
+              <span class="flex items-center gap-1.5 min-w-0">
+                <span class="text-base text-[var(--text)] truncate">{{
+                  buildingName(chain.baseId)
+                }}</span>
                 <span
                   v-if="store.tier[chain.baseId] === 'v2'"
-                  class="text-xs text-[#22d3ee] truncate block"
+                  class="text-xs font-bold text-[var(--accent-2)] shrink-0"
                 >
-                  {{ buildingName(chain.upgradedId) }}
+                  v2
                 </span>
-              </div>
+              </span>
             </div>
 
-            <!-- v1/v2 segmented toggle -->
+            <!-- v1/v2 segmented toggle (mimics the tree's version picker) -->
             <div
-              class="flex shrink-0 border border-[#34302a] overflow-hidden text-xs font-medium"
+              class="chamfer-sm [--cf-fill:var(--panel-2)] flex shrink-0 p-px gap-px overflow-hidden text-xs font-medium"
             >
               <button
-                @click="store.setTier(chain.baseId, 'v1')"
                 :class="
                   store.tier[chain.baseId] !== 'v2'
-                    ? 'bg-[#ee8b22] text-black'
-                    : 'bg-[#24201b] text-[#a8a29a] hover:bg-[#34302a] hover:text-[#f3f1ee]'
+                    ? 'bg-[var(--accent)] text-[var(--accent-on)]'
+                    : 'bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)]'
                 "
                 class="px-2.5 py-1 transition-colors"
+                @click="store.setTier(chain.baseId, 'v1')"
               >
                 v1
               </button>
               <button
-                @click="store.setTier(chain.baseId, 'v2')"
                 :class="
                   store.tier[chain.baseId] === 'v2'
-                    ? 'bg-[#ee8b22] text-black'
-                    : 'bg-[#24201b] text-[#a8a29a] hover:bg-[#34302a] hover:text-[#f3f1ee]'
+                    ? 'bg-[var(--accent)] text-[var(--accent-on)]'
+                    : 'bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)]'
                 "
-                class="px-2.5 py-1 transition-colors border-l border-[#34302a]"
+                class="px-2.5 py-1 transition-colors"
+                @click="store.setTier(chain.baseId, 'v2')"
               >
                 v2
               </button>
@@ -181,60 +184,83 @@ function selectedBuildingId(chain: { baseId: string; upgradedId: string }): stri
       </div>
 
       <!-- Divider -->
-      <div class="border-t border-[#34302a]" />
+      <div class="border-t border-[var(--border)]" />
 
       <!-- Display subsection -->
       <div>
-        <h4 class="text-xs font-semibold text-[#a8a29a] uppercase tracking-wider mb-3">
+        <h4 class="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-3">
           Display
         </h4>
         <div class="space-y-3">
           <!-- Show extractors toggle -->
           <label class="flex items-center justify-between gap-3 cursor-pointer">
-            <span class="text-base text-[#f3f1ee]">Show extractors</span>
-            <button
-              role="switch"
-              :aria-checked="store.showExtractors"
-              @click="store.setShowExtractors(!store.showExtractors)"
-              class="relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none"
-              :class="store.showExtractors ? 'bg-[#ee8b22]' : 'bg-[#34302a]'"
-            >
-              <span
-                class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition-transform"
-                :class="store.showExtractors ? 'translate-x-4' : 'translate-x-0'"
-              />
-            </button>
+            <span class="text-base text-[var(--text)]">Show extractors</span>
+            <ChamferToggle
+              :checked="store.showExtractors"
+              @toggle="store.setShowExtractors(!store.showExtractors)"
+            />
           </label>
 
           <!-- Show machine icons toggle -->
           <label class="flex items-center justify-between gap-3 cursor-pointer">
-            <span class="text-base text-[#f3f1ee]">Show machine icons</span>
-            <button
-              role="switch"
-              :aria-checked="store.showIcons"
-              @click="store.setShowIcons(!store.showIcons)"
-              class="relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none"
-              :class="store.showIcons ? 'bg-[#ee8b22]' : 'bg-[#34302a]'"
-            >
-              <span
-                class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition-transform"
-                :class="store.showIcons ? 'translate-x-4' : 'translate-x-0'"
-              />
-            </button>
+            <span class="text-base text-[var(--text)]">Show icons</span>
+            <ChamferToggle
+              :checked="store.showIcons"
+              @toggle="store.setShowIcons(!store.showIcons)"
+            />
           </label>
+
+          <!-- Underline rows toggle -->
+          <label class="flex items-center justify-between gap-3 cursor-pointer">
+            <span class="text-base text-[var(--text)]">Underline rows</span>
+            <ChamferToggle
+              :checked="store.showRowDividers"
+              @toggle="store.setShowRowDividers(!store.showRowDividers)"
+            />
+          </label>
+
+          <!-- Theme segmented control -->
+          <div class="flex items-center justify-between gap-3">
+            <span class="text-base text-[var(--text)]">Theme</span>
+            <div
+              class="chamfer-sm [--cf-fill:var(--panel-2)] flex shrink-0 p-px gap-px overflow-hidden text-xs font-medium"
+            >
+              <button
+                :class="
+                  store.theme !== 'spaceage'
+                    ? 'bg-[var(--accent)] text-[var(--accent-on)]'
+                    : 'bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)]'
+                "
+                class="px-2.5 py-1 transition-colors"
+                @click="store.setTheme('starrupture')"
+              >
+                Star Rupture
+              </button>
+              <button
+                :class="
+                  store.theme === 'spaceage'
+                    ? 'bg-[var(--accent)] text-[var(--accent-on)]'
+                    : 'bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)]'
+                "
+                class="px-2.5 py-1 transition-colors"
+                @click="store.setTheme('spaceage')"
+              >
+                Space Age
+              </button>
+            </div>
+          </div>
 
           <!-- Reset overrides button (only when overrides exist) -->
           <div v-if="hasOverrides" class="pt-1">
             <button
+              class="chamfer-sm [--cf-fill:var(--panel-2)] text-xs px-3 py-1.5 text-[var(--muted)] hover:text-red-300 transition-colors"
               @click="store.clearOverrides()"
-              class="clip-chamfer-sm text-xs px-3 py-1.5 bg-[#24201b] hover:bg-red-900/40 text-[#a8a29a] hover:text-red-300 border border-[#34302a] hover:border-red-700/50 transition-colors"
             >
               Reset node overrides ({{ overrideCount }})
             </button>
           </div>
         </div>
       </div>
-
     </div>
   </div>
 </template>

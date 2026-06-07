@@ -44,6 +44,17 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
+## Construction-cost data — Star Rupture Wiki (CC BY-SA 4.0)
+
+The building construction-material costs in `public/game-data/{version}/building_costs.json` are
+derived from the community **[Star Rupture Wiki](https://starrupture.wiki.gg)** and are used under
+**CC BY-SA 4.0**. Attribution: *"Star Rupture Wiki contributors, CC BY-SA 4.0,
+https://starrupture.wiki.gg"*. Under the licence, that data file is itself offered under CC BY-SA 4.0
+(share-alike applies to the data artifact, not to this project's application code).
+
+Coverage is partial — only ~16 of the 44 buildings currently have a documented construction cost on
+the wiki; buildings without data simply show no construction line.
+
 ## The game
 
 *Star Rupture* is developed by **Creepy Jar**. All game names, recipes, artwork, and trademarks are

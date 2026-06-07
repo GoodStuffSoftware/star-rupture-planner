@@ -1,0 +1,18 @@
+{
+  "assembler": [{ "id": "intermediate_building", "amount": 200 }],
+  "fabricator": [{ "id": "basic_building", "amount": 140 }],
+  "craftertier2": [{ "id": "basic_building", "amount": 350 }],
+  "helium_extractor": [{ "id": "basic_building", "amount": 250 }],
+  "furnace": [{ "id": "basic_building", "amount": 200 }],
+  "furnacetier2": [{ "id": "basic_building", "amount": 450 }],
+  "mega_press": [{ "id": "intermediate_building", "amount": 80 }],
+  "ore_excavator": [{ "id": "basic_building", "amount": 80 }],
+  "refinery": [{ "id": "intermediate_building", "amount": 150 }],
+  "smelter": [{ "id": "basic_building", "amount": 100 }],
+  "sulfur_extractor": [{ "id": "intermediate_building", "amount": 120 }],
+  "turret_v1": [{ "id": "basic_building", "amount": 200 }],
+  "turret_v2": [{ "id": "intermediate_building", "amount": 220 }],
+  "solar_generator_v1": [{ "id": "basic_building", "amount": 40 }],
+  "solar_generator_v2": [{ "id": "intermediate_building", "amount": 200 }],
+  "wind_turbine_v1": [{ "id": "basic_building", "amount": 400 }]
+}

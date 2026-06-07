@@ -9,7 +9,9 @@ const searchText = ref('')
 const rateInput = ref(store.targetRate)
 const showDropdown = ref(false)
 const inputRef = ref<HTMLInputElement | null>(null)
+const dropdownEl = ref<HTMLElement | null>(null)
 const dropdownStyle = ref<Record<string, string>>({})
+const activeIndex = ref(0)
 
 // Color mapping for item types
 const typeColors: Record<string, string> = {
@@ -47,6 +49,17 @@ const filteredItems = computed<Item[]>(() => {
   return store.items.filter((i) => i.name.toLowerCase().includes(q)).slice(0, 50)
 })
 
+// Reset the keyboard-highlighted row whenever the filtered list changes.
+watch(filteredItems, () => {
+  activeIndex.value = 0
+})
+
+// One producing machine's output for the current target — used to step the rate.
+const machineStep = computed(() => {
+  if (!store.targetItemId) return 0
+  return store.defaultRateForItem(store.targetItemId)
+})
+
 function selectItem(item: Item) {
   searchText.value = item.name
   showDropdown.value = false
@@ -69,6 +82,7 @@ function updateDropdownPos() {
 
 function openDropdown() {
   showDropdown.value = true
+  activeIndex.value = 0
   nextTick(updateDropdownPos)
 }
 
@@ -85,6 +99,43 @@ function onSearchBlur() {
   setTimeout(() => {
     showDropdown.value = false
   }, 150)
+}
+
+// --- Keyboard navigation for the dropdown ---
+function scrollActiveIntoView() {
+  nextTick(() => {
+    const el = dropdownEl.value?.children[activeIndex.value] as HTMLElement | undefined
+    el?.scrollIntoView({ block: 'nearest' })
+  })
+}
+
+function moveActive(delta: number) {
+  if (!showDropdown.value) {
+    openDropdown()
+    return
+  }
+  const n = filteredItems.value.length
+  if (n === 0) return
+  activeIndex.value = Math.min(Math.max(activeIndex.value + delta, 0), n - 1)
+  scrollActiveIntoView()
+}
+
+function onEnter() {
+  const item = showDropdown.value ? filteredItems.value[activeIndex.value] : undefined
+  if (item) selectItem(item)
+}
+
+function onEsc() {
+  showDropdown.value = false
+}
+
+// --- Per-machine rate stepper ---
+function stepRate(dir: number) {
+  if (!store.targetItemId) return
+  const step = machineStep.value || 1
+  const next = Math.max(0, (Number(store.targetRate) || 0) + dir * step)
+  // Round to avoid floating-point drift from repeated steps.
+  store.setTarget(store.targetItemId, Math.round(next * 1000) / 1000)
 }
 
 onMounted(() => {
@@ -118,13 +169,20 @@ function onRateChange() {
           type="text"
           placeholder="Search item…"
           autocomplete="off"
+          role="combobox"
+          aria-autocomplete="list"
+          :aria-expanded="showDropdown"
+          class="bg-[var(--panel-2)] border border-[var(--border)] text-[var(--text)] text-sm pl-3 pr-8 py-1.5 w-56 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent hover:border-[var(--muted)] transition-colors placeholder:text-[var(--muted-2)]"
           @input="onSearchInput"
           @focus="onSearchFocus"
           @blur="onSearchBlur"
-          class="bg-[#24201b] border border-[#34302a] text-[#f3f1ee] text-sm pl-3 pr-8 py-1.5 w-56 focus:outline-none focus:ring-2 focus:ring-[#ee8b22] focus:border-transparent hover:border-[#a8a29a] transition-colors placeholder:text-[#736d64]"
+          @keydown.down.prevent="moveActive(1)"
+          @keydown.up.prevent="moveActive(-1)"
+          @keydown.enter.prevent="onEnter"
+          @keydown.esc="onEsc"
         />
         <svg
-          class="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none"
+          class="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted-2)] pointer-events-none"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -142,15 +200,23 @@ function onRateChange() {
       <Teleport to="body">
         <div
           v-if="showDropdown && filteredItems.length > 0"
+          ref="dropdownEl"
           :style="dropdownStyle"
-          class="fixed z-[100] bg-[#1a1714] border border-[#34302a] shadow-xl max-h-64 overflow-y-auto"
+          class="fixed z-[100] bg-[var(--panel)] border border-[var(--border)] shadow-xl max-h-64 overflow-y-auto"
         >
           <button
-            v-for="item in filteredItems"
+            v-for="(item, index) in filteredItems"
             :key="item.id"
+            class="w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors"
+            :class="
+              index === activeIndex
+                ? 'bg-[var(--accent-soft)] text-[var(--text)]'
+                : item.id === store.targetItemId
+                  ? 'text-[var(--accent)]'
+                  : 'text-[var(--text)]'
+            "
             @mousedown.prevent="selectItem(item)"
-            class="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-[#24201b] transition-colors"
-            :class="item.id === store.targetItemId ? 'bg-[#24201b] text-[#ee8b22]' : 'text-[#f3f1ee]'"
+            @mouseenter="activeIndex = index"
           >
             <span class="flex-1 truncate">{{ item.name }}</span>
             <span
@@ -164,17 +230,37 @@ function onRateChange() {
       </Teleport>
     </div>
 
-    <!-- Rate input -->
+    <!-- Rate input with per-machine stepper (± one machine's output) -->
     <div class="flex items-center gap-1.5">
-      <input
-        v-model.number="rateInput"
-        type="number"
-        min="0"
-        step="any"
-        @change="onRateChange"
-        class="bg-[#24201b] border border-[#34302a] text-[#f3f1ee] text-sm px-3 py-1.5 w-24 focus:outline-none focus:ring-2 focus:ring-[#ee8b22] focus:border-transparent hover:border-[#a8a29a] transition-colors text-right"
-      />
-      <span class="text-[#a8a29a] text-sm font-medium">/min</span>
+      <div
+        class="chamfer-sm [--cf-fill:var(--panel-2)] flex items-center p-px gap-px overflow-hidden"
+      >
+        <button
+          type="button"
+          :title="machineStep ? `−${machineStep}/min (one machine)` : 'decrease'"
+          class="px-2 py-1.5 bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)] transition-colors text-base leading-none"
+          @click="stepRate(-1)"
+        >
+          &minus;
+        </button>
+        <input
+          v-model.number="rateInput"
+          type="number"
+          min="0"
+          :step="machineStep || 'any'"
+          class="bg-[var(--panel-2)] text-[var(--text)] text-sm px-2 py-1.5 w-20 focus:outline-none transition-colors text-right"
+          @change="onRateChange"
+        />
+        <button
+          type="button"
+          :title="machineStep ? `+${machineStep}/min (one machine)` : 'increase'"
+          class="px-2 py-1.5 bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)] transition-colors text-base leading-none"
+          @click="stepRate(1)"
+        >
+          +
+        </button>
+      </div>
+      <span class="text-[var(--muted)] text-sm font-medium">/min</span>
     </div>
   </div>
 </template>

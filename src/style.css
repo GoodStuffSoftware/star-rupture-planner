@@ -10,11 +10,47 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+
+  /* ── Star Rupture palette (default) ─────────────────────────────────────── */
+  --bg:                #0d0c0b;
+  --panel:             #1a1714;
+  --panel-2:           #24201b;
+  --border:            #34302a;
+  --accent:            #ee8b22;
+  --accent-hover:      #f7a23f;
+  --accent-on:         #000;
+  --accent-soft:       rgba(238, 139, 34, 0.18);
+  --accent-soft-border:rgba(238, 139, 34, 0.35);
+  --accent-2:          #22d3ee;
+  --text:              #f3f1ee;
+  --text-strong:       #f6f4f1;
+  --text-2:            #d8d3cc;
+  --muted:             #a8a29a;
+  --muted-2:           #736d64;
+}
+
+/* ── Space Age palette override ──────────────────────────────────────────────── */
+:root[data-theme="spaceage"] {
+  --bg:                #0f172a;
+  --panel:             #1e293b;
+  --panel-2:           #334155;
+  --border:            #475569;
+  --accent:            #22d3ee;
+  --accent-hover:      #67e8f9;
+  --accent-on:         #07252b;
+  --accent-soft:       rgba(34, 211, 238, 0.16);
+  --accent-soft-border:rgba(34, 211, 238, 0.35);
+  --accent-2:          #34d399;
+  --text:              #f1f5f9;
+  --text-strong:       #fff;
+  --text-2:            #cbd5e1;
+  --muted:             #94a3b8;
+  --muted-2:           #64748b;
 }
 
 body {
   margin: 0;
-  background: #0d0c0b;
+  background: var(--bg);
 }
 
 #app {
@@ -43,4 +79,48 @@ body {
     0 100%,
     0 6px
   );
+}
+
+/* Chamfered box WITH a proper border. clip-path can't keep a real border, so the
+   element's own background is the border colour and a 1px-inset ::after carries the
+   fill — both chamfered, so the border follows the chamfer on every corner.
+   Override --cf-fill (inner bg), --cf-border (border colour) or --cf-w (width). */
+.chamfer {
+  position: relative;
+  isolation: isolate;
+  background: var(--cf-border, var(--border));
+  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+}
+.chamfer::after {
+  content: "";
+  position: absolute;
+  inset: var(--cf-w, 1px);
+  background: var(--cf-fill, var(--panel));
+  clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px);
+  z-index: -1;
+}
+.chamfer-sm {
+  position: relative;
+  isolation: isolate;
+  background: var(--cf-border, var(--border));
+  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+}
+.chamfer-sm::after {
+  content: "";
+  position: absolute;
+  inset: var(--cf-w, 1px);
+  background: var(--cf-fill, var(--panel));
+  clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px);
+  z-index: -1;
+}
+
+/* Tree row underline that starts at the item icon (skips the 1.5rem caret+gap),
+   drawn as a bottom gradient line so it can be offset (a real border can't). */
+.row-underline {
+  background-image: linear-gradient(var(--border), var(--border));
+  background-repeat: no-repeat;
+  /* 2rem = left padding (0.5) + caret (1) + gap (0.5) → starts at the item icon /
+     text, never under the expander caret. */
+  background-position: 2rem 100%;
+  background-size: calc(100% - 2rem) 1px;
 }

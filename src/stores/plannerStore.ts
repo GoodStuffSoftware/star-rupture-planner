@@ -1,6 +1,13 @@
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { defineStore } from 'pinia'
-import type { Building, Item, UpgradeChain, CraftNode, Totals, VersionOverrides } from '../types/game'
+import type {
+  Building,
+  Item,
+  UpgradeChain,
+  CraftNode,
+  Totals,
+  VersionOverrides,
+} from '../types/game'
 import { loadGameData } from '../data/loader'
 import {
   getAvailableBuildings,
@@ -11,6 +18,18 @@ import {
 } from '../lib/recipeIndex'
 import { resolveTree, aggregateTotals } from '../lib/resolver'
 import { DEFAULT_VERSION } from '../data/versions'
+import { save, loadSaved, encodePlan, decodePlanFromUrl, type PlanState } from '../lib/persistState'
+import {
+  buildUsedInIndex,
+  buildExportsByItem,
+  buildBuildingUnlock,
+  buildBuildingCosts,
+  type CorporationsData,
+  type UsedInEntry,
+  type ExportEntry,
+  type UnlockEntry,
+  type BuildingCostEntry,
+} from '../lib/derived'
 
 export const usePlannerStore = defineStore('planner', () => {
   // State
@@ -28,10 +47,22 @@ export const usePlannerStore = defineStore('planner', () => {
   const overrides = ref<VersionOverrides>({})
   const showExtractors = ref<boolean>(false)
   const showIcons = ref<boolean>(true)
+  const showRowDividers = ref<boolean>(false)
   const optionsCollapsed = ref<boolean>(false)
 
-  // v3 state
-  const expandLevel = ref<number>(Infinity)
+  // v3 state — default 2 (persisted view pref)
+  const expandLevel = ref<number>(2)
+
+  // v5 state — theme
+  const theme = ref<'starrupture' | 'spaceage'>('starrupture')
+
+  // v6 state — corporations data (loaded, not persisted)
+  const corporations = ref<CorporationsData>({})
+  const _buildingCostsRaw = ref<Record<string, BuildingCostEntry[]>>({})
+
+  // v6 transient UI state — NOT persisted
+  const detail = ref<{ kind: 'item' | 'building'; id: string } | null>(null)
+  const hover = ref<{ kind: 'item' | 'building'; id: string; rect: DOMRect } | null>(null)
 
   // Derived
   const itemsById = computed<Map<string, Item>>(() => new Map(items.value.map((i) => [i.id, i])))
@@ -49,9 +80,7 @@ export const usePlannerStore = defineStore('planner', () => {
   )
 
   // v2/upgraded building ids — used to prefer v2 recipes when both tiers are available.
-  const upgradedIds = computed<Set<string>>(
-    () => new Set(chains.value.map((c) => c.upgradedId)),
-  )
+  const upgradedIds = computed<Set<string>>(() => new Set(chains.value.map((c) => c.upgradedId)))
 
   const producerIndex = computed<Map<string, ProducerEntry[]>>(() =>
     buildProducerIndex(availableBuildings.value, upgradedIds.value),
@@ -60,6 +89,21 @@ export const usePlannerStore = defineStore('planner', () => {
   // Full producer index over ALL buildings (used for overrides + candidates)
   const fullProducerIndex = computed<Map<string, ProducerEntry[]>>(() =>
     buildProducerIndex(buildings.value, upgradedIds.value),
+  )
+
+  // v6 derived lookups
+  const usedInIndex = computed<Map<string, UsedInEntry[]>>(() => buildUsedInIndex(buildings.value))
+
+  const exportsByItem = computed<Map<string, ExportEntry[]>>(() =>
+    buildExportsByItem(corporations.value),
+  )
+
+  const buildingUnlock = computed<Map<string, UnlockEntry>>(() =>
+    buildBuildingUnlock(buildings.value, corporations.value),
+  )
+
+  const buildingCosts = computed<Map<string, BuildingCostEntry[]>>(() =>
+    buildBuildingCosts(_buildingCostsRaw.value),
   )
 
   const tree = computed<CraftNode | null>(() => {
@@ -88,7 +132,13 @@ export const usePlannerStore = defineStore('planner', () => {
   })
 
   // Actions
-  async function load(v: string) {
+
+  /**
+   * Load game data for version v, optionally restoring a validated PlanState.
+   * If plan is provided and plan.version === v, apply a validated plan instead of defaults.
+   * Called by init() (with possible plan) and setVersion() (hard reset, no plan).
+   */
+  async function load(v: string, plan?: PlanState | null) {
     loading.value = true
     error.value = null
     try {
@@ -96,25 +146,71 @@ export const usePlannerStore = defineStore('planner', () => {
       buildings.value = data.buildings
       items.value = data.items
       chains.value = data.chains
+      corporations.value = data.corporations
+      _buildingCostsRaw.value = data.buildingCostsRaw
+      version.value = v
 
-      // Reset tier to all v1 for production chains
-      const newTier: TierSelection = {}
+      // Build default all-v1 tier for production chains
+      const defaultTier: TierSelection = {}
       for (const chain of data.chains) {
         if (chain.isProduction) {
-          newTier[chain.baseId] = 'v1'
+          defaultTier[chain.baseId] = 'v1'
         }
       }
-      tier.value = newTier
 
-      // Reset overrides on version change (item ids differ across versions)
-      overrides.value = {}
+      if (plan && plan.version === v) {
+        // ── Apply validated plan ──────────────────────────────────────────────
 
-      // Default targetItemId to first component, or first item;
-      // default the rate to that item's single-building output.
-      const firstComponent = data.items.find((i) => i.type === 'component')
-      const newTarget = firstComponent?.id ?? data.items[0]?.id ?? null
-      targetItemId.value = newTarget
-      targetRate.value = newTarget ? defaultRateForItem(newTarget) : 60
+        // tier: only accept production baseIds with 'v1'|'v2' values
+        const restoredTier: TierSelection = { ...defaultTier }
+        for (const [baseId, val] of Object.entries(plan.tier)) {
+          if ((val === 'v1' || val === 'v2') && baseId in defaultTier) {
+            restoredTier[baseId] = val
+          }
+        }
+        tier.value = restoredTier
+
+        // Build the full producer index NOW (buildings are freshly set above) so
+        // we can validate overrides against actual building/item pairs.
+        const allUpgradedIds = new Set(data.chains.map((c) => c.upgradedId))
+        const freshFullIndex = buildProducerIndex(data.buildings, allUpgradedIds)
+        const freshItemsById = new Map(data.items.map((i) => [i.id, i]))
+
+        // overrides: keep only entries where item exists AND building actually produces it
+        const restoredOverrides: VersionOverrides = {}
+        for (const [itemId, buildingId] of Object.entries(plan.overrides)) {
+          if (!freshItemsById.has(itemId)) continue
+          const producers = freshFullIndex.get(itemId)
+          if (producers?.some((e) => e.building.id === buildingId)) {
+            restoredOverrides[itemId] = buildingId
+          }
+        }
+        overrides.value = restoredOverrides
+
+        // targetItemId: use if item exists, else fall back to default
+        const validTarget =
+          plan.targetItemId && freshItemsById.has(plan.targetItemId)
+            ? plan.targetItemId
+            : (data.items.find((i) => i.type === 'component')?.id ?? data.items[0]?.id ?? null)
+        targetItemId.value = validTarget
+
+        // targetRate: use if positive finite number, else compute default
+        targetRate.value =
+          typeof plan.targetRate === 'number' && isFinite(plan.targetRate) && plan.targetRate > 0
+            ? plan.targetRate
+            : validTarget
+              ? defaultRateForItem(validTarget)
+              : 60
+      } else {
+        // ── Default reset ─────────────────────────────────────────────────────
+        tier.value = defaultTier
+        overrides.value = {}
+
+        const firstComponent = data.items.find((i) => i.type === 'component')
+        const newTarget = firstComponent?.id ?? data.items[0]?.id ?? null
+        targetItemId.value = newTarget
+        targetRate.value = newTarget ? defaultRateForItem(newTarget) : 60
+      }
     } catch (e) {
       error.value = e instanceof Error ? e.message : String(e)
     } finally {
@@ -122,12 +218,38 @@ export const usePlannerStore = defineStore('planner', () => {
     }
   }
 
+  /**
+   * init() replaces the old on-mount store.load(version) call.
+   * Priority: URL plan > saved plan > default.
+   */
+  async function init() {
+    const urlPlan = decodePlanFromUrl()
+    const saved = loadSaved()
+
+    // Apply saved view prefs first (before load sets defaults)
+    if (saved?.prefs) {
+      showExtractors.value = saved.prefs.showExtractors
+      showIcons.value = saved.prefs.showIcons
+      showRowDividers.value = saved.prefs.showRowDividers
+      expandLevel.value = saved.prefs.expandLevel
+      optionsCollapsed.value = saved.prefs.optionsCollapsed
+      if (saved.prefs.theme) {
+        theme.value = saved.prefs.theme
+      }
+    }
+    // Apply theme to DOM
+    document.documentElement.dataset.theme = theme.value === 'spaceage' ? 'spaceage' : ''
+
+    const plan = urlPlan ?? saved?.plan ?? null
+    await load(plan?.version ?? DEFAULT_VERSION, plan)
+  }
+
   function setTier(baseId: string, value: 'v1' | 'v2') {
     tier.value = { ...tier.value, [baseId]: value }
   }
 
   function setVersion(v: string) {
-    version.value = v
+    // Hard reset — no plan; load() will set version.value inside
     load(v)
   }
 
@@ -182,6 +304,10 @@ export const usePlannerStore = defineStore('planner', () => {
     showIcons.value = value
   }
 
+  function setShowRowDividers(value: boolean) {
+    showRowDividers.value = value
+  }
+
   function toggleOptions() {
     optionsCollapsed.value = !optionsCollapsed.value
   }
@@ -189,6 +315,92 @@ export const usePlannerStore = defineStore('planner', () => {
   function setExpandLevel(n: number) {
     expandLevel.value = n
   }
+
+  function setTheme(t: 'starrupture' | 'spaceage') {
+    theme.value = t
+    document.documentElement.dataset.theme = t === 'spaceage' ? 'spaceage' : ''
+  }
+
+  // v6 detail drawer actions
+  function openItemDetail(id: string) {
+    detail.value = { kind: 'item', id }
+  }
+
+  function openBuildingDetail(id: string) {
+    detail.value = { kind: 'building', id }
+  }
+
+  function closeDetail() {
+    detail.value = null
+  }
+
+  // v6 hover card actions (350ms open delay handled via a timer)
+  let _hoverTimer: ReturnType<typeof setTimeout> | null = null
+
+  function setHover(kind: 'item' | 'building', id: string, rect: DOMRect) {
+    if (_hoverTimer !== null) clearTimeout(_hoverTimer)
+    _hoverTimer = setTimeout(() => {
+      _hoverTimer = null
+      hover.value = { kind, id, rect }
+    }, 350)
+  }
+
+  function clearHover() {
+    if (_hoverTimer !== null) {
+      clearTimeout(_hoverTimer)
+      _hoverTimer = null
+    }
+    hover.value = null
+  }
+
+  /** Build a shareable URL encoding the current plan state. */
+  function buildShareUrl(): string {
+    return encodePlan({
+      version: version.value,
+      targetItemId: targetItemId.value,
+      targetRate: targetRate.value,
+      tier: tier.value,
+      overrides: overrides.value,
+    })
+  }
+
+  // ── Debounced persistence watch ────────────────────────────────────────────
+  // Watch plan + prefs; save to localStorage ~300ms after the last change.
+  let _saveTimer: ReturnType<typeof setTimeout> | null = null
+
+  function _scheduleSave() {
+    if (_saveTimer !== null) clearTimeout(_saveTimer)
+    _saveTimer = setTimeout(() => {
+      _saveTimer = null
+      save(
+        {
+          version: version.value,
+          targetItemId: targetItemId.value,
+          targetRate: targetRate.value,
+          tier: tier.value,
+          overrides: overrides.value,
+        },
+        {
+          showExtractors: showExtractors.value,
+          showIcons: showIcons.value,
+          showRowDividers: showRowDividers.value,
+          expandLevel: expandLevel.value,
+          optionsCollapsed: optionsCollapsed.value,
+          theme: theme.value,
+        },
+      )
+    }, 300)
+  }
+
+  // Watch plan fields
+  watch([version, targetItemId, targetRate], _scheduleSave)
+  watch(tier, _scheduleSave, { deep: true })
+  watch(overrides, _scheduleSave, { deep: true })
+  // Watch view prefs
+  watch(
+    [showExtractors, showIcons, showRowDividers, expandLevel, optionsCollapsed, theme],
+    _scheduleSave,
+  )
 
   return {
     // State
@@ -204,6 +416,7 @@ export const usePlannerStore = defineStore('planner', () => {
     overrides,
     showExtractors,
     showIcons,
+    showRowDividers,
     optionsCollapsed,
     // Computed
     itemsById,
@@ -217,7 +430,19 @@ export const usePlannerStore = defineStore('planner', () => {
     treeMaxDepth,
     // v3 state
     expandLevel,
+    // v5 state
+    theme,
+    // v6 state
+    corporations,
+    detail,
+    hover,
+    // v6 computed
+    usedInIndex,
+    exportsByItem,
+    buildingUnlock,
+    buildingCosts,
     // Actions
+    init,
     load,
     setTier,
     setVersion,
@@ -228,7 +453,16 @@ export const usePlannerStore = defineStore('planner', () => {
     clearOverrides,
     setShowExtractors,
     setShowIcons,
+    setShowRowDividers,
     toggleOptions,
     setExpandLevel,
+    setTheme,
+    buildShareUrl,
+    // v6 actions
+    openItemDetail,
+    openBuildingDetail,
+    closeDetail,
+    setHover,
+    clearHover,
   }
 })

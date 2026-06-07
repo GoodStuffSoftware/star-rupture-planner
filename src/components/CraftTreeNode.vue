@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 // Recursive crafting-tree node: item + producer + per-node version picker.
 import { ref, watch } from 'vue'
 import type { CraftNode } from '../types/game'
@@ -64,20 +64,44 @@ function isExtractorNode(node: CraftNode): boolean {
 function showExtractorMachine(node: CraftNode): boolean {
   return isExtractorNode(node) && store.showExtractors
 }
+
+// ─── v6: hover handlers ────────────────────────────────────────────────────
+function onItemMouseEnter(e: MouseEvent) {
+  store.setHover(
+    'item',
+    props.node.itemId,
+    (e.currentTarget as HTMLElement).getBoundingClientRect(),
+  )
+}
+function onItemMouseLeave() {
+  store.clearHover()
+}
+
+function onBuildingMouseEnter(e: MouseEvent) {
+  if (!props.node.building) return
+  store.setHover(
+    'building',
+    props.node.building.id,
+    (e.currentTarget as HTMLElement).getBoundingClientRect(),
+  )
+}
+function onBuildingMouseLeave() {
+  store.clearHover()
+}
 </script>
 
 <template>
   <div :class="depth > 0 ? `pl-4 border-l-2 ${getBorderColor(depth - 1)}` : ''">
     <!-- Node row -->
     <div
-      class="flex items-center gap-2 py-1 px-2 rounded hover:bg-[#24201b] transition-colors group"
-      :class="depth === 0 ? 'py-1.5' : ''"
+      class="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-[var(--panel-2)] transition-colors group"
+      :class="[depth === 0 ? 'py-2' : '', store.showRowDividers ? 'row-underline' : '']"
     >
       <!-- Caret / expand button -->
       <button
         v-if="node.children.length > 0"
+        class="w-4 h-4 shrink-0 flex items-center justify-center text-[var(--muted-2)] hover:text-[var(--accent)] transition-colors"
         @click="expanded = !expanded"
-        class="w-4 h-4 shrink-0 flex items-center justify-center text-[#736d64] hover:text-[#ee8b22] transition-colors"
       >
         <svg
           :class="expanded ? 'rotate-90' : ''"
@@ -95,18 +119,20 @@ function showExtractorMachine(node: CraftNode): boolean {
       <!-- Spacer for leaf nodes -->
       <div v-else class="w-4 shrink-0" />
 
-      <!-- Item icon + name -->
-      <GameIcon
-        kind="item"
-        :id="node.itemId"
-        :name="node.itemName"
-        :size="24"
-      />
+      <!-- Item icon + name (clickable → openItemDetail, hoverable) -->
       <span
-        class="font-semibold text-base"
-        :class="depth === 0 ? 'text-[#f6f4f1]' : 'text-[#d8d3cc]'"
+        class="flex items-center gap-1 cursor-pointer hover:text-[var(--accent)] transition-colors"
+        @click="store.openItemDetail(node.itemId)"
+        @mouseenter="onItemMouseEnter"
+        @mouseleave="onItemMouseLeave"
       >
-        {{ node.itemName }}
+        <GameIcon :id="node.itemId" kind="item" :name="node.itemName" :size="30" />
+        <span
+          class="font-semibold text-base"
+          :class="depth === 0 ? 'text-[var(--text-strong)]' : 'text-[var(--text-2)]'"
+        >
+          {{ node.itemName }}
+        </span>
       </span>
 
       <!-- Item type chip -->
@@ -129,38 +155,48 @@ function showExtractorMachine(node: CraftNode): boolean {
       <template v-else-if="node.isRaw">
         <!-- Extractor with machine shown (showExtractors ON) -->
         <template v-if="showExtractorMachine(node)">
-          <span class="text-xs px-1.5 py-0.5 rounded bg-amber-900/60 text-amber-300 font-medium shrink-0">
+          <span
+            v-if="node.itemType !== 'raw'"
+            class="text-xs px-1.5 py-0.5 rounded bg-amber-900/60 text-amber-300 font-medium shrink-0"
+          >
             raw
           </span>
-          <span class="text-xs text-slate-400 shrink-0 flex items-center gap-1">
+          <!-- Machine icon+name: clickable + hoverable -->
+          <span
+            class="text-xs text-slate-400 shrink-0 flex items-center gap-1 cursor-pointer hover:text-[var(--accent)] transition-colors"
+            @click="store.openBuildingDetail(node.building!.id)"
+            @mouseenter="onBuildingMouseEnter"
+            @mouseleave="onBuildingMouseLeave"
+          >
             <GameIcon
-              kind="building"
               :id="node.building!.id"
+              kind="building"
               :name="node.building!.name"
-              :size="20"
+              :size="38"
             />
             <span class="text-slate-300">{{ fmtBuildings(node.buildingsNeeded ?? 0) }}&times;</span>
             {{ node.building!.name }}
-            <span v-if="node.isOverridden" class="text-amber-400 ml-0.5" title="Overridden">&bull;</span>
+            <span v-if="node.isOverridden" class="text-amber-400 ml-0.5" title="Overridden"
+              >&bull;</span
+            >
           </span>
-          <!-- Extractor version picker -->
+          <!-- Extractor version picker — stop propagation so click doesn't open drawer -->
           <div
             v-if="node.candidates && node.candidates.length > 1"
-            class="flex shrink-0 clip-chamfer-sm border border-[#34302a] overflow-hidden text-xs"
+            class="chamfer-sm [--cf-fill:var(--panel-2)] flex shrink-0 p-px gap-px overflow-hidden text-xs"
           >
             <button
               v-for="cand in node.candidates"
               :key="cand.buildingId"
-              @click="store.setOverride(node.itemId, cand.buildingId)"
               :class="
                 node.building?.id === cand.buildingId
-                  ? 'bg-[#ee8b22] text-black'
-                  : 'bg-[#24201b] text-[#a8a29a] hover:bg-[#34302a] hover:text-[#f3f1ee]'
+                  ? 'bg-[var(--accent)] text-[var(--accent-on)]'
+                  : 'bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)]'
               "
-              class="px-1.5 py-0.5 transition-colors border-r border-[#34302a] last:border-r-0 flex items-center gap-1"
+              class="px-1.5 py-0.5 transition-colors flex items-center gap-1"
               :title="cand.buildingName"
+              @click.stop="store.setOverride(node.itemId, cand.buildingId)"
             >
-              <GameIcon kind="building" :id="cand.buildingId" :name="cand.buildingName" :size="16" />
               {{ versionTag(cand.buildingId) }}
             </button>
           </div>
@@ -168,44 +204,48 @@ function showExtractorMachine(node: CraftNode): boolean {
 
         <!-- Plain raw leaf (showExtractors OFF or no building) -->
         <template v-else>
-          <span class="text-xs px-1.5 py-0.5 rounded bg-amber-900/60 text-amber-300 font-medium shrink-0">
+          <span
+            v-if="node.itemType !== 'raw'"
+            class="text-xs px-1.5 py-0.5 rounded bg-amber-900/60 text-amber-300 font-medium shrink-0"
+          >
             raw
           </span>
         </template>
       </template>
 
-      <!-- Producer info (non-raw nodes) -->
+      <!-- Producer info (non-raw nodes): machine icon+name clickable + hoverable -->
       <template v-else-if="node.building && node.buildingsNeeded !== undefined">
-        <span class="text-xs text-slate-400 shrink-0 flex items-center gap-1">
-          <GameIcon
-            kind="building"
-            :id="node.building.id"
-            :name="node.building.name"
-            :size="20"
-          />
+        <span
+          class="text-xs text-slate-400 shrink-0 flex items-center gap-1 cursor-pointer hover:text-[var(--accent)] transition-colors"
+          @click="store.openBuildingDetail(node.building.id)"
+          @mouseenter="onBuildingMouseEnter"
+          @mouseleave="onBuildingMouseLeave"
+        >
+          <GameIcon :id="node.building.id" kind="building" :name="node.building.name" :size="38" />
           <span class="text-slate-300">{{ fmtBuildings(node.buildingsNeeded) }}&times;</span>
           {{ node.building.name }}
-          <span v-if="node.isOverridden" class="text-amber-400 ml-0.5" title="Overridden">&bull;</span>
+          <span v-if="node.isOverridden" class="text-amber-400 ml-0.5" title="Overridden"
+            >&bull;</span
+          >
         </span>
 
-        <!-- Version picker (when >1 candidate) -->
+        <!-- Version picker (when >1 candidate) — stop propagation so click doesn't open drawer -->
         <div
           v-if="node.candidates && node.candidates.length > 1"
-          class="flex shrink-0 clip-chamfer-sm border border-[#34302a] overflow-hidden text-xs"
+          class="chamfer-sm [--cf-fill:var(--panel-2)] flex shrink-0 p-px gap-px overflow-hidden text-xs"
         >
           <button
             v-for="cand in node.candidates"
             :key="cand.buildingId"
-            @click="store.setOverride(node.itemId, cand.buildingId)"
             :class="
               node.building?.id === cand.buildingId
-                ? 'bg-[#ee8b22] text-black'
-                : 'bg-[#24201b] text-[#a8a29a] hover:bg-[#34302a] hover:text-[#f3f1ee]'
+                ? 'bg-[var(--accent)] text-[var(--accent-on)]'
+                : 'bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)]'
             "
-            class="px-1.5 py-0.5 transition-colors border-r border-[#34302a] last:border-r-0 flex items-center gap-1"
+            class="px-1.5 py-0.5 transition-colors flex items-center gap-1"
             :title="cand.buildingName"
+            @click.stop="store.setOverride(node.itemId, cand.buildingId)"
           >
-            <GameIcon kind="building" :id="cand.buildingId" :name="cand.buildingName" :size="16" />
             {{ versionTag(cand.buildingId) }}
           </button>
         </div>

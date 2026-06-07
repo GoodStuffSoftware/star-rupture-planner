@@ -14,17 +14,9 @@ const store = usePlannerStore()
       v-if="store.loading"
       class="flex-1 flex items-center justify-center text-slate-400 text-sm"
     >
-      <svg
-        class="animate-spin w-5 h-5 mr-2 text-cyan-400"
-        fill="none"
-        viewBox="0 0 24 24"
-      >
+      <svg class="animate-spin w-5 h-5 mr-2 text-[var(--accent)]" fill="none" viewBox="0 0 24 24">
         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-        <path
-          class="opacity-75"
-          fill="currentColor"
-          d="M4 12a8 8 0 018-8v8H4z"
-        />
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
       </svg>
       Loading game data&hellip;
     </div>
@@ -44,7 +36,9 @@ const store = usePlannerStore()
       </svg>
       <div>
         <p class="text-red-400 font-semibold">Failed to load data</p>
-        <p class="text-slate-400 text-sm mt-1">{{ store.error }}</p>
+        <p class="text-slate-400 text-sm mt-1">
+          {{ store.error }}
+        </p>
       </div>
     </div>
 
@@ -63,7 +57,9 @@ const store = usePlannerStore()
       </svg>
       <div>
         <p class="text-slate-400 font-medium">Select a target item</p>
-        <p class="text-slate-600 text-sm mt-1">Use the search above to pick an item and set a rate</p>
+        <p class="text-slate-600 text-sm mt-1">
+          Use the search above to pick an item and set a rate
+        </p>
       </div>
     </div>
 
@@ -71,7 +67,7 @@ const store = usePlannerStore()
     <template v-else>
       <!-- Header -->
       <div class="flex items-baseline gap-2 mb-2 px-2">
-        <span class="text-3xl font-bold text-[#ee8b22]">{{ fmt(store.targetRate) }}/min</span>
+        <span class="text-3xl font-bold text-[var(--accent)]">{{ fmt(store.targetRate) }}/min</span>
         <span class="text-2xl text-slate-200 font-semibold">
           {{ store.itemsById.get(store.targetItemId)?.name ?? store.targetItemId }}
         </span>
