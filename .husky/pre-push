@@ -1,0 +1,2 @@
+# Full build gate — typecheck + vite build must pass before push
+npm run build

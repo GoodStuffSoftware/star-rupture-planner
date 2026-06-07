@@ -1,0 +1,5 @@
+# Run lint-staged (eslint --fix + prettier --write on staged .ts/.vue files)
+npx lint-staged
+
+# Typecheck — reject commit if there are TypeScript / vue-tsc errors
+npm run typecheck
