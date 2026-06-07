@@ -11,6 +11,10 @@ node_modules
 dist
 dist-ssr
 *.local
+.env
+# Cloudflare Pages Functions local secrets (wrangler) — must never be committed
+.dev.vars
+.dev.vars.*
 
 # Local tooling (Claude Code preview config, etc.)
 .claude/

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import SupportButton from './SupportButton.vue'
+
 const year = 2026
 </script>
 
@@ -7,8 +9,8 @@ const year = 2026
     <div
       class="max-w-screen-xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3"
     >
-      <!-- Brand -->
-      <div class="flex items-center gap-1.5 shrink-0">
+      <!-- Brand + support button -->
+      <div class="flex items-center gap-1.5 shrink-0 flex-wrap">
         <span class="font-semibold text-[var(--muted)]">Good Stuff Software</span>
         <span class="opacity-50">·</span>
         <a
@@ -20,6 +22,8 @@ const year = 2026
         >
         <span class="opacity-50">·</span>
         <span>© {{ year }}</span>
+        <span class="opacity-50">·</span>
+        <SupportButton />
       </div>
 
       <!-- Credits / disclaimer -->

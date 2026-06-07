@@ -21,6 +21,7 @@
     ]
   },
   "dependencies": {
+    "@stripe/stripe-js": "^9.7.0",
     "@tailwindcss/postcss": "^4.3.0",
     "autoprefixer": "^10.5.0",
     "pinia": "^3.0.4",
