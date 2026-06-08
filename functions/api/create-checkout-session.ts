@@ -77,7 +77,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
   // ── 4. Build form-encoded body for Stripe REST API ───────────────────────
   const params = new URLSearchParams()
-  params.set('ui_mode', 'embedded')
+  params.set('ui_mode', 'embedded_page')
   params.set('mode', 'payment')
   params.set('line_items[0][price_data][currency]', 'usd')
   params.set('line_items[0][price_data][product_data][name]', 'Star Rupture Planner — coffee')
