@@ -83,7 +83,6 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   params.set('line_items[0][price_data][product_data][name]', 'Star Rupture Planner — coffee')
   params.set('line_items[0][price_data][unit_amount]', String(cents))
   params.set('line_items[0][quantity]', '1')
-  params.set('submit_type', 'donate')
   params.set('return_url', returnUrl)
 
   // ── 5. Call Stripe ────────────────────────────────────────────────────────
@@ -109,7 +108,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     const errBody = (await stripeRes.json()) as StripeError
     // Log the detail server-side only — never leak the key or raw Stripe error to the client
     console.error('[create-checkout-session] Stripe error:', errBody?.error?.message)
-    return new Response(JSON.stringify({ error: 'stripe_error', detail: errBody?.error?.type ?? 'unknown' }), {
+    return new Response(JSON.stringify({ error: 'stripe_error', detail: errBody?.error?.message ?? errBody?.error?.type ?? 'unknown' }), {
       status: stripeRes.status,
       headers: { 'Content-Type': 'application/json' },
     })

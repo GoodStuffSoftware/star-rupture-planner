@@ -15,6 +15,9 @@ dist-ssr
 # Cloudflare Pages Functions local secrets (wrangler) — must never be committed
 .dev.vars
 .dev.vars.*
+# Stray credential dumps — never commit a token/secret file
+*token*.txt
+*.secret
 
 # Local tooling (Claude Code preview config, etc.)
 .claude/
