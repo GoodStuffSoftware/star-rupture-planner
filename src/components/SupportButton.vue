@@ -152,14 +152,16 @@ function handleCustom() {
       <!-- Panel -->
       <div class="fixed inset-0 z-[210] flex items-center justify-center p-4 pointer-events-none">
         <div
-          class="chamfer [--cf-fill:var(--panel)] w-full max-w-md pointer-events-auto"
+          class="chamfer [--cf-fill:var(--panel)] w-full max-w-md max-h-[90vh] flex flex-col pointer-events-auto"
           role="dialog"
           aria-modal="true"
           aria-label="Buy us a coffee"
           @click.stop
         >
           <!-- Header -->
-          <div class="flex items-center justify-between px-5 py-3 border-b border-[var(--border)]">
+          <div
+            class="flex items-center justify-between px-5 py-3 border-b border-[var(--border)] shrink-0"
+          >
             <div>
               <div class="flex items-center gap-2">
                 <h2 class="text-base font-bold text-[var(--text-strong)]">Buy us a coffee</h2>
@@ -205,7 +207,7 @@ function handleCustom() {
           </div>
 
           <!-- Body -->
-          <div class="px-5 py-4">
+          <div class="px-5 py-4 flex-1 min-h-0 overflow-y-auto">
             <!-- ── MENU view ──────────────────────────────────────────────── -->
             <template v-if="view === 'menu'">
               <p class="text-sm text-[var(--muted)] mb-4">
