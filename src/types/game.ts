@@ -62,6 +62,8 @@ export interface CraftNode {
 
 export interface Totals {
   rawMaterials: { itemId: string; itemName: string; ratePerMin: number }[]
+  // Produced items between the raw materials and the final product (target), summed across the tree.
+  intermediates: { itemId: string; itemName: string; itemType: ItemType; ratePerMin: number }[]
   buildings: { buildingId: string; buildingName: string; count: number; ceilCount: number }[]
   totalPower: number // sum buildingsNeeded * (building.power ?? 0)
   totalHeat: number // sum buildingsNeeded * (building.heat ?? 0)

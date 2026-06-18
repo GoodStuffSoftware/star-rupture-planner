@@ -71,11 +71,7 @@ function _resolve(
   return node
 }
 
-export function resolveTree(
-  itemId: string,
-  ratePerMin: number,
-  ctx: ResolverContext,
-): CraftNode {
+export function resolveTree(itemId: string, ratePerMin: number, ctx: ResolverContext): CraftNode {
   return _resolve(itemId, ratePerMin, ctx, new Set(), 0)
 }
 
@@ -83,19 +79,38 @@ export interface TotalsOptions {
   showExtractors: boolean
 }
 
-export function aggregateTotals(root: CraftNode, opts: TotalsOptions = { showExtractors: false }): Totals {
+export function aggregateTotals(
+  root: CraftNode,
+  opts: TotalsOptions = { showExtractors: false },
+): Totals {
   const rawMap = new Map<string, { itemName: string; ratePerMin: number }>()
+  const intermediateMap = new Map<
+    string,
+    { itemName: string; itemType: CraftNode['itemType']; ratePerMin: number }
+  >()
   const buildingMap = new Map<string, { buildingName: string; count: number }>()
   let totalPower = 0
   let totalHeat = 0
 
-  function walk(node: CraftNode) {
+  function walk(node: CraftNode, isRoot: boolean) {
     if (node.isRaw) {
       const existing = rawMap.get(node.itemId)
       if (existing) {
         existing.ratePerMin += node.ratePerMin
       } else {
         rawMap.set(node.itemId, { itemName: node.itemName, ratePerMin: node.ratePerMin })
+      }
+    } else if (!isRoot) {
+      // Produced item that isn't the final target — an intermediate product.
+      const existing = intermediateMap.get(node.itemId)
+      if (existing) {
+        existing.ratePerMin += node.ratePerMin
+      } else {
+        intermediateMap.set(node.itemId, {
+          itemName: node.itemName,
+          itemType: node.itemType,
+          ratePerMin: node.ratePerMin,
+        })
       }
     }
 
@@ -121,14 +136,23 @@ export function aggregateTotals(root: CraftNode, opts: TotalsOptions = { showExt
     }
 
     for (const child of node.children) {
-      walk(child)
+      walk(child, false)
     }
   }
 
-  walk(root)
+  walk(root, true)
 
   const rawMaterials = [...rawMap.entries()]
     .map(([itemId, v]) => ({ itemId, itemName: v.itemName, ratePerMin: v.ratePerMin }))
+    .sort((a, b) => b.ratePerMin - a.ratePerMin)
+
+  const intermediates = [...intermediateMap.entries()]
+    .map(([itemId, v]) => ({
+      itemId,
+      itemName: v.itemName,
+      itemType: v.itemType,
+      ratePerMin: v.ratePerMin,
+    }))
     .sort((a, b) => b.ratePerMin - a.ratePerMin)
 
   const buildings = [...buildingMap.entries()]
@@ -140,5 +164,5 @@ export function aggregateTotals(root: CraftNode, opts: TotalsOptions = { showExt
     }))
     .sort((a, b) => b.count - a.count)
 
-  return { rawMaterials, buildings, totalPower, totalHeat }
+  return { rawMaterials, intermediates, buildings, totalPower, totalHeat }
 }

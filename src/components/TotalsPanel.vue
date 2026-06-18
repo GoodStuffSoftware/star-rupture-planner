@@ -86,6 +86,34 @@ const constructionMaterials = computed(() => {
       <!-- Divider -->
       <div class="border-t border-[var(--border)]" />
 
+      <!-- Intermediate products — everything produced between raw materials and the final target -->
+      <div v-if="store.totals.intermediates.length > 0">
+        <h4 class="text-xs font-medium text-[var(--muted)] uppercase tracking-wider mb-2">
+          Intermediate products / min
+        </h4>
+        <div class="space-y-1">
+          <div
+            v-for="item in store.totals.intermediates"
+            :key="item.itemId"
+            class="flex justify-between items-center text-base cursor-pointer hover:bg-[var(--panel-2)] rounded px-1 -mx-1 transition-colors"
+            @click="store.openItemDetail(item.itemId)"
+            @mouseenter="(e) => onItemEnter(e, item.itemId)"
+            @mouseleave="onLeave"
+          >
+            <span class="flex items-center gap-1.5 text-[var(--text)] truncate">
+              <GameIcon :id="item.itemId" kind="item" :name="item.itemName" :size="22" />
+              {{ item.itemName }}
+            </span>
+            <span class="text-[var(--accent)] font-mono ml-2 shrink-0">{{
+              fmt(item.ratePerMin)
+            }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Divider -->
+      <div v-if="store.totals.intermediates.length > 0" class="border-t border-[var(--border)]" />
+
       <!-- Buildings -->
       <div>
         <h4 class="text-xs font-medium text-[var(--muted)] uppercase tracking-wider mb-2">

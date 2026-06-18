@@ -90,6 +90,18 @@ function onSearchInput() {
   openDropdown()
 }
 
+// Clear the search text and keep focus so the user can type a fresh query.
+// Use mousedown.prevent on the button so the input's blur handler doesn't fire first.
+function clearSearch() {
+  searchText.value = ''
+  activeIndex.value = 0
+  showDropdown.value = true
+  nextTick(() => {
+    inputRef.value?.focus()
+    updateDropdownPos()
+  })
+}
+
 function onSearchFocus() {
   openDropdown()
 }
@@ -172,7 +184,7 @@ function onRateChange() {
           role="combobox"
           aria-autocomplete="list"
           :aria-expanded="showDropdown"
-          class="bg-[var(--panel-2)] border border-[var(--border)] text-[var(--text)] text-sm pl-3 pr-8 py-1.5 w-56 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent hover:border-[var(--muted)] transition-colors placeholder:text-[var(--muted-2)]"
+          class="bg-[var(--panel-2)] border border-[var(--border)] text-[var(--text)] text-sm pl-3 pr-13 py-1.5 w-56 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent hover:border-[var(--muted)] transition-colors placeholder:text-[var(--muted-2)]"
           @input="onSearchInput"
           @focus="onSearchFocus"
           @blur="onSearchBlur"
@@ -181,6 +193,23 @@ function onRateChange() {
           @keydown.enter.prevent="onEnter"
           @keydown.esc="onEsc"
         />
+        <button
+          v-if="searchText"
+          type="button"
+          aria-label="Clear search"
+          title="Clear search"
+          class="absolute right-7 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted-2)] hover:text-[var(--text)] transition-colors"
+          @mousedown.prevent="clearSearch"
+        >
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
+        </button>
         <svg
           class="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted-2)] pointer-events-none"
           fill="none"
