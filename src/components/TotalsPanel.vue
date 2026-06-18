@@ -1,10 +1,23 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, reactive } from 'vue'
 import { usePlannerStore } from '../stores/plannerStore'
 import { fmt, fmtBuildings } from '../lib/format'
 import GameIcon from './GameIcon.vue'
 
 const store = usePlannerStore()
+
+// ─── Collapsible section state ────────────────────────────────────────────
+// Each totals subsection can be collapsed by clicking its header. Per-session.
+const collapsed = reactive({
+  raw: false,
+  intermediates: false,
+  buildings: false,
+  construction: false,
+})
+type Section = keyof typeof collapsed
+function toggle(section: Section) {
+  collapsed[section] = !collapsed[section]
+}
 
 // ─── v6: hover helpers ────────────────────────────────────────────────────
 function onItemEnter(e: MouseEvent, id: string) {
@@ -56,16 +69,35 @@ const constructionMaterials = computed(() => {
     <template v-else>
       <!-- Raw Materials -->
       <div>
-        <h4 class="text-xs font-medium text-[var(--muted)] uppercase tracking-wider mb-2">
+        <button
+          type="button"
+          class="group flex items-center gap-1 w-full text-left text-xs font-medium text-[var(--muted)] uppercase tracking-wider mb-2 hover:text-[var(--text)] transition-colors"
+          :aria-expanded="!collapsed.raw"
+          @click="toggle('raw')"
+        >
+          <svg
+            class="w-3 h-3 shrink-0 transition-transform"
+            :class="collapsed.raw ? '-rotate-90' : ''"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M19 9l-7 7-7-7"
+            />
+          </svg>
           Raw materials / min
-        </h4>
+        </button>
         <div
-          v-if="store.totals.rawMaterials.length === 0"
+          v-if="!collapsed.raw && store.totals.rawMaterials.length === 0"
           class="text-[var(--muted-2)] text-sm italic"
         >
           None
         </div>
-        <div v-else class="space-y-1">
+        <div v-else-if="!collapsed.raw" class="space-y-1">
           <div
             v-for="mat in store.totals.rawMaterials"
             :key="mat.itemId"
@@ -88,10 +120,29 @@ const constructionMaterials = computed(() => {
 
       <!-- Intermediate products — everything produced between raw materials and the final target -->
       <div v-if="store.totals.intermediates.length > 0">
-        <h4 class="text-xs font-medium text-[var(--muted)] uppercase tracking-wider mb-2">
+        <button
+          type="button"
+          class="group flex items-center gap-1 w-full text-left text-xs font-medium text-[var(--muted)] uppercase tracking-wider mb-2 hover:text-[var(--text)] transition-colors"
+          :aria-expanded="!collapsed.intermediates"
+          @click="toggle('intermediates')"
+        >
+          <svg
+            class="w-3 h-3 shrink-0 transition-transform"
+            :class="collapsed.intermediates ? '-rotate-90' : ''"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M19 9l-7 7-7-7"
+            />
+          </svg>
           Intermediate products / min
-        </h4>
-        <div class="space-y-1">
+        </button>
+        <div v-show="!collapsed.intermediates" class="space-y-1">
           <div
             v-for="item in store.totals.intermediates"
             :key="item.itemId"
@@ -116,16 +167,35 @@ const constructionMaterials = computed(() => {
 
       <!-- Buildings -->
       <div>
-        <h4 class="text-xs font-medium text-[var(--muted)] uppercase tracking-wider mb-2">
+        <button
+          type="button"
+          class="group flex items-center gap-1 w-full text-left text-xs font-medium text-[var(--muted)] uppercase tracking-wider mb-2 hover:text-[var(--text)] transition-colors"
+          :aria-expanded="!collapsed.buildings"
+          @click="toggle('buildings')"
+        >
+          <svg
+            class="w-3 h-3 shrink-0 transition-transform"
+            :class="collapsed.buildings ? '-rotate-90' : ''"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M19 9l-7 7-7-7"
+            />
+          </svg>
           Buildings
-        </h4>
+        </button>
         <div
-          v-if="store.totals.buildings.length === 0"
+          v-if="!collapsed.buildings && store.totals.buildings.length === 0"
           class="text-[var(--muted-2)] text-sm italic"
         >
           None
         </div>
-        <div v-else class="space-y-1">
+        <div v-else-if="!collapsed.buildings" class="space-y-1">
           <div
             v-for="bld in store.totals.buildings"
             :key="bld.buildingId"
@@ -169,10 +239,29 @@ const constructionMaterials = computed(() => {
         <div class="border-t border-[var(--border)]" />
 
         <div>
-          <h4 class="text-xs font-medium text-[var(--muted)] uppercase tracking-wider mb-2">
+          <button
+            type="button"
+            class="group flex items-center gap-1 w-full text-left text-xs font-medium text-[var(--muted)] uppercase tracking-wider mb-2 hover:text-[var(--text)] transition-colors"
+            :aria-expanded="!collapsed.construction"
+            @click="toggle('construction')"
+          >
+            <svg
+              class="w-3 h-3 shrink-0 transition-transform"
+              :class="collapsed.construction ? '-rotate-90' : ''"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M19 9l-7 7-7-7"
+              />
+            </svg>
             Construction materials
-          </h4>
-          <div class="space-y-1">
+          </button>
+          <div v-show="!collapsed.construction" class="space-y-1">
             <div
               v-for="mat in constructionMaterials"
               :key="mat.id"
