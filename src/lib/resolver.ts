@@ -1,4 +1,4 @@
-import type { CraftNode, Item, Totals, VersionOverrides } from '../types/game'
+import type { CraftNode, Item, Overages, Totals, VersionOverrides } from '../types/game'
 import { pickProducer, getCandidates, type ProducerEntry } from './recipeIndex'
 
 export interface ResolverContext {
@@ -6,6 +6,11 @@ export interface ResolverContext {
   producerIndex: Map<string, ProducerEntry[]>
   fullProducerIndex: Map<string, ProducerEntry[]>
   overrides: VersionOverrides
+  overages: Overages
+  // Mutable set tracking which items have already had their overage applied, so a
+  // per-item overage is counted exactly once even when the item appears in several
+  // branches (first depth-first occurrence wins).
+  _appliedOverages: Set<string>
 }
 
 function _resolve(
@@ -16,11 +21,22 @@ function _resolve(
   depth: number,
 ): CraftNode {
   const item = ctx.itemsById.get(itemId)
+
+  // Apply this item's overage once (at the first occurrence we resolve).
+  const overage = ctx.overages[itemId]
+  let appliedOverage = 0
+  if (overage && overage > 0 && !ctx._appliedOverages.has(itemId)) {
+    ctx._appliedOverages.add(itemId)
+    appliedOverage = overage
+  }
+  const totalRate = ratePerMin + appliedOverage
+
   const node: CraftNode = {
     itemId,
     itemName: item?.name ?? itemId,
     itemType: item?.type ?? 'component',
-    ratePerMin,
+    ratePerMin: totalRate,
+    overage: appliedOverage,
     isRaw: false,
     isCycle: false,
     children: [],
@@ -48,7 +64,7 @@ function _resolve(
   node.building = producer.building
   node.recipe = producer.recipe
   const outRate = producer.recipe.output.amount_per_minute
-  node.buildingsNeeded = outRate > 0 ? ratePerMin / outRate : 0
+  node.buildingsNeeded = outRate > 0 ? totalRate / outRate : 0
 
   if (producer.recipe.inputs.length === 0) {
     node.isRaw = true
@@ -71,8 +87,13 @@ function _resolve(
   return node
 }
 
-export function resolveTree(itemId: string, ratePerMin: number, ctx: ResolverContext): CraftNode {
-  return _resolve(itemId, ratePerMin, ctx, new Set(), 0)
+export function resolveTree(
+  itemId: string,
+  ratePerMin: number,
+  ctx: Omit<ResolverContext, '_appliedOverages'>,
+): CraftNode {
+  // Fresh per-resolve set so each item's overage is applied exactly once.
+  return _resolve(itemId, ratePerMin, { ...ctx, _appliedOverages: new Set() }, new Set(), 0)
 }
 
 export interface TotalsOptions {

@@ -1,5 +1,5 @@
 import type { TierSelection } from './recipeIndex'
-import type { VersionOverrides } from '../types/game'
+import type { VersionOverrides, Overages } from '../types/game'
 import { DEFAULT_VERSION } from '../data/versions'
 
 // ─── Shared state types ───────────────────────────────────────────────────────
@@ -10,6 +10,7 @@ export interface PlanState {
   targetRate: number
   tier: TierSelection
   overrides: VersionOverrides
+  overages: Overages
 }
 
 export interface ViewPrefs {
@@ -95,6 +96,10 @@ export function loadSaved(): { plan?: PlanState; prefs?: ViewPrefs } | null {
           targetRate: pl.targetRate,
           tier: pl.tier as TierSelection,
           overrides: pl.overrides as VersionOverrides,
+          overages:
+            typeof pl.overages === 'object' && pl.overages !== null
+              ? (pl.overages as Overages)
+              : {},
         }
       }
     }
@@ -140,6 +145,7 @@ export function encodePlan(plan: PlanState): string {
     .map(([k]) => k)
   if (v2.length) min.t = v2
   if (Object.keys(plan.overrides).length) min.o = plan.overrides
+  if (plan.overages && Object.keys(plan.overages).length) min.g = plan.overages
   const encoded = toBase64Url(JSON.stringify(min))
   return `${location.origin}${location.pathname}?p=${encoded}`
 }
@@ -174,6 +180,7 @@ export function decodePlanFromUrl(): PlanState | null {
         overrides: (typeof o.overrides === 'object' && o.overrides
           ? o.overrides
           : {}) as VersionOverrides,
+        overages: (typeof o.overages === 'object' && o.overages ? o.overages : {}) as Overages,
       }
     }
 
@@ -189,6 +196,7 @@ export function decodePlanFromUrl(): PlanState | null {
       targetRate: typeof o.r === 'number' ? o.r : 60,
       tier,
       overrides: (typeof o.o === 'object' && o.o ? o.o : {}) as VersionOverrides,
+      overages: (typeof o.g === 'object' && o.g ? o.g : {}) as Overages,
     }
   } catch {
     return null

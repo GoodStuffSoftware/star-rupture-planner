@@ -7,6 +7,7 @@ import type {
   CraftNode,
   Totals,
   VersionOverrides,
+  Overages,
 } from '../types/game'
 import { loadGameData } from '../data/loader'
 import {
@@ -45,6 +46,8 @@ export const usePlannerStore = defineStore('planner', () => {
 
   // v2 state
   const overrides = ref<VersionOverrides>({})
+  // Per-item overproduction (extra items/min beyond demand) — keyed by itemId.
+  const overages = ref<Overages>({})
   const showExtractors = ref<boolean>(false)
   const showIcons = ref<boolean>(true)
   const showRowDividers = ref<boolean>(false)
@@ -113,6 +116,7 @@ export const usePlannerStore = defineStore('planner', () => {
       producerIndex: producerIndex.value,
       fullProducerIndex: fullProducerIndex.value,
       overrides: overrides.value,
+      overages: overages.value,
     })
   })
 
@@ -187,6 +191,20 @@ export const usePlannerStore = defineStore('planner', () => {
         }
         overrides.value = restoredOverrides
 
+        // overages: keep only positive, finite extras for items that exist
+        const restoredOverages: Overages = {}
+        for (const [itemId, extra] of Object.entries(plan.overages ?? {})) {
+          if (
+            freshItemsById.has(itemId) &&
+            typeof extra === 'number' &&
+            isFinite(extra) &&
+            extra > 0
+          ) {
+            restoredOverages[itemId] = extra
+          }
+        }
+        overages.value = restoredOverages
+
         // targetItemId: use if item exists, else fall back to default
         const validTarget =
           plan.targetItemId && freshItemsById.has(plan.targetItemId)
@@ -205,6 +223,7 @@ export const usePlannerStore = defineStore('planner', () => {
         // ── Default reset ─────────────────────────────────────────────────────
         tier.value = defaultTier
         overrides.value = {}
+        overages.value = {}
 
         const firstComponent = data.items.find((i) => i.type === 'component')
         const newTarget = firstComponent?.id ?? data.items[0]?.id ?? null
@@ -296,6 +315,22 @@ export const usePlannerStore = defineStore('planner', () => {
     overrides.value = {}
   }
 
+  // Set per-item overproduction (extra items/min). Non-positive clears the entry.
+  function setOverage(itemId: string, extra: number) {
+    const rounded = Math.round((Number(extra) || 0) * 1000) / 1000
+    if (rounded > 0) {
+      overages.value = { ...overages.value, [itemId]: rounded }
+    } else if (itemId in overages.value) {
+      const next = { ...overages.value }
+      delete next[itemId]
+      overages.value = next
+    }
+  }
+
+  function clearOverages() {
+    overages.value = {}
+  }
+
   function setShowExtractors(value: boolean) {
     showExtractors.value = value
   }
@@ -361,6 +396,7 @@ export const usePlannerStore = defineStore('planner', () => {
       targetRate: targetRate.value,
       tier: tier.value,
       overrides: overrides.value,
+      overages: overages.value,
     })
   }
 
@@ -379,6 +415,7 @@ export const usePlannerStore = defineStore('planner', () => {
           targetRate: targetRate.value,
           tier: tier.value,
           overrides: overrides.value,
+          overages: overages.value,
         },
         {
           showExtractors: showExtractors.value,
@@ -396,6 +433,7 @@ export const usePlannerStore = defineStore('planner', () => {
   watch([version, targetItemId, targetRate], _scheduleSave)
   watch(tier, _scheduleSave, { deep: true })
   watch(overrides, _scheduleSave, { deep: true })
+  watch(overages, _scheduleSave, { deep: true })
   // Watch view prefs
   watch(
     [showExtractors, showIcons, showRowDividers, expandLevel, optionsCollapsed, theme],
@@ -414,6 +452,7 @@ export const usePlannerStore = defineStore('planner', () => {
     targetItemId,
     targetRate,
     overrides,
+    overages,
     showExtractors,
     showIcons,
     showRowDividers,
@@ -451,6 +490,8 @@ export const usePlannerStore = defineStore('planner', () => {
     defaultRateForItem,
     setOverride,
     clearOverrides,
+    setOverage,
+    clearOverages,
     setShowExtractors,
     setShowIcons,
     setShowRowDividers,

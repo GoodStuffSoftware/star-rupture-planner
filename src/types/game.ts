@@ -44,6 +44,9 @@ export interface UpgradeChain {
 // Per-item building override: itemId -> buildingId
 export type VersionOverrides = Record<string, string>
 
+// Per-item overproduction (overage): itemId -> extra items/min to produce beyond demand
+export type Overages = Record<string, number>
+
 // Resolved crafting-tree node
 export interface CraftNode {
   itemId: string
@@ -53,6 +56,7 @@ export interface CraftNode {
   building?: Building // producer chosen for this item (undefined if none)
   recipe?: Recipe
   buildingsNeeded?: number // exact fractional count = ratePerMin / output.amount_per_minute
+  overage?: number // extra items/min added at this node as intentional overproduction (0/undefined = none)
   isRaw: boolean // true if leaf: no producer OR recipe has no inputs
   isCycle: boolean // true if this item already appeared in its own ancestry
   children: CraftNode[]

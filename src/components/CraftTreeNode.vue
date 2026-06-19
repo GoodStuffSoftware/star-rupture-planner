@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Recursive crafting-tree node: item + producer + per-node version picker.
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import type { CraftNode } from '../types/game'
 import { fmt, fmtBuildings } from '../lib/format'
 import { usePlannerStore } from '../stores/plannerStore'
@@ -12,6 +12,45 @@ const props = defineProps<{
 }>()
 
 const store = usePlannerStore()
+
+// ─── Per-row overage (overproduction) controls ─────────────────────────────
+// The root row is driven by the top target control; cycle rows don't recurse,
+// so neither gets an overage stepper.
+const canOverage = computed(() => props.depth > 0 && !props.node.isCycle)
+
+// One producing machine's output for this item — the "+/− a machine" step.
+const machineStep = computed(() => props.node.recipe?.output.amount_per_minute ?? 0)
+
+// Demand for this item excluding any overage applied here (i.e. what parents need).
+const baseDemand = computed(() => props.node.ratePerMin - (props.node.overage ?? 0))
+
+// Editable per-minute output for this row = demand + overage. Re-synced when the
+// resolved rate changes (the node is also re-keyed on rate, so this stays fresh).
+const outputInput = ref(props.node.ratePerMin)
+watch(
+  () => props.node.ratePerMin,
+  (r) => {
+    outputInput.value = r
+  },
+)
+
+// Set the row's total output; the surplus above demand becomes the item's overage.
+function setOutput(total: number) {
+  store.setOverage(props.node.itemId, Math.max(0, total - baseDemand.value))
+}
+function stepOutput(dir: number) {
+  const step = machineStep.value || 1
+  setOutput(props.node.ratePerMin + dir * step)
+}
+function onOutputChange() {
+  const v = Number(outputInput.value)
+  if (isFinite(v)) setOutput(v)
+  else outputInput.value = props.node.ratePerMin
+}
+
+const stepTitle = computed(() =>
+  machineStep.value ? `${machineStep.value}/min (one machine)` : '1/min',
+)
 
 // Expanded based on expandLevel from store; caret toggle still works locally
 const expanded = ref(props.depth < store.expandLevel)
@@ -251,10 +290,55 @@ function onBuildingMouseLeave() {
         </div>
       </template>
 
-      <!-- Rate (right-aligned) -->
-      <span class="ml-auto text-base font-mono text-slate-400 shrink-0 pl-3">
-        {{ fmt(node.ratePerMin) }}/min
-      </span>
+      <!-- Rate (right-aligned), with per-row overage stepper on non-root rows -->
+      <div class="ml-auto flex items-center gap-1.5 shrink-0 pl-3">
+        <template v-if="canOverage">
+          <!-- Overage badge -->
+          <span
+            v-if="(node.overage ?? 0) > 0"
+            class="text-xs font-mono text-amber-400"
+            :title="`+${fmt(node.overage ?? 0)}/min overproduced`"
+          >
+            +{{ fmt(node.overage ?? 0) }}
+          </span>
+          <!-- Stepper: ± one machine, or type / use up-down arrows for single items -->
+          <div
+            class="chamfer-sm [--cf-fill:var(--panel-2)] flex items-center p-px gap-px overflow-hidden"
+            @click.stop
+          >
+            <button
+              type="button"
+              :title="`−${stepTitle}`"
+              class="px-1.5 py-0.5 bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)] transition-colors text-sm leading-none"
+              @click.stop="stepOutput(-1)"
+            >
+              &minus;
+            </button>
+            <input
+              v-model.number="outputInput"
+              type="number"
+              min="0"
+              step="1"
+              :title="'Output items/min (raise above demand to overproduce)'"
+              class="bg-[var(--panel-2)] text-[var(--text)] text-sm px-1 py-0.5 w-16 text-right font-mono focus:outline-none"
+              @change="onOutputChange"
+              @click.stop
+            />
+            <button
+              type="button"
+              :title="`+${stepTitle}`"
+              class="px-1.5 py-0.5 bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)] transition-colors text-sm leading-none"
+              @click.stop="stepOutput(1)"
+            >
+              +
+            </button>
+          </div>
+          <span class="text-sm font-mono text-slate-400">/min</span>
+        </template>
+        <span v-else class="text-base font-mono text-slate-400"
+          >{{ fmt(node.ratePerMin) }}/min</span
+        >
+      </div>
     </div>
 
     <!-- Children -->
