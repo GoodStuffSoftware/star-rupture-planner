@@ -191,14 +191,14 @@ export const usePlannerStore = defineStore('planner', () => {
         }
         overrides.value = restoredOverrides
 
-        // overages: keep only positive, finite extras for items that exist
+        // overages: keep only nonzero, finite deltas for items that exist
         const restoredOverages: Overages = {}
         for (const [itemId, extra] of Object.entries(plan.overages ?? {})) {
           if (
             freshItemsById.has(itemId) &&
             typeof extra === 'number' &&
             isFinite(extra) &&
-            extra > 0
+            extra !== 0
           ) {
             restoredOverages[itemId] = extra
           }
@@ -315,10 +315,11 @@ export const usePlannerStore = defineStore('planner', () => {
     overrides.value = {}
   }
 
-  // Set per-item overproduction (extra items/min). Non-positive clears the entry.
+  // Set a per-item overproduction delta (items/min beyond demand). Positive is
+  // overproduction, negative is an intentional deficit; zero clears the entry.
   function setOverage(itemId: string, extra: number) {
     const rounded = Math.round((Number(extra) || 0) * 1000) / 1000
-    if (rounded > 0) {
+    if (rounded !== 0) {
       overages.value = { ...overages.value, [itemId]: rounded }
     } else if (itemId in overages.value) {
       const next = { ...overages.value }

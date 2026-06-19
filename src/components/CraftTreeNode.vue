@@ -34,13 +34,31 @@ watch(
   },
 )
 
-// Set the row's total output; the surplus above demand becomes the item's overage.
+// True when this row is producing below what its parents require (a deficit).
+const isDeficit = computed(() => (props.node.overage ?? 0) < -1e-9)
+
+// Set the row's total output (floored at zero). The delta from demand becomes the
+// item's overage — positive overproduces, negative is an intentional deficit.
 function setOutput(total: number) {
-  store.setOverage(props.node.itemId, Math.max(0, total - baseDemand.value))
+  store.setOverage(props.node.itemId, Math.max(0, total) - baseDemand.value)
 }
+// Step the row's output by whole machines. The first click snaps up to the next
+// whole-machine output (so the demand's fractional machine fills out to an even
+// count), and further clicks add/remove one full machine. A machine-less raw row
+// falls back to single items/min.
 function stepOutput(dir: number) {
-  const step = machineStep.value || 1
-  setOutput(props.node.ratePerMin + dir * step)
+  const step = machineStep.value
+  if (!step) {
+    setOutput(props.node.ratePerMin + dir)
+    return
+  }
+  const out = props.node.ratePerMin
+  const eps = 1e-9
+  const target =
+    dir > 0
+      ? (Math.floor(out / step + eps) + 1) * step // next whole-machine output above current
+      : (Math.ceil(out / step - eps) - 1) * step // previous whole-machine output (clamped to demand)
+  setOutput(target)
 }
 function onOutputChange() {
   const v = Number(outputInput.value)
@@ -301,6 +319,13 @@ function onBuildingMouseLeave() {
           >
             +{{ fmt(node.overage ?? 0) }}
           </span>
+          <span
+            v-else-if="isDeficit"
+            class="text-xs font-mono text-red-400"
+            :title="`${fmt(node.overage ?? 0)}/min below the ${fmt(baseDemand)}/min required`"
+          >
+            {{ fmt(node.overage ?? 0) }}
+          </span>
           <!-- Stepper: ± one machine, or type / use up-down arrows for single items -->
           <div
             class="chamfer-sm [--cf-fill:var(--panel-2)] flex items-center p-px gap-px overflow-hidden"
@@ -319,7 +344,7 @@ function onBuildingMouseLeave() {
               type="number"
               min="0"
               step="1"
-              :title="'Output items/min (raise above demand to overproduce)'"
+              :title="'Output items/min — raise above demand to overproduce, lower below it for a deficit'"
               class="bg-[var(--panel-2)] text-[var(--text)] text-sm px-1 py-0.5 w-16 text-right font-mono focus:outline-none"
               @change="onOutputChange"
               @click.stop
@@ -333,7 +358,14 @@ function onBuildingMouseLeave() {
               +
             </button>
           </div>
-          <span class="text-sm font-mono text-slate-400">/min</span>
+          <span
+            class="text-sm font-mono"
+            :class="isDeficit ? 'text-red-400' : 'text-slate-400'"
+            :title="
+              isDeficit ? `Producing below the ${fmt(baseDemand)}/min required here` : undefined
+            "
+            >/min</span
+          >
         </template>
         <span v-else class="text-base font-mono text-slate-400"
           >{{ fmt(node.ratePerMin) }}/min</span

@@ -24,12 +24,17 @@ function _resolve(
 
   // Apply this item's overage once (at the first occurrence we resolve).
   const overage = ctx.overages[itemId]
-  let appliedOverage = 0
-  if (overage && overage > 0 && !ctx._appliedOverages.has(itemId)) {
+  let requestedOverage = 0
+  if (overage && !ctx._appliedOverages.has(itemId)) {
     ctx._appliedOverages.add(itemId)
-    appliedOverage = overage
+    requestedOverage = overage
   }
-  const totalRate = ratePerMin + appliedOverage
+  // Overage may be negative (an intentional deficit — producing below demand);
+  // never let the resolved rate drop below zero.
+  const totalRate = Math.max(0, ratePerMin + requestedOverage)
+  // Actual delta applied at this node relative to demand (so baseDemand recovers
+  // cleanly in the UI even when the rate was clamped at zero).
+  const appliedOverage = totalRate - ratePerMin
 
   const node: CraftNode = {
     itemId,
