@@ -191,16 +191,18 @@ export const usePlannerStore = defineStore('planner', () => {
         }
         overrides.value = restoredOverrides
 
-        // overages: keep only nonzero, finite deltas for items that exist
+        // overages: per-occurrence deltas keyed by node path. Keep nonzero, finite
+        // values whose leaf item (last path segment) still exists.
         const restoredOverages: Overages = {}
-        for (const [itemId, extra] of Object.entries(plan.overages ?? {})) {
+        for (const [path, extra] of Object.entries(plan.overages ?? {})) {
+          const leafItemId = path.split('>').pop() ?? ''
           if (
-            freshItemsById.has(itemId) &&
+            freshItemsById.has(leafItemId) &&
             typeof extra === 'number' &&
             isFinite(extra) &&
             extra !== 0
           ) {
-            restoredOverages[itemId] = extra
+            restoredOverages[path] = extra
           }
         }
         overages.value = restoredOverages
@@ -315,15 +317,16 @@ export const usePlannerStore = defineStore('planner', () => {
     overrides.value = {}
   }
 
-  // Set a per-item overproduction delta (items/min beyond demand). Positive is
-  // overproduction, negative is an intentional deficit; zero clears the entry.
-  function setOverage(itemId: string, extra: number) {
+  // Set a per-occurrence overproduction delta (items/min beyond demand) for the
+  // tree node at `path`. Positive overproduces, negative is an intentional
+  // deficit; zero clears the entry.
+  function setOverage(path: string, extra: number) {
     const rounded = Math.round((Number(extra) || 0) * 1000) / 1000
     if (rounded !== 0) {
-      overages.value = { ...overages.value, [itemId]: rounded }
-    } else if (itemId in overages.value) {
+      overages.value = { ...overages.value, [path]: rounded }
+    } else if (path in overages.value) {
       const next = { ...overages.value }
-      delete next[itemId]
+      delete next[path]
       overages.value = next
     }
   }

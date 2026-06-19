@@ -40,7 +40,7 @@ const isDeficit = computed(() => (props.node.overage ?? 0) < -1e-9)
 // Set the row's total output (floored at zero). The delta from demand becomes the
 // item's overage — positive overproduces, negative is an intentional deficit.
 function setOutput(total: number) {
-  store.setOverage(props.node.itemId, Math.max(0, total) - baseDemand.value)
+  store.setOverage(props.node.path, Math.max(0, total) - baseDemand.value)
 }
 // Step the row's output by whole machines. The first click snaps up to the next
 // whole-machine output (so the demand's fractional machine fills out to an even

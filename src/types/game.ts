@@ -44,7 +44,8 @@ export interface UpgradeChain {
 // Per-item building override: itemId -> buildingId
 export type VersionOverrides = Record<string, string>
 
-// Per-item overproduction (overage): itemId -> extra items/min to produce beyond demand
+// Per-occurrence overproduction (overage): node path -> extra items/min beyond demand
+// (negative = intentional deficit). See CraftNode.path for the key format.
 export type Overages = Record<string, number>
 
 // Resolved crafting-tree node
@@ -52,6 +53,7 @@ export interface CraftNode {
   itemId: string
   itemName: string
   itemType: ItemType
+  path: string // unique per-occurrence key: chain of item ids from root, e.g. "pump>valve>titanium_beam"
   ratePerMin: number // required output rate of this item at this node
   building?: Building // producer chosen for this item (undefined if none)
   recipe?: Recipe

@@ -6,11 +6,10 @@ export interface ResolverContext {
   producerIndex: Map<string, ProducerEntry[]>
   fullProducerIndex: Map<string, ProducerEntry[]>
   overrides: VersionOverrides
+  // Per-occurrence overproduction, keyed by node path (see CraftNode.path). Each
+  // tree row is adjusted independently, so a shared item can be overproduced (or
+  // run at a deficit) differently in each branch it appears in.
   overages: Overages
-  // Mutable set tracking which items have already had their overage applied, so a
-  // per-item overage is counted exactly once even when the item appears in several
-  // branches (first depth-first occurrence wins).
-  _appliedOverages: Set<string>
 }
 
 function _resolve(
@@ -19,18 +18,13 @@ function _resolve(
   ctx: ResolverContext,
   ancestry: Set<string>,
   depth: number,
+  path: string,
 ): CraftNode {
   const item = ctx.itemsById.get(itemId)
 
-  // Apply this item's overage once (at the first occurrence we resolve).
-  const overage = ctx.overages[itemId]
-  let requestedOverage = 0
-  if (overage && !ctx._appliedOverages.has(itemId)) {
-    ctx._appliedOverages.add(itemId)
-    requestedOverage = overage
-  }
-  // Overage may be negative (an intentional deficit — producing below demand);
-  // never let the resolved rate drop below zero.
+  // Overage for this exact occurrence (keyed by path). May be negative (an
+  // intentional deficit — producing below demand); never let the rate go below 0.
+  const requestedOverage = ctx.overages[path] ?? 0
   const totalRate = Math.max(0, ratePerMin + requestedOverage)
   // Actual delta applied at this node relative to demand (so baseDemand recovers
   // cleanly in the UI even when the rate was clamped at zero).
@@ -40,6 +34,7 @@ function _resolve(
     itemId,
     itemName: item?.name ?? itemId,
     itemType: item?.type ?? 'component',
+    path,
     ratePerMin: totalRate,
     overage: appliedOverage,
     isRaw: false,
@@ -86,19 +81,17 @@ function _resolve(
 
   for (const input of producer.recipe.inputs) {
     const childRate = (node.buildingsNeeded ?? 0) * input.amount_per_minute
-    node.children.push(_resolve(input.id, childRate, ctx, nextAncestry, depth + 1))
+    node.children.push(
+      _resolve(input.id, childRate, ctx, nextAncestry, depth + 1, `${path}>${input.id}`),
+    )
   }
 
   return node
 }
 
-export function resolveTree(
-  itemId: string,
-  ratePerMin: number,
-  ctx: Omit<ResolverContext, '_appliedOverages'>,
-): CraftNode {
-  // Fresh per-resolve set so each item's overage is applied exactly once.
-  return _resolve(itemId, ratePerMin, { ...ctx, _appliedOverages: new Set() }, new Set(), 0)
+export function resolveTree(itemId: string, ratePerMin: number, ctx: ResolverContext): CraftNode {
+  // The root node's path is just its item id; children append `>childItemId`.
+  return _resolve(itemId, ratePerMin, ctx, new Set(), 0, itemId)
 }
 
 export interface TotalsOptions {
