@@ -377,7 +377,7 @@ function onBuildingMouseLeave() {
     <div v-if="expanded && node.children.length > 0" class="mt-0.5">
       <CraftTreeNode
         v-for="child in node.children"
-        :key="child.itemId + '-' + child.ratePerMin"
+        :key="child.itemId"
         :node="child"
         :depth="depth + 1"
       />
