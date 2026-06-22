@@ -4,13 +4,25 @@ import { DEFAULT_VERSION } from '../data/versions'
 
 // ─── Shared state types ───────────────────────────────────────────────────────
 
-export interface PlanState {
-  version: string
+/** One planning target ("recipe tab"): an item + desired rate + its overages. */
+export interface PlanTargetState {
   targetItemId: string | null
   targetRate: number
+  overages: Overages
+}
+
+export interface PlanState {
+  version: string
+  // Legacy single-target fields — still written (mirroring the active tab) and read
+  // for backward compatibility with saves/URLs created before multi-target tabs.
+  targetItemId: string | null
+  targetRate: number
+  overages: Overages
+  // Multi-target tabs. When present this supersedes the legacy single-target fields.
+  targets?: PlanTargetState[]
+  activeTargetIndex?: number
   tier: TierSelection
   overrides: VersionOverrides
-  overages: Overages
 }
 
 export interface ViewPrefs {
@@ -100,6 +112,9 @@ export function loadSaved(): { plan?: PlanState; prefs?: ViewPrefs } | null {
             typeof pl.overages === 'object' && pl.overages !== null
               ? (pl.overages as Overages)
               : {},
+          targets: Array.isArray(pl.targets) ? (pl.targets as PlanTargetState[]) : undefined,
+          activeTargetIndex:
+            typeof pl.activeTargetIndex === 'number' ? pl.activeTargetIndex : undefined,
         }
       }
     }
@@ -138,14 +153,31 @@ function fromBase64Url(encoded: string): string | null {
  * Format: {origin}{pathname}?p=<base64url(JSON)>
  */
 export function encodePlan(plan: PlanState): string {
-  const min: Record<string, unknown> = { i: plan.targetItemId, r: plan.targetRate }
+  const min: Record<string, unknown> = {}
+  const targets = plan.targets && plan.targets.length ? plan.targets : null
+
+  if (targets && targets.length > 1) {
+    // Multi-target: `m` = array of { i, r, g? }, `a` = active index.
+    min.m = targets.map((t) => {
+      const e: Record<string, unknown> = { i: t.targetItemId, r: t.targetRate }
+      if (t.overages && Object.keys(t.overages).length) e.g = t.overages
+      return e
+    })
+    if (plan.activeTargetIndex) min.a = plan.activeTargetIndex
+  } else {
+    // Single target — keep the original compact i/r/g keys (shorter, back-compatible).
+    const t = targets ? targets[0] : plan
+    min.i = t.targetItemId
+    min.r = t.targetRate
+    if (t.overages && Object.keys(t.overages).length) min.g = t.overages
+  }
+
   if (plan.version !== DEFAULT_VERSION) min.v = plan.version
   const v2 = Object.entries(plan.tier)
     .filter(([, val]) => val === 'v2')
     .map(([k]) => k)
   if (v2.length) min.t = v2
   if (Object.keys(plan.overrides).length) min.o = plan.overrides
-  if (plan.overages && Object.keys(plan.overages).length) min.g = plan.overages
   const encoded = toBase64Url(JSON.stringify(min))
   return `${location.origin}${location.pathname}?p=${encoded}`
 }
@@ -181,21 +213,51 @@ export function decodePlanFromUrl(): PlanState | null {
           ? o.overrides
           : {}) as VersionOverrides,
         overages: (typeof o.overages === 'object' && o.overages ? o.overages : {}) as Overages,
+        targets: Array.isArray(o.targets) ? (o.targets as PlanTargetState[]) : undefined,
+        activeTargetIndex:
+          typeof o.activeTargetIndex === 'number' ? o.activeTargetIndex : undefined,
       }
     }
 
-    // Compact format ({ i, r, v?, t?, o? })
-    if (typeof o.i !== 'string' && o.i !== null) return null
+    // Compact format ({ i, r, g?, m?, a?, v?, t?, o? })
     const tier: TierSelection = {}
     if (Array.isArray(o.t)) {
       for (const baseId of o.t) if (typeof baseId === 'string') tier[baseId] = 'v2'
     }
+    const overrides = (typeof o.o === 'object' && o.o ? o.o : {}) as VersionOverrides
+    const version = typeof o.v === 'string' ? o.v : DEFAULT_VERSION
+
+    // Multi-target (`m`)
+    if (Array.isArray(o.m)) {
+      const targets: PlanTargetState[] = o.m.map((raw) => {
+        const e = (raw ?? {}) as Record<string, unknown>
+        return {
+          targetItemId: typeof e.i === 'string' ? e.i : null,
+          targetRate: typeof e.r === 'number' ? e.r : 60,
+          overages: (typeof e.g === 'object' && e.g ? e.g : {}) as Overages,
+        }
+      })
+      const first = targets[0] ?? { targetItemId: null, targetRate: 60, overages: {} }
+      return {
+        version,
+        targetItemId: first.targetItemId,
+        targetRate: first.targetRate,
+        overages: first.overages,
+        targets,
+        activeTargetIndex: typeof o.a === 'number' ? o.a : 0,
+        tier,
+        overrides,
+      }
+    }
+
+    // Single target
+    if (typeof o.i !== 'string' && o.i !== null) return null
     return {
-      version: typeof o.v === 'string' ? o.v : DEFAULT_VERSION,
+      version,
       targetItemId: (o.i as string | null) ?? null,
       targetRate: typeof o.r === 'number' ? o.r : 60,
       tier,
-      overrides: (typeof o.o === 'object' && o.o ? o.o : {}) as VersionOverrides,
+      overrides,
       overages: (typeof o.g === 'object' && o.g ? o.g : {}) as Overages,
     }
   } catch {

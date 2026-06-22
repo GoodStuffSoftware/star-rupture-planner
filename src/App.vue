@@ -3,6 +3,7 @@ import { onMounted } from 'vue'
 import { usePlannerStore } from './stores/plannerStore'
 import VersionSelector from './components/VersionSelector.vue'
 import TargetSelector from './components/TargetSelector.vue'
+import RecipeTabs from './components/RecipeTabs.vue'
 import OptionsPanel from './components/OptionsPanel.vue'
 import CraftTree from './components/CraftTree.vue'
 import TotalsPanel from './components/TotalsPanel.vue'
@@ -22,48 +23,56 @@ onMounted(() => {
   <div class="min-h-screen bg-[var(--bg)] text-[var(--text)] flex flex-col">
     <!-- Header bar -->
     <header class="chamfer backdrop-blur-sm sticky top-0 z-30">
-      <div class="max-w-screen-xl mx-auto px-4 py-3 flex flex-wrap items-center gap-4">
-        <!-- Title -->
-        <div class="flex items-center gap-2 mr-2">
-          <div
-            class="w-7 h-7 chamfer-sm [--cf-fill:var(--accent-soft)] [--cf-border:var(--accent-soft-border)] flex items-center justify-center shrink-0"
-          >
-            <svg
-              class="w-4 h-4 text-[var(--accent)]"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+      <div class="max-w-screen-xl mx-auto px-4 py-3 flex flex-col gap-3">
+        <!-- Row 1: title + version (left), share (right) -->
+        <div class="flex flex-wrap items-center gap-4">
+          <!-- Title -->
+          <div class="flex items-center gap-2 mr-2">
+            <div
+              class="w-7 h-7 chamfer-sm [--cf-fill:var(--accent-soft)] [--cf-border:var(--accent-soft-border)] flex items-center justify-center shrink-0"
             >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M13 10V3L4 14h7v7l9-11h-7z"
-              />
-            </svg>
+              <svg
+                class="w-4 h-4 text-[var(--accent)]"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M13 10V3L4 14h7v7l9-11h-7z"
+                />
+              </svg>
+            </div>
+            <h1
+              class="text-base font-bold text-[var(--text)] whitespace-nowrap tracking-tight uppercase"
+            >
+              Star Rupture Planner
+            </h1>
           </div>
-          <h1
-            class="text-base font-bold text-[var(--text)] whitespace-nowrap tracking-tight uppercase"
-          >
-            Star Rupture Planner
-          </h1>
+
+          <!-- Divider -->
+          <div class="hidden sm:block w-px h-6 bg-[var(--border)] shrink-0" />
+
+          <!-- Version selector -->
+          <VersionSelector />
+
+          <!-- Share button — pushed to the right -->
+          <div class="ml-auto shrink-0">
+            <ShareButton />
+          </div>
         </div>
 
-        <!-- Divider -->
-        <div class="hidden sm:block w-px h-6 bg-[var(--border)] shrink-0" />
+        <!-- Row 2: target search + amount (left), recipe tabs (right) -->
+        <div class="flex flex-wrap items-center gap-4 border-t border-[var(--border)] pt-3">
+          <!-- Target selector (edits the active tab) -->
+          <TargetSelector />
 
-        <!-- Version selector -->
-        <VersionSelector />
-
-        <!-- Divider -->
-        <div class="hidden sm:block w-px h-6 bg-[var(--border)] shrink-0" />
-
-        <!-- Target selector -->
-        <TargetSelector />
-
-        <!-- Share button — pushed to the right -->
-        <div class="ml-auto shrink-0">
-          <ShareButton />
+          <!-- Recipe tabs — pushed to the right -->
+          <div class="ml-auto min-w-0">
+            <RecipeTabs />
+          </div>
         </div>
       </div>
     </header>

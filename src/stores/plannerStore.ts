@@ -19,7 +19,14 @@ import {
 } from '../lib/recipeIndex'
 import { resolveTree, aggregateTotals } from '../lib/resolver'
 import { DEFAULT_VERSION } from '../data/versions'
-import { save, loadSaved, encodePlan, decodePlanFromUrl, type PlanState } from '../lib/persistState'
+import {
+  save,
+  loadSaved,
+  encodePlan,
+  decodePlanFromUrl,
+  type PlanState,
+  type PlanTargetState,
+} from '../lib/persistState'
 import {
   buildUsedInIndex,
   buildExportsByItem,
@@ -41,13 +48,53 @@ export const usePlannerStore = defineStore('planner', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
   const tier = ref<TierSelection>({})
-  const targetItemId = ref<string | null>(null)
-  const targetRate = ref<number>(60)
+
+  // ── Multi-target tabs ──────────────────────────────────────────────────────
+  // Each tab is an independent planning target: an item + rate + per-occurrence
+  // overages. version / tier / overrides remain global across all tabs.
+  interface PlanTarget {
+    tid: string
+    targetItemId: string | null
+    targetRate: number
+    overages: Overages
+  }
+  let _tidSeq = 0
+  function _newTid(): string {
+    return `t${Date.now().toString(36)}_${(_tidSeq++).toString(36)}`
+  }
+
+  const targets = ref<PlanTarget[]>([
+    { tid: _newTid(), targetItemId: null, targetRate: 60, overages: {} },
+  ])
+  const activeTargetId = ref<string>(targets.value[0].tid)
+
+  const activeTarget = computed<PlanTarget>(
+    () => targets.value.find((t) => t.tid === activeTargetId.value) ?? targets.value[0],
+  )
+
+  // Writable proxies onto the active tab so the rest of the app keeps treating
+  // "the target" as a single thing.
+  const targetItemId = computed<string | null>({
+    get: () => activeTarget.value?.targetItemId ?? null,
+    set: (v) => {
+      if (activeTarget.value) activeTarget.value.targetItemId = v
+    },
+  })
+  const targetRate = computed<number>({
+    get: () => activeTarget.value?.targetRate ?? 60,
+    set: (v) => {
+      if (activeTarget.value) activeTarget.value.targetRate = v
+    },
+  })
+  const overages = computed<Overages>({
+    get: () => activeTarget.value?.overages ?? {},
+    set: (v) => {
+      if (activeTarget.value) activeTarget.value.overages = v
+    },
+  })
 
   // v2 state
   const overrides = ref<VersionOverrides>({})
-  // Per-item overproduction (extra items/min beyond demand) — keyed by itemId.
-  const overages = ref<Overages>({})
   const showExtractors = ref<boolean>(false)
   const showIcons = ref<boolean>(true)
   const showRowDividers = ref<boolean>(false)
@@ -191,46 +238,84 @@ export const usePlannerStore = defineStore('planner', () => {
         }
         overrides.value = restoredOverrides
 
-        // overages: per-occurrence deltas keyed by node path. Keep nonzero, finite
-        // values whose leaf item (last path segment) still exists.
-        const restoredOverages: Overages = {}
-        for (const [path, extra] of Object.entries(plan.overages ?? {})) {
-          const leafItemId = path.split('>').pop() ?? ''
-          if (
-            freshItemsById.has(leafItemId) &&
-            typeof extra === 'number' &&
-            isFinite(extra) &&
-            extra !== 0
-          ) {
-            restoredOverages[path] = extra
+        // Build target tabs from the plan (multi-target, or legacy single fields),
+        // validating each item and its overages against the freshly loaded data.
+        const fallbackItem =
+          data.items.find((i) => i.type === 'component')?.id ?? data.items[0]?.id ?? null
+
+        // overages are per-occurrence deltas keyed by node path; keep nonzero,
+        // finite values whose leaf item (last path segment) still exists.
+        const validateOverages = (raw: Overages | undefined): Overages => {
+          const out: Overages = {}
+          for (const [path, extra] of Object.entries(raw ?? {})) {
+            const leafItemId = path.split('>').pop() ?? ''
+            if (
+              freshItemsById.has(leafItemId) &&
+              typeof extra === 'number' &&
+              isFinite(extra) &&
+              extra !== 0
+            ) {
+              out[path] = extra
+            }
           }
+          return out
         }
-        overages.value = restoredOverages
 
-        // targetItemId: use if item exists, else fall back to default
-        const validTarget =
-          plan.targetItemId && freshItemsById.has(plan.targetItemId)
-            ? plan.targetItemId
-            : (data.items.find((i) => i.type === 'component')?.id ?? data.items[0]?.id ?? null)
-        targetItemId.value = validTarget
+        const sources: PlanTargetState[] =
+          plan.targets && plan.targets.length
+            ? plan.targets
+            : [
+                {
+                  targetItemId: plan.targetItemId,
+                  targetRate: plan.targetRate,
+                  overages: plan.overages ?? {},
+                },
+              ]
 
-        // targetRate: use if positive finite number, else compute default
-        targetRate.value =
-          typeof plan.targetRate === 'number' && isFinite(plan.targetRate) && plan.targetRate > 0
-            ? plan.targetRate
-            : validTarget
-              ? defaultRateForItem(validTarget)
-              : 60
+        const restoredTargets: PlanTarget[] = sources.map((s) => {
+          const validItem =
+            s.targetItemId && freshItemsById.has(s.targetItemId) ? s.targetItemId : fallbackItem
+          const rate =
+            typeof s.targetRate === 'number' && isFinite(s.targetRate) && s.targetRate > 0
+              ? s.targetRate
+              : validItem
+                ? defaultRateForItem(validItem)
+                : 60
+          return {
+            tid: _newTid(),
+            targetItemId: validItem,
+            targetRate: rate,
+            overages: validateOverages(s.overages),
+          }
+        })
+        if (restoredTargets.length === 0) {
+          restoredTargets.push({
+            tid: _newTid(),
+            targetItemId: fallbackItem,
+            targetRate: fallbackItem ? defaultRateForItem(fallbackItem) : 60,
+            overages: {},
+          })
+        }
+        targets.value = restoredTargets
+        const ai = plan.activeTargetIndex ?? 0
+        activeTargetId.value =
+          restoredTargets[Math.min(Math.max(ai, 0), restoredTargets.length - 1)].tid
       } else {
         // ── Default reset ─────────────────────────────────────────────────────
         tier.value = defaultTier
         overrides.value = {}
-        overages.value = {}
 
-        const firstComponent = data.items.find((i) => i.type === 'component')
-        const newTarget = firstComponent?.id ?? data.items[0]?.id ?? null
-        targetItemId.value = newTarget
-        targetRate.value = newTarget ? defaultRateForItem(newTarget) : 60
+        const newTarget =
+          data.items.find((i) => i.type === 'component')?.id ?? data.items[0]?.id ?? null
+        targets.value = [
+          {
+            tid: _newTid(),
+            targetItemId: newTarget,
+            targetRate: newTarget ? defaultRateForItem(newTarget) : 60,
+            overages: {},
+          },
+        ]
+        activeTargetId.value = targets.value[0].tid
       }
     } catch (e) {
       error.value = e instanceof Error ? e.message : String(e)
@@ -275,8 +360,50 @@ export const usePlannerStore = defineStore('planner', () => {
   }
 
   function setTarget(itemId: string, rate: number) {
-    targetItemId.value = itemId
-    targetRate.value = rate
+    const t = activeTarget.value
+    if (!t) return
+    t.targetItemId = itemId
+    t.targetRate = rate
+  }
+
+  // ── Tab actions ────────────────────────────────────────────────────────────
+  function setActiveTarget(tid: string) {
+    if (targets.value.some((t) => t.tid === tid)) activeTargetId.value = tid
+  }
+
+  // Add a new recipe tab (defaults to the first component) and make it active.
+  function addTarget() {
+    const newItem =
+      items.value.find((i) => i.type === 'component')?.id ?? items.value[0]?.id ?? null
+    const tid = _newTid()
+    targets.value.push({
+      tid,
+      targetItemId: newItem,
+      targetRate: newItem ? defaultRateForItem(newItem) : 60,
+      overages: {},
+    })
+    activeTargetId.value = tid
+  }
+
+  // Close a recipe tab. Always keeps at least one tab; re-points the active tab
+  // to a neighbour if the closed one was active.
+  function closeTarget(tid: string) {
+    const idx = targets.value.findIndex((t) => t.tid === tid)
+    if (idx === -1) return
+    targets.value.splice(idx, 1)
+    if (targets.value.length === 0) {
+      const newItem =
+        items.value.find((i) => i.type === 'component')?.id ?? items.value[0]?.id ?? null
+      targets.value.push({
+        tid: _newTid(),
+        targetItemId: newItem,
+        targetRate: newItem ? defaultRateForItem(newItem) : 60,
+        overages: {},
+      })
+    }
+    if (!targets.value.some((t) => t.tid === activeTargetId.value)) {
+      activeTargetId.value = targets.value[Math.min(idx, targets.value.length - 1)].tid
+    }
   }
 
   // The producer that will actually make this item (override first, else tier-aware default).
@@ -297,8 +424,10 @@ export const usePlannerStore = defineStore('planner', () => {
 
   // Select a new target item and default its rate to one building's output.
   function selectTargetItem(itemId: string) {
-    targetItemId.value = itemId
-    targetRate.value = defaultRateForItem(itemId)
+    const t = activeTarget.value
+    if (!t) return
+    t.targetItemId = itemId
+    t.targetRate = defaultRateForItem(itemId)
   }
 
   function setOverride(itemId: string, buildingId: string) {
@@ -321,18 +450,20 @@ export const usePlannerStore = defineStore('planner', () => {
   // tree node at `path`. Positive overproduces, negative is an intentional
   // deficit; zero clears the entry.
   function setOverage(path: string, extra: number) {
+    const t = activeTarget.value
+    if (!t) return
     const rounded = Math.round((Number(extra) || 0) * 1000) / 1000
     if (rounded !== 0) {
-      overages.value = { ...overages.value, [path]: rounded }
-    } else if (path in overages.value) {
-      const next = { ...overages.value }
+      t.overages = { ...t.overages, [path]: rounded }
+    } else if (path in t.overages) {
+      const next = { ...t.overages }
       delete next[path]
-      overages.value = next
+      t.overages = next
     }
   }
 
   function clearOverages() {
-    overages.value = {}
+    if (activeTarget.value) activeTarget.value.overages = {}
   }
 
   function setShowExtractors(value: boolean) {
@@ -392,16 +523,34 @@ export const usePlannerStore = defineStore('planner', () => {
     hover.value = null
   }
 
-  /** Build a shareable URL encoding the current plan state. */
-  function buildShareUrl(): string {
-    return encodePlan({
+  // Snapshot the current plan (all tabs) for persistence + sharing. Legacy
+  // single-target fields mirror the active tab for backward compatibility.
+  function _planState(): PlanState {
+    const active = activeTarget.value
+    const idx = Math.max(
+      0,
+      targets.value.findIndex((t) => t.tid === activeTargetId.value),
+    )
+    const planTargets: PlanTargetState[] = targets.value.map((t) => ({
+      targetItemId: t.targetItemId,
+      targetRate: t.targetRate,
+      overages: t.overages,
+    }))
+    return {
       version: version.value,
-      targetItemId: targetItemId.value,
-      targetRate: targetRate.value,
+      targetItemId: active?.targetItemId ?? null,
+      targetRate: active?.targetRate ?? 60,
+      overages: active?.overages ?? {},
+      targets: planTargets,
+      activeTargetIndex: idx,
       tier: tier.value,
       overrides: overrides.value,
-      overages: overages.value,
-    })
+    }
+  }
+
+  /** Build a shareable URL encoding the current plan state. */
+  function buildShareUrl(): string {
+    return encodePlan(_planState())
   }
 
   // ── Debounced persistence watch ────────────────────────────────────────────
@@ -412,32 +561,23 @@ export const usePlannerStore = defineStore('planner', () => {
     if (_saveTimer !== null) clearTimeout(_saveTimer)
     _saveTimer = setTimeout(() => {
       _saveTimer = null
-      save(
-        {
-          version: version.value,
-          targetItemId: targetItemId.value,
-          targetRate: targetRate.value,
-          tier: tier.value,
-          overrides: overrides.value,
-          overages: overages.value,
-        },
-        {
-          showExtractors: showExtractors.value,
-          showIcons: showIcons.value,
-          showRowDividers: showRowDividers.value,
-          expandLevel: expandLevel.value,
-          optionsCollapsed: optionsCollapsed.value,
-          theme: theme.value,
-        },
-      )
+      save(_planState(), {
+        showExtractors: showExtractors.value,
+        showIcons: showIcons.value,
+        showRowDividers: showRowDividers.value,
+        expandLevel: expandLevel.value,
+        optionsCollapsed: optionsCollapsed.value,
+        theme: theme.value,
+      })
     }, 300)
   }
 
   // Watch plan fields
-  watch([version, targetItemId, targetRate], _scheduleSave)
+  watch(version, _scheduleSave)
+  watch(activeTargetId, _scheduleSave)
+  watch(targets, _scheduleSave, { deep: true })
   watch(tier, _scheduleSave, { deep: true })
   watch(overrides, _scheduleSave, { deep: true })
-  watch(overages, _scheduleSave, { deep: true })
   // Watch view prefs
   watch(
     [showExtractors, showIcons, showRowDividers, expandLevel, optionsCollapsed, theme],
@@ -457,6 +597,10 @@ export const usePlannerStore = defineStore('planner', () => {
     targetRate,
     overrides,
     overages,
+    // multi-target tabs
+    targets,
+    activeTargetId,
+    activeTarget,
     showExtractors,
     showIcons,
     showRowDividers,
@@ -490,6 +634,9 @@ export const usePlannerStore = defineStore('planner', () => {
     setTier,
     setVersion,
     setTarget,
+    setActiveTarget,
+    addTarget,
+    closeTarget,
     selectTargetItem,
     defaultRateForItem,
     setOverride,
