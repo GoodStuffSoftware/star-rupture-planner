@@ -548,9 +548,18 @@ export const usePlannerStore = defineStore('planner', () => {
     }
   }
 
-  /** Build a shareable URL encoding the current plan state. */
+  /** Build a shareable URL encoding ONLY the active recipe tab. */
   function buildShareUrl(): string {
-    return encodePlan(_planState())
+    const active = activeTarget.value
+    return encodePlan({
+      version: version.value,
+      targetItemId: active?.targetItemId ?? null,
+      targetRate: active?.targetRate ?? 60,
+      overages: active?.overages ?? {},
+      tier: tier.value,
+      overrides: overrides.value,
+      // No `targets` array → encodePlan emits the compact single-target form.
+    })
   }
 
   // ── Debounced persistence watch ────────────────────────────────────────────

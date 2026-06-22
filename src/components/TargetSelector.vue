@@ -277,7 +277,7 @@ function onRateChange() {
           type="number"
           min="0"
           step="1"
-          class="bg-[var(--panel-2)] text-[var(--text)] text-sm px-2 py-1.5 w-20 focus:outline-none transition-colors text-right"
+          class="bg-[var(--panel-2)] text-[var(--text)] text-sm px-1.5 py-1.5 w-14 focus:outline-none transition-colors text-right"
           @change="onRateChange"
         />
         <button

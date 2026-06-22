@@ -24,8 +24,8 @@ onMounted(() => {
     <!-- Header bar -->
     <header class="chamfer backdrop-blur-sm sticky top-0 z-30">
       <div class="max-w-screen-xl mx-auto px-4 py-3 flex flex-col gap-3">
-        <!-- Row 1: title + version (left), share (right) -->
-        <div class="flex flex-wrap items-center gap-4">
+        <!-- Row 1: title, version, target search + amount, share -->
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
           <!-- Title -->
           <div class="flex items-center gap-2 mr-2">
             <div
@@ -58,21 +58,41 @@ onMounted(() => {
           <!-- Version selector -->
           <VersionSelector />
 
+          <!-- Divider -->
+          <div class="hidden sm:block w-px h-6 bg-[var(--border)] shrink-0" />
+
+          <!-- Target selector (edits the active tab) -->
+          <TargetSelector />
+
+          <!-- Add-recipe entry point — shown only while there's a single recipe
+               (once there are 2+, the tab row below carries its own + button) -->
+          <button
+            v-if="store.targets.length <= 1"
+            type="button"
+            title="Add recipe"
+            class="chamfer-sm [--cf-fill:var(--panel-2)] hover:[--cf-fill:var(--border)] shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 text-sm text-[var(--muted)] hover:text-[var(--text)] transition-colors"
+            @click="store.addTarget()"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 5v14M5 12h14"
+              />
+            </svg>
+            Recipe
+          </button>
+
           <!-- Share button — pushed to the right -->
           <div class="ml-auto shrink-0">
             <ShareButton />
           </div>
         </div>
 
-        <!-- Row 2: target search + amount (left), recipe tabs (right) -->
-        <div class="flex flex-wrap items-center gap-4 border-t border-[var(--border)] pt-3">
-          <!-- Target selector (edits the active tab) -->
-          <TargetSelector />
-
-          <!-- Recipe tabs — pushed to the right -->
-          <div class="ml-auto min-w-0">
-            <RecipeTabs />
-          </div>
+        <!-- Row 2: recipe tabs — only once a second recipe exists -->
+        <div v-if="store.targets.length > 1" class="border-t border-[var(--border)] pt-2.5">
+          <RecipeTabs />
         </div>
       </div>
     </header>
