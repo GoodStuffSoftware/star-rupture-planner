@@ -185,7 +185,7 @@ function onBuildingMouseLeave() {
       >
         <GameIcon :id="node.itemId" kind="item" :name="node.itemName" :size="30" />
         <span
-          class="font-semibold text-base"
+          class="font-semibold text-base whitespace-nowrap"
           :class="depth === 0 ? 'text-[var(--text-strong)]' : 'text-[var(--text-2)]'"
         >
           {{ node.itemName }}
@@ -220,7 +220,7 @@ function onBuildingMouseLeave() {
           </span>
           <!-- Machine icon+name: clickable + hoverable -->
           <span
-            class="text-xs text-slate-400 shrink-0 flex items-center gap-1 cursor-pointer hover:text-[var(--accent)] transition-colors"
+            class="text-xs text-slate-400 shrink-0 flex items-center gap-1 whitespace-nowrap cursor-pointer hover:text-[var(--accent)] transition-colors"
             @click="store.openBuildingDetail(node.building!.id)"
             @mouseenter="onBuildingMouseEnter"
             @mouseleave="onBuildingMouseLeave"
@@ -273,7 +273,7 @@ function onBuildingMouseLeave() {
       <!-- Producer info (non-raw nodes): machine icon+name clickable + hoverable -->
       <template v-else-if="node.building && node.buildingsNeeded !== undefined">
         <span
-          class="text-xs text-slate-400 shrink-0 flex items-center gap-1 cursor-pointer hover:text-[var(--accent)] transition-colors"
+          class="text-xs text-slate-400 shrink-0 flex items-center gap-1 whitespace-nowrap cursor-pointer hover:text-[var(--accent)] transition-colors"
           @click="store.openBuildingDetail(node.building.id)"
           @mouseenter="onBuildingMouseEnter"
           @mouseleave="onBuildingMouseLeave"
@@ -312,7 +312,7 @@ function onBuildingMouseLeave() {
            Sticky so it stays pinned to the visible right edge when a wide row
            overflows horizontally (e.g. on mobile). -->
       <div
-        class="ml-auto flex items-center gap-1.5 shrink-0 pl-3 sticky right-0 z-10 bg-[var(--panel)] group-hover:bg-[var(--panel-2)] transition-colors"
+        class="ml-auto flex items-center gap-1.5 shrink-0 pl-3 sticky right-0 z-10 bg-[var(--panel)] group-hover:bg-[var(--panel-2)] transition-colors shadow-[-10px_0_10px_-6px_rgba(0,0,0,0.5)]"
       >
         <template v-if="canOverage">
           <!-- Overage badge -->
