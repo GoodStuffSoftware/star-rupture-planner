@@ -64,22 +64,12 @@ onMounted(() => {
           <!-- Target selector (edits the active tab) -->
           <TargetSelector />
 
-          <!-- Share button — pushed to the right of the nav row -->
-          <div class="ml-auto shrink-0">
-            <ShareButton />
-          </div>
-        </div>
-
-        <!-- Row 2: recipe tabs (or add-recipe entry point) -->
-        <div class="border-t border-[var(--border)] pt-2.5 min-w-0">
-          <!-- Once there are 2+ recipes the tab strip carries its own + button;
-               with a single recipe show a compact add-recipe button instead. -->
-          <RecipeTabs v-if="store.targets.length > 1" />
+          <!-- Add-recipe button (inline) -->
           <button
-            v-else
             type="button"
+            aria-label="Add recipe"
             title="Add recipe"
-            class="chamfer-sm [--cf-fill:var(--panel-2)] hover:[--cf-fill:var(--border)] shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 text-sm text-[var(--muted)] hover:text-[var(--text)] transition-colors"
+            class="chamfer-sm [--cf-fill:var(--panel-2)] hover:[--cf-fill:var(--border)] shrink-0 w-8 h-8 flex items-center justify-center text-[var(--muted)] hover:text-[var(--text)] transition-colors"
             @click="store.addTarget()"
           >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -90,8 +80,17 @@ onMounted(() => {
                 d="M12 5v14M5 12h14"
               />
             </svg>
-            Recipe
           </button>
+
+          <!-- Share button — pushed to the right of the nav row -->
+          <div class="ml-auto shrink-0">
+            <ShareButton />
+          </div>
+        </div>
+
+        <!-- Row 2: recipe tabs — only once a second recipe exists -->
+        <div v-if="store.targets.length > 1" class="border-t border-[var(--border)] pt-2.5 min-w-0">
+          <RecipeTabs />
         </div>
       </div>
     </header>

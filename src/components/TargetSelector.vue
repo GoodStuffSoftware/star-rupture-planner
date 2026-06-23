@@ -184,7 +184,7 @@ function onRateChange() {
           role="combobox"
           aria-autocomplete="list"
           :aria-expanded="showDropdown"
-          class="bg-[var(--panel-2)] border border-[var(--border)] text-[var(--text)] text-sm pl-3 pr-13 py-1.5 w-56 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent hover:border-[var(--muted)] transition-colors placeholder:text-[var(--muted-2)]"
+          class="bg-[var(--panel-2)] border border-[var(--border)] text-[var(--text)] text-sm pl-3 pr-13 py-1.5 w-44 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent hover:border-[var(--muted)] transition-colors placeholder:text-[var(--muted-2)]"
           @input="onSearchInput"
           @focus="onSearchFocus"
           @blur="onSearchBlur"
