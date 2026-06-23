@@ -77,7 +77,7 @@ function selectedBuildingId(chain: { baseId: string; upgradedId: string }): stri
       </span>
 
       <!-- Summary chips (collapsed only) -->
-      <div v-if="store.optionsCollapsed" class="flex flex-wrap gap-1.5 ml-1">
+      <div v-if="store.optionsCollapsed" class="flex flex-wrap gap-1.5 ml-1 flex-1 min-w-0">
         <span
           v-if="summaryChips.length === 0"
           class="text-xs px-2 py-0.5 rounded bg-[var(--panel-2)] text-[var(--muted-2)] font-medium border border-[var(--border)]"
