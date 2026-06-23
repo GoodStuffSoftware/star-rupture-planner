@@ -52,38 +52,47 @@ onMounted(() => {
             </h1>
           </div>
 
+          <!-- Share (mobile): sits top-right next to the title -->
+          <div class="ml-auto sm:hidden">
+            <ShareButton />
+          </div>
+
           <!-- Divider -->
           <div class="hidden sm:block w-px h-6 bg-[var(--border)] shrink-0" />
 
-          <!-- Version selector -->
-          <VersionSelector />
+          <!-- Controls: a full-width wrapping group on mobile; on sm+ it dissolves
+               (display:contents) so the items sit inline on the single nav row. -->
+          <div class="flex flex-wrap items-center gap-x-3 gap-y-2 w-full sm:contents">
+            <!-- Version selector -->
+            <VersionSelector />
 
-          <!-- Divider -->
-          <div class="hidden sm:block w-px h-6 bg-[var(--border)] shrink-0" />
+            <!-- Divider -->
+            <div class="hidden sm:block w-px h-6 bg-[var(--border)] shrink-0" />
 
-          <!-- Target selector (edits the active tab) -->
-          <TargetSelector />
+            <!-- Target selector (edits the active tab) -->
+            <TargetSelector />
 
-          <!-- Add-recipe button (inline) -->
-          <button
-            type="button"
-            aria-label="Add recipe"
-            title="Add recipe"
-            class="chamfer-sm [--cf-fill:var(--panel-2)] hover:[--cf-fill:var(--border)] shrink-0 w-8 h-8 flex items-center justify-center text-[var(--muted)] hover:text-[var(--text)] transition-colors"
-            @click="store.addTarget()"
-          >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M12 5v14M5 12h14"
-              />
-            </svg>
-          </button>
+            <!-- Add-recipe button (inline) -->
+            <button
+              type="button"
+              aria-label="Add recipe"
+              title="Add recipe"
+              class="chamfer-sm [--cf-fill:var(--panel-2)] hover:[--cf-fill:var(--border)] shrink-0 w-8 h-8 flex items-center justify-center text-[var(--muted)] hover:text-[var(--text)] transition-colors"
+              @click="store.addTarget()"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 5v14M5 12h14"
+                />
+              </svg>
+            </button>
+          </div>
 
-          <!-- Share button — pushed to the right of the nav row -->
-          <div class="ml-auto shrink-0">
+          <!-- Share (desktop): pushed to the far right of the nav row -->
+          <div class="ml-auto shrink-0 hidden sm:block">
             <ShareButton />
           </div>
         </div>
@@ -102,8 +111,11 @@ onMounted(() => {
       <!-- Options panel (full width, above tree/sidebar) -->
       <OptionsPanel />
 
-      <!-- Tree + Sidebar row -->
-      <div class="flex flex-col lg:flex-row gap-2 sm:gap-4 flex-1 min-h-0">
+      <!-- Tree + Totals — side-by-side (Totals position: Side) or stacked (Bottom) -->
+      <div
+        class="flex flex-col gap-2 sm:gap-4 flex-1 min-h-0"
+        :class="store.totalsPlacement === 'side' ? 'lg:flex-row' : ''"
+      >
         <!-- Left: craft tree (flex-1) — outer frame clips; inner scroll child stays rectangular -->
         <section class="flex-1 min-w-0 chamfer flex flex-col min-h-96">
           <!-- Inner wrapper: no clip, handles padding and scroll -->
@@ -112,9 +124,14 @@ onMounted(() => {
           </div>
         </section>
 
-        <!-- Right: sidebar -->
+        <!-- Totals: a sticky right sidebar when 'side', or a full-width panel below when 'bottom' -->
         <aside
-          class="w-full lg:w-80 shrink-0 flex flex-col gap-4 lg:sticky lg:top-20 lg:max-h-[calc(100vh-5.5rem)] lg:overflow-y-auto"
+          class="w-full shrink-0 flex flex-col gap-4"
+          :class="
+            store.totalsPlacement === 'side'
+              ? 'lg:w-80 lg:sticky lg:top-20 lg:max-h-[calc(100vh-5.5rem)] lg:overflow-y-auto'
+              : ''
+          "
         >
           <TotalsPanel />
         </aside>

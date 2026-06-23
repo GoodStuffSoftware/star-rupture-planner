@@ -33,6 +33,7 @@ export interface ViewPrefs {
   optionsCollapsed: boolean
   theme: 'starrupture' | 'spaceage'
   treeFontScale: number // tree zoom factor (1 = 100%)
+  totalsPlacement: 'side' | 'bottom'
 }
 
 // ─── LocalStorage key ─────────────────────────────────────────────────────────
@@ -92,6 +93,7 @@ export function loadSaved(): { plan?: PlanState; prefs?: ViewPrefs } | null {
           typeof p.treeFontScale === 'number' && isFinite(p.treeFontScale) && p.treeFontScale > 0
             ? p.treeFontScale
             : 1,
+        totalsPlacement: p.totalsPlacement === 'bottom' ? 'bottom' : 'side',
       }
     }
 

@@ -106,6 +106,9 @@ export const usePlannerStore = defineStore('planner', () => {
   // Tree text zoom (1 = 100%); persisted view pref
   const treeFontScale = ref<number>(1)
 
+  // Totals panel placement: beside the tree or below it; persisted view pref
+  const totalsPlacement = ref<'side' | 'bottom'>('side')
+
   // v5 state — theme
   const theme = ref<'starrupture' | 'spaceage'>('starrupture')
 
@@ -348,6 +351,9 @@ export const usePlannerStore = defineStore('planner', () => {
       if (saved.prefs.treeFontScale) {
         treeFontScale.value = saved.prefs.treeFontScale
       }
+      if (saved.prefs.totalsPlacement) {
+        totalsPlacement.value = saved.prefs.totalsPlacement
+      }
     }
     // Apply theme to DOM
     document.documentElement.dataset.theme = theme.value === 'spaceage' ? 'spaceage' : ''
@@ -496,6 +502,10 @@ export const usePlannerStore = defineStore('planner', () => {
     treeFontScale.value = n > 0 ? n : 1
   }
 
+  function setTotalsPlacement(p: 'side' | 'bottom') {
+    totalsPlacement.value = p
+  }
+
   function setTheme(t: 'starrupture' | 'spaceage') {
     theme.value = t
     document.documentElement.dataset.theme = t === 'spaceage' ? 'spaceage' : ''
@@ -588,6 +598,7 @@ export const usePlannerStore = defineStore('planner', () => {
         optionsCollapsed: optionsCollapsed.value,
         theme: theme.value,
         treeFontScale: treeFontScale.value,
+        totalsPlacement: totalsPlacement.value,
       })
     }, 300)
   }
@@ -608,6 +619,7 @@ export const usePlannerStore = defineStore('planner', () => {
       optionsCollapsed,
       theme,
       treeFontScale,
+      totalsPlacement,
     ],
     _scheduleSave,
   )
@@ -646,6 +658,7 @@ export const usePlannerStore = defineStore('planner', () => {
     // v3 state
     expandLevel,
     treeFontScale,
+    totalsPlacement,
     // v5 state
     theme,
     // v6 state
@@ -678,6 +691,7 @@ export const usePlannerStore = defineStore('planner', () => {
     toggleOptions,
     setExpandLevel,
     setTreeFontScale,
+    setTotalsPlacement,
     setTheme,
     buildShareUrl,
     // v6 actions
