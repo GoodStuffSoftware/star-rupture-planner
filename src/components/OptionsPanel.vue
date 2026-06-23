@@ -53,7 +53,7 @@ function selectedBuildingId(chain: { baseId: string; upgradedId: string }): stri
   <div class="chamfer">
     <!-- Header row (always visible) -->
     <button
-      class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-[var(--panel-2)] transition-colors"
+      class="w-full flex flex-wrap items-center gap-x-2.5 gap-y-1.5 px-4 py-3 text-left hover:bg-[var(--panel-2)] transition-colors"
       :class="store.optionsCollapsed ? '' : 'border-b border-[var(--border)]'"
       @click="store.toggleOptions()"
     >
@@ -72,26 +72,27 @@ function selectedBuildingId(chain: { baseId: string; upgradedId: string }): stri
       </svg>
 
       <!-- Title -->
-      <span class="text-sm font-semibold text-[var(--text)] uppercase tracking-wider shrink-0">
+      <span class="text-sm font-semibold text-[var(--text)] uppercase tracking-wider shrink-0 mr-1">
         Options
       </span>
 
-      <!-- Summary chips (collapsed only) -->
-      <div v-if="store.optionsCollapsed" class="flex flex-wrap gap-1.5 ml-1 flex-1 min-w-0">
+      <!-- Summary chips (collapsed only) — flow inline after the title, wrapping
+           onto extra lines only when the row is full. -->
+      <template v-if="store.optionsCollapsed">
         <span
           v-if="summaryChips.length === 0"
-          class="text-xs px-2 py-0.5 rounded bg-[var(--panel-2)] text-[var(--muted-2)] font-medium border border-[var(--border)]"
+          class="text-xs px-2 py-0.5 rounded bg-[var(--panel-2)] text-[var(--muted-2)] font-medium border border-[var(--border)] shrink-0"
         >
           All defaults
         </span>
         <span
           v-for="chip in summaryChips"
           :key="chip"
-          class="text-xs px-2 py-0.5 rounded bg-[var(--accent-soft)] text-[var(--accent)] font-medium border border-[var(--accent-soft-border)]"
+          class="text-xs px-2 py-0.5 rounded bg-[var(--accent-soft)] text-[var(--accent)] font-medium border border-[var(--accent-soft-border)] shrink-0"
         >
           {{ chip }}
         </span>
-      </div>
+      </template>
     </button>
 
     <!-- Expanded body -->
