@@ -32,6 +32,7 @@ export interface ViewPrefs {
   expandLevel: number // Infinity is serialised as the string 'all'
   optionsCollapsed: boolean
   theme: 'starrupture' | 'spaceage'
+  treeFontScale: number // tree zoom factor (1 = 100%)
 }
 
 // ─── LocalStorage key ─────────────────────────────────────────────────────────
@@ -87,6 +88,10 @@ export function loadSaved(): { plan?: PlanState; prefs?: ViewPrefs } | null {
         expandLevel,
         optionsCollapsed: typeof p.optionsCollapsed === 'boolean' ? p.optionsCollapsed : false,
         theme: p.theme === 'spaceage' || p.theme === 'cyan' ? 'spaceage' : 'starrupture',
+        treeFontScale:
+          typeof p.treeFontScale === 'number' && isFinite(p.treeFontScale) && p.treeFontScale > 0
+            ? p.treeFontScale
+            : 1,
       }
     }
 

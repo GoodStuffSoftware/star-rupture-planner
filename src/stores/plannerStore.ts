@@ -103,6 +103,9 @@ export const usePlannerStore = defineStore('planner', () => {
   // v3 state — default 2 (persisted view pref)
   const expandLevel = ref<number>(2)
 
+  // Tree text zoom (1 = 100%); persisted view pref
+  const treeFontScale = ref<number>(1)
+
   // v5 state — theme
   const theme = ref<'starrupture' | 'spaceage'>('starrupture')
 
@@ -342,6 +345,9 @@ export const usePlannerStore = defineStore('planner', () => {
       if (saved.prefs.theme) {
         theme.value = saved.prefs.theme
       }
+      if (saved.prefs.treeFontScale) {
+        treeFontScale.value = saved.prefs.treeFontScale
+      }
     }
     // Apply theme to DOM
     document.documentElement.dataset.theme = theme.value === 'spaceage' ? 'spaceage' : ''
@@ -486,6 +492,10 @@ export const usePlannerStore = defineStore('planner', () => {
     expandLevel.value = n
   }
 
+  function setTreeFontScale(n: number) {
+    treeFontScale.value = n > 0 ? n : 1
+  }
+
   function setTheme(t: 'starrupture' | 'spaceage') {
     theme.value = t
     document.documentElement.dataset.theme = t === 'spaceage' ? 'spaceage' : ''
@@ -577,6 +587,7 @@ export const usePlannerStore = defineStore('planner', () => {
         expandLevel: expandLevel.value,
         optionsCollapsed: optionsCollapsed.value,
         theme: theme.value,
+        treeFontScale: treeFontScale.value,
       })
     }, 300)
   }
@@ -589,7 +600,15 @@ export const usePlannerStore = defineStore('planner', () => {
   watch(overrides, _scheduleSave, { deep: true })
   // Watch view prefs
   watch(
-    [showExtractors, showIcons, showRowDividers, expandLevel, optionsCollapsed, theme],
+    [
+      showExtractors,
+      showIcons,
+      showRowDividers,
+      expandLevel,
+      optionsCollapsed,
+      theme,
+      treeFontScale,
+    ],
     _scheduleSave,
   )
 
@@ -626,6 +645,7 @@ export const usePlannerStore = defineStore('planner', () => {
     treeMaxDepth,
     // v3 state
     expandLevel,
+    treeFontScale,
     // v5 state
     theme,
     // v6 state
@@ -657,6 +677,7 @@ export const usePlannerStore = defineStore('planner', () => {
     setShowRowDividers,
     toggleOptions,
     setExpandLevel,
+    setTreeFontScale,
     setTheme,
     buildShareUrl,
     // v6 actions

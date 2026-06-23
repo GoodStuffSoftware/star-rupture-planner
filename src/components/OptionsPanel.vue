@@ -6,6 +6,14 @@ import ChamferToggle from './ChamferToggle.vue'
 
 const store = usePlannerStore()
 
+// Tree text-size presets (zoom factor + label). 100% is the current default.
+const fontScales = [
+  { value: 0.75, label: '75%' },
+  { value: 0.85, label: '85%' },
+  { value: 1, label: '100%' },
+  { value: 1.15, label: '115%' },
+]
+
 function buildingName(id: string): string {
   return store.buildingsById.get(id)?.name ?? id
 }
@@ -247,6 +255,28 @@ function selectedBuildingId(chain: { baseId: string; upgradedId: string }): stri
                 @click="store.setTheme('spaceage')"
               >
                 Space Age
+              </button>
+            </div>
+          </div>
+
+          <!-- Tree text size segmented control -->
+          <div class="flex items-center justify-between gap-3">
+            <span class="text-base text-[var(--text)]">Text size</span>
+            <div
+              class="chamfer-sm [--cf-fill:var(--panel-2)] flex shrink-0 p-px gap-px overflow-hidden text-xs font-medium"
+            >
+              <button
+                v-for="opt in fontScales"
+                :key="opt.value"
+                :class="
+                  store.treeFontScale === opt.value
+                    ? 'bg-[var(--accent)] text-[var(--accent-on)]'
+                    : 'bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)]'
+                "
+                class="px-2.5 py-1 transition-colors"
+                @click="store.setTreeFontScale(opt.value)"
+              >
+                {{ opt.label }}
               </button>
             </div>
           </div>
