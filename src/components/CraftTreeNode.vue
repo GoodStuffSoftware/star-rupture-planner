@@ -349,7 +349,7 @@ function onBuildingMouseLeave() {
               min="0"
               step="1"
               :title="'Output items/min — raise above demand to overproduce, lower below it for a deficit'"
-              class="bg-[var(--panel-2)] text-[var(--text)] text-sm px-1 py-0.5 w-16 text-right font-mono focus:outline-none"
+              class="bg-[var(--panel-2)] text-[var(--text)] text-sm px-1 py-0.5 w-12 text-right font-mono focus:outline-none"
               @change="onOutputChange"
               @click.stop
             />
