@@ -53,6 +53,20 @@ const constructionMaterials = computed(() => {
     .map(([id, v]) => ({ id, name: v.name, total: v.total }))
     .sort((a, b) => b.total - a.total)
 })
+
+// ─── Per-section header totals ────────────────────────────────────────────
+const rawTotal = computed(() =>
+  (store.totals?.rawMaterials ?? []).reduce((s, m) => s + m.ratePerMin, 0),
+)
+const intermediatesTotal = computed(() =>
+  (store.totals?.intermediates ?? []).reduce((s, m) => s + m.ratePerMin, 0),
+)
+const buildingsTotal = computed(() =>
+  (store.totals?.buildings ?? []).reduce((s, b) => s + b.ceilCount, 0),
+)
+const constructionTotal = computed(() =>
+  (constructionMaterials.value ?? []).reduce((s, m) => s + m.total, 0),
+)
 </script>
 
 <template>
@@ -127,6 +141,9 @@ const constructionMaterials = computed(() => {
             />
           </svg>
           Raw materials / min
+          <span class="ml-auto font-mono normal-case tracking-normal text-emerald-400">
+            {{ fmt(rawTotal) }}
+          </span>
         </button>
         <div
           v-if="!collapsed.raw && store.totals.rawMaterials.length === 0"
@@ -178,6 +195,9 @@ const constructionMaterials = computed(() => {
             />
           </svg>
           Intermediate products / min
+          <span class="ml-auto font-mono normal-case tracking-normal text-[var(--accent)]">
+            {{ fmt(intermediatesTotal) }}
+          </span>
         </button>
         <div v-show="!collapsed.intermediates" class="space-y-1">
           <div
@@ -225,6 +245,9 @@ const constructionMaterials = computed(() => {
             />
           </svg>
           Buildings
+          <span class="ml-auto font-mono normal-case tracking-normal text-[var(--accent-2)]">
+            &times;{{ buildingsTotal }}
+          </span>
         </button>
         <div
           v-if="!collapsed.buildings && store.totals.buildings.length === 0"
@@ -245,7 +268,7 @@ const constructionMaterials = computed(() => {
               <GameIcon :id="bld.buildingId" kind="building" :name="bld.buildingName" :size="22" />
               {{ bld.buildingName }}
             </span>
-            <span class="text-[var(--accent)] font-mono ml-2 shrink-0">
+            <span class="text-[var(--accent-2)] font-mono ml-2 shrink-0">
               &times;{{ bld.ceilCount }}
               <span class="text-[var(--muted-2)] text-xs">({{ fmtBuildings(bld.count) }})</span>
             </span>
@@ -297,6 +320,9 @@ const constructionMaterials = computed(() => {
               />
             </svg>
             Construction materials
+            <span class="ml-auto font-mono normal-case tracking-normal text-purple-300">
+              {{ fmt(constructionTotal) }}
+            </span>
           </button>
           <div v-show="!collapsed.construction" class="space-y-1">
             <div
