@@ -23,7 +23,7 @@ onMounted(() => {
   <div class="min-h-screen bg-[var(--bg)] text-[var(--text)] flex flex-col">
     <!-- Header bar -->
     <header class="chamfer backdrop-blur-sm sticky top-0 z-30">
-      <div class="max-w-screen-xl mx-auto px-4 py-3 flex flex-col gap-3">
+      <div class="max-w-screen-xl mx-auto px-2 py-3 sm:px-4 flex flex-col gap-3">
         <!-- Row 1: title, version, target search + amount, share -->
         <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
           <!-- Title -->
@@ -99,16 +99,18 @@ onMounted(() => {
     </header>
 
     <!-- Main content -->
-    <main class="flex-1 max-w-screen-xl mx-auto w-full px-4 py-4 flex flex-col gap-4 min-h-0">
+    <main
+      class="flex-1 max-w-screen-xl mx-auto w-full px-2 py-2 sm:px-4 sm:py-4 flex flex-col gap-2 sm:gap-4 min-h-0"
+    >
       <!-- Options panel (full width, above tree/sidebar) -->
       <OptionsPanel />
 
       <!-- Tree + Sidebar row -->
-      <div class="flex flex-col lg:flex-row gap-4 flex-1 min-h-0">
+      <div class="flex flex-col lg:flex-row gap-2 sm:gap-4 flex-1 min-h-0">
         <!-- Left: craft tree (flex-1) — outer frame clips; inner scroll child stays rectangular -->
         <section class="flex-1 min-w-0 chamfer flex flex-col min-h-96">
           <!-- Inner wrapper: no clip, handles padding and scroll -->
-          <div class="flex-1 p-4 flex flex-col min-h-0">
+          <div class="flex-1 p-2 sm:p-4 flex flex-col min-h-0">
             <CraftTree />
           </div>
         </section>
