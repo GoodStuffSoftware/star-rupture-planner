@@ -16,13 +16,13 @@ function onChange(e: Event) {
       for="version-select"
       class="text-xs font-medium text-[var(--muted)] uppercase tracking-wider"
     >
-      Version
+      Ver
     </label>
     <div class="chamfer-sm [--cf-fill:var(--panel-2)] inline-flex">
       <select
         id="version-select"
         :value="store.version"
-        class="bg-transparent border-0 text-[var(--text)] text-sm px-3 py-1.5 focus:outline-none cursor-pointer"
+        class="bg-transparent border-0 text-[var(--text)] text-sm px-2 py-1.5 focus:outline-none cursor-pointer"
         @change="onChange"
       >
         <option v-for="v in VERSIONS" :key="v.id" :value="v.id">

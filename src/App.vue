@@ -63,37 +63,35 @@ onMounted(() => {
 
           <!-- Target selector (edits the active tab) -->
           <TargetSelector />
-        </div>
 
-        <!-- Row 2: recipe tabs (or add-recipe entry point) + share -->
-        <div class="flex items-center gap-3 border-t border-[var(--border)] pt-2.5">
-          <div class="min-w-0 flex-1">
-            <!-- Once there are 2+ recipes the tab strip carries its own + button;
-                 with a single recipe show a compact add-recipe button instead. -->
-            <RecipeTabs v-if="store.targets.length > 1" />
-            <button
-              v-else
-              type="button"
-              title="Add recipe"
-              class="chamfer-sm [--cf-fill:var(--panel-2)] hover:[--cf-fill:var(--border)] shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 text-sm text-[var(--muted)] hover:text-[var(--text)] transition-colors"
-              @click="store.addTarget()"
-            >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M12 5v14M5 12h14"
-                />
-              </svg>
-              Recipe
-            </button>
-          </div>
-
-          <!-- Share button — pinned to the right of the tabs bar -->
-          <div class="shrink-0">
+          <!-- Share button — pushed to the right of the nav row -->
+          <div class="ml-auto shrink-0">
             <ShareButton />
           </div>
+        </div>
+
+        <!-- Row 2: recipe tabs (or add-recipe entry point) -->
+        <div class="border-t border-[var(--border)] pt-2.5 min-w-0">
+          <!-- Once there are 2+ recipes the tab strip carries its own + button;
+               with a single recipe show a compact add-recipe button instead. -->
+          <RecipeTabs v-if="store.targets.length > 1" />
+          <button
+            v-else
+            type="button"
+            title="Add recipe"
+            class="chamfer-sm [--cf-fill:var(--panel-2)] hover:[--cf-fill:var(--border)] shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 text-sm text-[var(--muted)] hover:text-[var(--text)] transition-colors"
+            @click="store.addTarget()"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 5v14M5 12h14"
+              />
+            </svg>
+            Recipe
+          </button>
         </div>
       </div>
     </header>
