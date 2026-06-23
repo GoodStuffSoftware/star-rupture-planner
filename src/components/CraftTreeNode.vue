@@ -149,9 +149,11 @@ function onBuildingMouseLeave() {
 
 <template>
   <div :class="depth > 0 ? `pl-4 border-l-2 ${getBorderColor(depth - 1)}` : ''">
-    <!-- Node row -->
+    <!-- Node row. w-full = the width of the min-w-max tree wrapper (the widest
+         row), so all rows are equal width and the sticky amount pins to the
+         visible right edge when the tree scrolls sideways. -->
     <div
-      class="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-[var(--panel-2)] transition-colors group min-w-full w-max"
+      class="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-[var(--panel-2)] transition-colors group w-full"
       :class="[depth === 0 ? 'py-2' : '', store.showRowDividers ? 'row-underline' : '']"
     >
       <!-- Caret / expand button -->

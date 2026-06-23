@@ -76,9 +76,13 @@ const store = usePlannerStore()
       <!-- Level controls (between header and scrollable tree) -->
       <TreeControls />
 
-      <!-- Scrollable tree -->
+      <!-- Scrollable tree. The inner min-w-max wrapper sizes to the widest row so
+           every row can be w-full (equal width); the per-row amount then pins to
+           the right edge via position:sticky. -->
       <div class="flex-1 overflow-auto">
-        <CraftTreeNode :node="store.tree" :depth="0" />
+        <div class="min-w-max">
+          <CraftTreeNode :node="store.tree" :depth="0" />
+        </div>
       </div>
     </template>
   </div>
