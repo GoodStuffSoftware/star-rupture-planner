@@ -7,7 +7,6 @@ import RecipeTabs from './components/RecipeTabs.vue'
 import OptionsPanel from './components/OptionsPanel.vue'
 import CraftTree from './components/CraftTree.vue'
 import TotalsPanel from './components/TotalsPanel.vue'
-import ShareButton from './components/ShareButton.vue'
 import DetailDrawer from './components/DetailDrawer.vue'
 import HoverCard from './components/HoverCard.vue'
 import AppFooter from './components/AppFooter.vue'
@@ -53,12 +52,6 @@ onMounted(() => {
             >
               Star Rupture Planner
             </h1>
-          </div>
-
-          <!-- Share — always on the header (title) line: top-right on mobile,
-               and pushed to the far right end on sm+ via order-last. -->
-          <div class="ml-auto shrink-0 sm:order-last">
-            <ShareButton />
           </div>
 
           <!-- Divider -->

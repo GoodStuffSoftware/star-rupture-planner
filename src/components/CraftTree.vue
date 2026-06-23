@@ -3,6 +3,7 @@ import { usePlannerStore } from '../stores/plannerStore'
 import { fmt } from '../lib/format'
 import CraftTreeNode from './CraftTreeNode.vue'
 import TreeControls from './TreeControls.vue'
+import ShareButton from './ShareButton.vue'
 
 const store = usePlannerStore()
 </script>
@@ -65,12 +66,15 @@ const store = usePlannerStore()
 
     <!-- Tree -->
     <template v-else>
-      <!-- Header -->
-      <div class="flex items-baseline gap-2 mb-2 px-2">
+      <!-- Header (recipe rate + name), with Share pinned to the right -->
+      <div class="flex items-center gap-2 mb-2 px-2">
         <span class="text-xl font-bold text-[var(--accent)]">{{ fmt(store.targetRate) }}/min</span>
-        <span class="text-lg text-slate-200 font-semibold">
+        <span class="text-lg text-slate-200 font-semibold truncate">
           {{ store.itemsById.get(store.targetItemId)?.name ?? store.targetItemId }}
         </span>
+        <div class="ml-auto shrink-0">
+          <ShareButton />
+        </div>
       </div>
 
       <!-- Level controls (between header and scrollable tree) -->
