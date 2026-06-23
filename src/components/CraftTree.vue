@@ -9,11 +9,11 @@ const store = usePlannerStore()
 </script>
 
 <template>
-  <div class="min-h-0 flex flex-col">
+  <div class="flex flex-col">
     <!-- Loading state -->
     <div
       v-if="store.loading"
-      class="flex-1 flex items-center justify-center text-slate-400 text-sm"
+      class="min-h-48 flex items-center justify-center text-slate-400 text-sm"
     >
       <svg class="animate-spin w-5 h-5 mr-2 text-[var(--accent)]" fill="none" viewBox="0 0 24 24">
         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
@@ -25,7 +25,7 @@ const store = usePlannerStore()
     <!-- Error state -->
     <div
       v-else-if="store.error"
-      class="flex-1 flex flex-col items-center justify-center gap-3 text-center px-6"
+      class="min-h-48 flex flex-col items-center justify-center gap-3 text-center px-6"
     >
       <svg class="w-10 h-10 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path
@@ -46,7 +46,7 @@ const store = usePlannerStore()
     <!-- Empty / no target state -->
     <div
       v-else-if="!store.targetItemId || !store.tree"
-      class="flex-1 flex flex-col items-center justify-center gap-3 text-center px-6"
+      class="min-h-48 flex flex-col items-center justify-center gap-3 text-center px-6"
     >
       <svg class="w-12 h-12 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path
@@ -80,10 +80,10 @@ const store = usePlannerStore()
       <!-- Level controls (between header and scrollable tree) -->
       <TreeControls />
 
-      <!-- Scrollable tree. The inner min-w-max wrapper sizes to the widest row so
-           every row can be w-full (equal width); the per-row amount then pins to
-           the right edge via position:sticky. -->
-      <div class="flex-1 overflow-auto">
+      <!-- Tree scrolls horizontally only (so the sticky amount can pin to the right
+           edge); vertically it grows with content and the page scrolls. The inner
+           min-w-max wrapper sizes to the widest row so every row is w-full. -->
+      <div class="overflow-x-auto">
         <div class="min-w-max">
           <CraftTreeNode :node="store.tree" :depth="0" />
         </div>

@@ -96,15 +96,16 @@ onMounted(() => {
       <OptionsPanel />
 
       <!-- Tree + Totals — side-by-side (Totals position: Side) or stacked (Bottom).
-           Side only applies at md+; mobile always stacks the totals below. -->
+           Side only applies at md+; mobile always stacks the totals below.
+           items-start so the tree box hugs its content instead of stretching. -->
       <div
-        class="flex flex-col gap-2 sm:gap-4 flex-1 min-h-0"
+        class="flex flex-col gap-2 sm:gap-4 md:items-start"
         :class="store.totalsPlacement === 'side' ? 'md:flex-row' : ''"
       >
-        <!-- Left: craft tree (flex-1) — outer frame clips; inner scroll child stays rectangular -->
-        <section class="flex-1 min-w-0 chamfer flex flex-col min-h-96">
-          <!-- Inner wrapper: no clip, handles padding and scroll -->
-          <div class="flex-1 p-2 sm:p-4 flex flex-col min-h-0">
+        <!-- Left: craft tree — grows to fit content (flex-1 fills width in side mode) -->
+        <section class="w-full md:flex-1 min-w-0 chamfer flex flex-col">
+          <!-- Inner wrapper: no clip, handles padding -->
+          <div class="p-2 sm:p-4 flex flex-col">
             <CraftTree />
           </div>
         </section>
