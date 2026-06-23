@@ -338,7 +338,7 @@ function onBuildingMouseLeave() {
             <button
               type="button"
               :title="`−${stepTitle}`"
-              class="px-1.5 py-0.5 bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)] transition-colors text-sm leading-none"
+              class="px-1 py-0.5 bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)] transition-colors text-sm leading-none"
               @click.stop="stepOutput(-1)"
             >
               &minus;
@@ -349,14 +349,14 @@ function onBuildingMouseLeave() {
               min="0"
               step="1"
               :title="'Output items/min — raise above demand to overproduce, lower below it for a deficit'"
-              class="bg-[var(--panel-2)] text-[var(--text)] text-sm px-1 py-0.5 w-12 text-right font-mono focus:outline-none"
+              class="amount-input bg-[var(--panel-2)] text-[var(--text)] text-sm px-1 py-0.5 w-9 text-right font-mono focus:outline-none"
               @change="onOutputChange"
               @click.stop
             />
             <button
               type="button"
               :title="`+${stepTitle}`"
-              class="px-1.5 py-0.5 bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)] transition-colors text-sm leading-none"
+              class="px-1 py-0.5 bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)] transition-colors text-sm leading-none"
               @click.stop="stepOutput(1)"
             >
               +
@@ -388,3 +388,17 @@ function onBuildingMouseLeave() {
     </div>
   </div>
 </template>
+
+<style scoped>
+/* Hide the native number spinner so the field only needs room for ~3 digits.
+   Keyboard ↑/↓ still step by 1; the − / + buttons step by a whole machine. */
+.amount-input::-webkit-outer-spin-button,
+.amount-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.amount-input {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+</style>
