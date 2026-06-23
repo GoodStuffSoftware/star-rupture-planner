@@ -173,8 +173,12 @@ export const usePlannerStore = defineStore('planner', () => {
     buildBuildingCosts(_buildingCostsRaw.value),
   )
 
+  // The "all totals" pseudo-tab aggregates every open tab; it isn't a real target.
+  const ALL_TARGETS_ID = '__all__'
+  const isAllView = computed(() => activeTargetId.value === ALL_TARGETS_ID)
+
   const tree = computed<CraftNode | null>(() => {
-    if (!targetItemId.value) return null
+    if (isAllView.value || !targetItemId.value) return null
     return resolveTree(targetItemId.value, targetRate.value, {
       itemsById: itemsById.value,
       producerIndex: producerIndex.value,
@@ -184,7 +188,78 @@ export const usePlannerStore = defineStore('planner', () => {
     })
   })
 
+  // Combined totals across all open tabs (raw, intermediates, buildings, power,
+  // heat summed; building counts re-ceiled on the combined fractional count).
+  const allTotals = computed<Totals | null>(() => {
+    const real = targets.value.filter((t) => t.targetItemId)
+    if (real.length === 0) return null
+    const rawMap = new Map<string, { itemName: string; ratePerMin: number }>()
+    const intMap = new Map<
+      string,
+      { itemName: string; itemType: Item['type']; ratePerMin: number }
+    >()
+    const bldMap = new Map<string, { buildingName: string; count: number }>()
+    let totalPower = 0
+    let totalHeat = 0
+    for (const t of real) {
+      const tr = resolveTree(t.targetItemId!, t.targetRate, {
+        itemsById: itemsById.value,
+        producerIndex: producerIndex.value,
+        fullProducerIndex: fullProducerIndex.value,
+        overrides: overrides.value,
+        overages: t.overages,
+      })
+      const tot = aggregateTotals(tr, { showExtractors: showExtractors.value })
+      for (const r of tot.rawMaterials) {
+        const e = rawMap.get(r.itemId)
+        if (e) e.ratePerMin += r.ratePerMin
+        else rawMap.set(r.itemId, { itemName: r.itemName, ratePerMin: r.ratePerMin })
+      }
+      for (const i of tot.intermediates) {
+        const e = intMap.get(i.itemId)
+        if (e) e.ratePerMin += i.ratePerMin
+        else
+          intMap.set(i.itemId, {
+            itemName: i.itemName,
+            itemType: i.itemType,
+            ratePerMin: i.ratePerMin,
+          })
+      }
+      for (const b of tot.buildings) {
+        const e = bldMap.get(b.buildingId)
+        if (e) e.count += b.count
+        else bldMap.set(b.buildingId, { buildingName: b.buildingName, count: b.count })
+      }
+      totalPower += tot.totalPower
+      totalHeat += tot.totalHeat
+    }
+    return {
+      rawMaterials: [...rawMap.entries()]
+        .map(([itemId, v]) => ({ itemId, itemName: v.itemName, ratePerMin: v.ratePerMin }))
+        .sort((a, b) => b.ratePerMin - a.ratePerMin),
+      intermediates: [...intMap.entries()]
+        .map(([itemId, v]) => ({
+          itemId,
+          itemName: v.itemName,
+          itemType: v.itemType,
+          ratePerMin: v.ratePerMin,
+        }))
+        .sort((a, b) => b.ratePerMin - a.ratePerMin),
+      buildings: [...bldMap.entries()]
+        .map(([buildingId, v]) => ({
+          buildingId,
+          buildingName: v.buildingName,
+          count: v.count,
+          ceilCount: Math.ceil(v.count),
+        }))
+        .sort((a, b) => b.count - a.count),
+      totalPower,
+      totalHeat,
+    }
+  })
+
   const totals = computed<Totals | null>(() => {
+    if (isAllView.value) return allTotals.value
     if (!tree.value) return null
     return aggregateTotals(tree.value, { showExtractors: showExtractors.value })
   })
@@ -404,6 +479,11 @@ export const usePlannerStore = defineStore('planner', () => {
     if (targets.value.some((t) => t.tid === tid)) activeTargetId.value = tid
   }
 
+  // Switch to the combined "all totals" view.
+  function showAllTotals() {
+    activeTargetId.value = ALL_TARGETS_ID
+  }
+
   // Open the given item in a NEW recipe tab (default rate) and make it active.
   function addTargetItem(itemId: string | null) {
     const tid = _newTid()
@@ -441,7 +521,10 @@ export const usePlannerStore = defineStore('planner', () => {
         expandLevel: defaultExpandLevel.value,
       })
     }
-    if (!targets.value.some((t) => t.tid === activeTargetId.value)) {
+    if (activeTargetId.value === ALL_TARGETS_ID) {
+      // The all-totals view only exists with 2+ tabs; fall back if we dropped to one.
+      if (targets.value.length <= 1) activeTargetId.value = targets.value[0].tid
+    } else if (!targets.value.some((t) => t.tid === activeTargetId.value)) {
       activeTargetId.value = targets.value[Math.min(idx, targets.value.length - 1)].tid
     }
   }
@@ -689,6 +772,7 @@ export const usePlannerStore = defineStore('planner', () => {
     targets,
     activeTargetId,
     activeTarget,
+    isAllView,
     showExtractors,
     showIcons,
     showRowDividers,
@@ -726,6 +810,7 @@ export const usePlannerStore = defineStore('planner', () => {
     setVersion,
     setTarget,
     setActiveTarget,
+    showAllTotals,
     addTarget,
     addTargetItem,
     closeTarget,

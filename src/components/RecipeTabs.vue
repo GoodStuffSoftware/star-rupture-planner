@@ -58,6 +58,21 @@ function onDragEnd() {
          there's no dead space without a scrollbar; the header's bottom padding
          gives the scrollbar even room below it when it does appear. -->
     <div class="flex items-center gap-1.5 overflow-x-auto pt-0.5 pb-0 min-w-0">
+      <!-- Combined "all totals" pseudo-tab -->
+      <button
+        type="button"
+        title="Combined totals across all recipes"
+        class="chamfer-sm shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 text-sm font-semibold transition-colors select-none"
+        :class="
+          store.isAllView
+            ? '[--cf-fill:var(--accent)] text-[var(--accent-on)]'
+            : '[--cf-fill:var(--panel-2)] hover:[--cf-fill:var(--border)] text-[var(--muted)] hover:text-[var(--text)]'
+        "
+        @click="store.showAllTotals()"
+      >
+        &Sigma; All
+      </button>
+
       <div
         v-for="t in store.targets"
         :key="t.tid"

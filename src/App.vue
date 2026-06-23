@@ -95,10 +95,25 @@ onMounted(() => {
       <!-- Options panel (full width, above tree/sidebar) -->
       <OptionsPanel />
 
+      <!-- Combined "all totals" view -->
+      <div v-if="store.isAllView" class="mx-auto w-full max-w-3xl flex flex-col gap-2 sm:gap-4">
+        <section class="chamfer px-4 py-3">
+          <h2 class="text-lg font-bold text-[var(--accent)] uppercase tracking-tight">
+            Big ambitions, convict?
+          </h2>
+          <p class="text-sm text-[var(--muted)] mt-0.5">
+            Every open recipe, tallied into one glorious work order. The Company has noted your
+            enthusiasm — and added it to your tab.
+          </p>
+        </section>
+        <TotalsPanel />
+      </div>
+
       <!-- Tree + Totals — side-by-side (Totals position: Side) or stacked (Bottom).
            Side only applies at md+; mobile always stacks the totals below.
            items-start so the tree box hugs its content instead of stretching. -->
       <div
+        v-else
         class="flex flex-col gap-2 sm:gap-4 md:items-start"
         :class="store.totalsPlacement === 'side' ? 'md:flex-row' : ''"
       >
