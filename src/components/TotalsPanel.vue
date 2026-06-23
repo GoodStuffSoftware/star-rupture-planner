@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive } from 'vue'
+import { computed } from 'vue'
 import { usePlannerStore } from '../stores/plannerStore'
 import { fmt, fmtBuildings } from '../lib/format'
 import GameIcon from './GameIcon.vue'
@@ -7,16 +7,11 @@ import GameIcon from './GameIcon.vue'
 const store = usePlannerStore()
 
 // ─── Collapsible section state ────────────────────────────────────────────
-// Each totals subsection can be collapsed by clicking its header. Per-session.
-const collapsed = reactive({
-  raw: false,
-  intermediates: false,
-  buildings: false,
-  construction: false,
-})
-type Section = keyof typeof collapsed
-function toggle(section: Section) {
-  collapsed[section] = !collapsed[section]
+// Each totals subsection can be collapsed by clicking its header. Persisted in
+// the store (view prefs), keyed by section id.
+const collapsed = store.totalsCollapsed
+function toggle(section: string) {
+  store.toggleTotalsSection(section)
 }
 
 // ─── v6: hover helpers ────────────────────────────────────────────────────

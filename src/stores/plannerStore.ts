@@ -117,6 +117,9 @@ export const usePlannerStore = defineStore('planner', () => {
   // Totals panel placement: beside the tree or below it; persisted view pref
   const totalsPlacement = ref<'side' | 'bottom'>('side')
 
+  // Collapsed state per Totals subsection (keyed by section id); persisted.
+  const totalsCollapsed = ref<Record<string, boolean>>({})
+
   // v5 state — theme
   const theme = ref<'starrupture' | 'spaceage'>('starrupture')
 
@@ -369,6 +372,9 @@ export const usePlannerStore = defineStore('planner', () => {
       if (saved.prefs.totalsPlacement) {
         totalsPlacement.value = saved.prefs.totalsPlacement
       }
+      if (saved.prefs.totalsCollapsed) {
+        totalsCollapsed.value = saved.prefs.totalsCollapsed
+      }
     }
     // Apply theme to DOM
     document.documentElement.dataset.theme = theme.value === 'spaceage' ? 'spaceage' : ''
@@ -534,6 +540,12 @@ export const usePlannerStore = defineStore('planner', () => {
     totalsPlacement.value = p
   }
 
+  function toggleTotalsSection(key: string) {
+    // Mutate in place so callers holding a reference stay in sync; the deep watch
+    // still picks it up for persistence.
+    totalsCollapsed.value[key] = !totalsCollapsed.value[key]
+  }
+
   function setTheme(t: 'starrupture' | 'spaceage') {
     theme.value = t
     document.documentElement.dataset.theme = t === 'spaceage' ? 'spaceage' : ''
@@ -628,6 +640,7 @@ export const usePlannerStore = defineStore('planner', () => {
         theme: theme.value,
         treeFontScale: treeFontScale.value,
         totalsPlacement: totalsPlacement.value,
+        totalsCollapsed: totalsCollapsed.value,
       })
     }, 300)
   }
@@ -652,6 +665,7 @@ export const usePlannerStore = defineStore('planner', () => {
     ],
     _scheduleSave,
   )
+  watch(totalsCollapsed, _scheduleSave, { deep: true })
 
   return {
     // State
@@ -688,6 +702,7 @@ export const usePlannerStore = defineStore('planner', () => {
     expandLevel,
     treeFontScale,
     totalsPlacement,
+    totalsCollapsed,
     // v5 state
     theme,
     // v6 state
@@ -722,6 +737,7 @@ export const usePlannerStore = defineStore('planner', () => {
     setExpandLevel,
     setTreeFontScale,
     setTotalsPlacement,
+    toggleTotalsSection,
     setTheme,
     buildShareUrl,
     // v6 actions

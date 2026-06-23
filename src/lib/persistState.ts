@@ -35,6 +35,7 @@ export interface ViewPrefs {
   theme: 'starrupture' | 'spaceage'
   treeFontScale: number // tree zoom factor (1 = 100%)
   totalsPlacement: 'side' | 'bottom'
+  totalsCollapsed: Record<string, boolean> // collapsed state per Totals subsection
 }
 
 // ─── LocalStorage key ─────────────────────────────────────────────────────────
@@ -95,6 +96,10 @@ export function loadSaved(): { plan?: PlanState; prefs?: ViewPrefs } | null {
             ? p.treeFontScale
             : 1,
         totalsPlacement: p.totalsPlacement === 'bottom' ? 'bottom' : 'side',
+        totalsCollapsed:
+          typeof p.totalsCollapsed === 'object' && p.totalsCollapsed !== null
+            ? (p.totalsCollapsed as Record<string, boolean>)
+            : {},
       }
     }
 
