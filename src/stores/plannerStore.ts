@@ -396,8 +396,11 @@ export const usePlannerStore = defineStore('planner', () => {
         }
         targets.value = restoredTargets
         const ai = plan.activeTargetIndex ?? 0
+        // -1 restores the combined "all totals" view (only valid with 2+ tabs).
         activeTargetId.value =
-          restoredTargets[Math.min(Math.max(ai, 0), restoredTargets.length - 1)].tid
+          ai === -1 && restoredTargets.length > 1
+            ? ALL_TARGETS_ID
+            : restoredTargets[Math.min(Math.max(ai, 0), restoredTargets.length - 1)].tid
       } else {
         // ── Default reset ─────────────────────────────────────────────────────
         tier.value = defaultTier
@@ -675,10 +678,13 @@ export const usePlannerStore = defineStore('planner', () => {
   // single-target fields mirror the active tab for backward compatibility.
   function _planState(): PlanState {
     const active = activeTarget.value
-    const idx = Math.max(
-      0,
-      targets.value.findIndex((t) => t.tid === activeTargetId.value),
-    )
+    // -1 marks the combined "all totals" view (not a real target index).
+    const idx = isAllView.value
+      ? -1
+      : Math.max(
+          0,
+          targets.value.findIndex((t) => t.tid === activeTargetId.value),
+        )
     const planTargets: PlanTargetState[] = targets.value.map((t) => ({
       targetItemId: t.targetItemId,
       targetRate: t.targetRate,
