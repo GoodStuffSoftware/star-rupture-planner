@@ -59,7 +59,9 @@ onMounted(() => {
           <div class="hidden sm:block w-px h-6 bg-[var(--border)] shrink-0" />
 
           <!-- Controls: a full-width wrapping group on mobile; on sm+ it dissolves
-               (display:contents) so the items sit inline on the single nav row. -->
+               (display:contents) so the items sit inline on the single nav row.
+               The add (+) button sits next to the per-minute amount, and Share is
+               pushed (ml-auto) to the very end of the header line. -->
           <div class="flex flex-wrap items-center gap-x-3 gap-y-2 w-full sm:contents">
             <!-- Version selector -->
             <VersionSelector />
@@ -69,12 +71,8 @@ onMounted(() => {
 
             <!-- Target selector (edits the active tab) -->
             <TargetSelector />
-          </div>
 
-          <!-- Single-recipe cluster: add + share. Far right on desktop; on mobile
-               it wraps below the controls. With multiple recipes these live on the
-               tabs row instead. -->
-          <div v-if="store.targets.length <= 1" class="ml-auto shrink-0 flex items-center gap-2">
+            <!-- Add recipe — next to the per-minute amount -->
             <button
               type="button"
               aria-label="Add recipe"
@@ -91,25 +89,17 @@ onMounted(() => {
                 />
               </svg>
             </button>
-            <ShareButton />
+
+            <!-- Share — pinned to the end of the header line -->
+            <div class="ml-auto shrink-0">
+              <ShareButton />
+            </div>
           </div>
         </div>
 
-        <!-- Row 2: recipe tabs — only once a second recipe exists. On desktop it
-             also carries the add + share controls; on mobile those stay on the nav row. -->
-        <div
-          v-if="store.targets.length > 1"
-          class="flex items-center gap-2 border-t border-[var(--border)] pt-2.5 min-w-0"
-        >
-          <!-- Tabs (scroll) — the + add button lives at the end of the strip -->
-          <div class="min-w-0 flex-1">
-            <RecipeTabs />
-          </div>
-
-          <!-- Share, pinned to the right of the tabs row -->
-          <div class="shrink-0">
-            <ShareButton />
-          </div>
+        <!-- Row 2: recipe tabs — only once a second recipe exists -->
+        <div v-if="store.targets.length > 1" class="border-t border-[var(--border)] pt-2.5 min-w-0">
+          <RecipeTabs />
         </div>
       </div>
     </header>
