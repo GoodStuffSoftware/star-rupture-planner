@@ -290,6 +290,8 @@ function onRateChange() {
         </button>
       </div>
       <span class="text-[var(--muted)] text-sm font-medium">/min</span>
+      <!-- Trailing slot (e.g. the add-recipe button) — stays on the rate line -->
+      <slot />
     </div>
   </div>
 </template>

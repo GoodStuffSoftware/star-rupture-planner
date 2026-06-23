@@ -18,10 +18,12 @@ function labelFor(itemId: string | null): string {
 const nameMaxWidth = computed(() => {
   const n = store.targets.length
   if (n <= 2) return 160
-  if (n <= 4) return 120
-  if (n <= 6) return 90
-  if (n <= 9) return 64
-  return 48
+  if (n <= 3) return 130
+  if (n <= 5) return 100
+  if (n <= 7) return 78
+  if (n <= 10) return 60
+  if (n <= 14) return 48
+  return 38
 })
 
 // ─── Drag-to-reorder ────────────────────────────────────────────────────────
@@ -52,7 +54,7 @@ function onDragEnd() {
 <template>
   <div class="flex items-center gap-2 min-w-0">
     <!-- Tab chips (scroll horizontally when they overflow) -->
-    <div class="flex items-center gap-1.5 overflow-x-auto py-0.5 min-w-0">
+    <div class="tab-scroll flex items-center gap-1.5 overflow-x-auto py-0.5 min-w-0">
       <div
         v-for="t in store.targets"
         :key="t.tid"
@@ -117,25 +119,27 @@ function onDragEnd() {
           </svg>
         </button>
       </div>
-
-      <!-- Add-recipe — on the tab line at sm+ (on mobile the + lives next to the
-           per-minute amount instead). -->
-      <button
-        type="button"
-        aria-label="Add recipe"
-        title="Add recipe"
-        class="chamfer-sm [--cf-fill:var(--panel-2)] hover:[--cf-fill:var(--border)] shrink-0 w-8 h-8 hidden sm:flex items-center justify-center text-[var(--muted)] hover:text-[var(--text)] transition-colors"
-        @click="store.addTarget()"
-      >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M12 5v14M5 12h14"
-          />
-        </svg>
-      </button>
     </div>
   </div>
 </template>
+
+<style scoped>
+/* Slimmer horizontal scrollbar for the tab strip. */
+.tab-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.tab-scroll::-webkit-scrollbar {
+  height: 6px;
+}
+.tab-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.tab-scroll::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 9999px;
+}
+.tab-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-2);
+}
+</style>
