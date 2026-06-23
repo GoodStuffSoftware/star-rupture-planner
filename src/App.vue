@@ -52,8 +52,9 @@ onMounted(() => {
             </h1>
           </div>
 
-          <!-- Share (mobile): sits top-right next to the title -->
-          <div class="ml-auto sm:hidden">
+          <!-- Share (mobile): top-right next to the title — only while there's no
+               tabs row (a single recipe). Once tabs appear it moves down there. -->
+          <div v-if="store.targets.length <= 1" class="ml-auto sm:hidden">
             <ShareButton />
           </div>
 
@@ -72,8 +73,10 @@ onMounted(() => {
             <!-- Target selector (edits the active tab) -->
             <TargetSelector />
 
-            <!-- Add-recipe button (inline) -->
+            <!-- Add-recipe button — on the nav row only while there's a single
+                 recipe; once the tabs row shows it carries its own + button. -->
             <button
+              v-if="store.targets.length <= 1"
               type="button"
               aria-label="Add recipe"
               title="Add recipe"
@@ -91,15 +94,44 @@ onMounted(() => {
             </button>
           </div>
 
-          <!-- Share (desktop): pushed to the far right of the nav row -->
-          <div class="ml-auto shrink-0 hidden sm:block">
+          <!-- Share (desktop): far right of the nav row — only for a single recipe. -->
+          <div v-if="store.targets.length <= 1" class="ml-auto shrink-0 hidden sm:block">
             <ShareButton />
           </div>
         </div>
 
-        <!-- Row 2: recipe tabs — only once a second recipe exists -->
-        <div v-if="store.targets.length > 1" class="border-t border-[var(--border)] pt-2.5 min-w-0">
-          <RecipeTabs />
+        <!-- Row 2: recipe tabs (with the add + share controls) — only once a second recipe exists -->
+        <div
+          v-if="store.targets.length > 1"
+          class="flex items-center gap-2 border-t border-[var(--border)] pt-2.5 min-w-0"
+        >
+          <!-- Tabs (scroll) -->
+          <div class="min-w-0 flex-1">
+            <RecipeTabs />
+          </div>
+
+          <!-- Add-recipe button -->
+          <button
+            type="button"
+            aria-label="Add recipe"
+            title="Add recipe"
+            class="chamfer-sm [--cf-fill:var(--panel-2)] hover:[--cf-fill:var(--border)] shrink-0 w-8 h-8 flex items-center justify-center text-[var(--muted)] hover:text-[var(--text)] transition-colors"
+            @click="store.addTarget()"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 5v14M5 12h14"
+              />
+            </svg>
+          </button>
+
+          <!-- Share -->
+          <div class="shrink-0">
+            <ShareButton />
+          </div>
         </div>
       </div>
     </header>
