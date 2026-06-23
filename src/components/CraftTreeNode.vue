@@ -308,8 +308,12 @@ function onBuildingMouseLeave() {
         </div>
       </template>
 
-      <!-- Rate (right-aligned), with per-row overage stepper on non-root rows -->
-      <div class="ml-auto flex items-center gap-1.5 shrink-0 pl-3">
+      <!-- Rate (right-aligned), with per-row overage stepper on non-root rows.
+           Sticky so it stays pinned to the visible right edge when a wide row
+           overflows horizontally (e.g. on mobile). -->
+      <div
+        class="ml-auto flex items-center gap-1.5 shrink-0 pl-3 sticky right-0 z-10 bg-[var(--panel)] group-hover:bg-[var(--panel-2)] transition-colors"
+      >
         <template v-if="canOverage">
           <!-- Overage badge -->
           <span
