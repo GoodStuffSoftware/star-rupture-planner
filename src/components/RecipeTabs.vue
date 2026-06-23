@@ -5,6 +5,7 @@ import { ref, computed } from 'vue'
 import { usePlannerStore } from '../stores/plannerStore'
 import { fmt } from '../lib/format'
 import GameIcon from './GameIcon.vue'
+import AddRecipeButton from './AddRecipeButton.vue'
 
 const store = usePlannerStore()
 
@@ -53,8 +54,9 @@ function onDragEnd() {
 
 <template>
   <div class="flex items-center gap-2 min-w-0">
-    <!-- Tab chips (scroll horizontally when they overflow) -->
-    <div class="flex items-center gap-1.5 overflow-x-auto py-0.5 min-w-0">
+    <!-- Tab chips (scroll horizontally when they overflow). Extra bottom padding
+         leaves room for the slim scrollbar below the chips. -->
+    <div class="flex items-center gap-1.5 overflow-x-auto pt-0.5 pb-2 min-w-0">
       <div
         v-for="t in store.targets"
         :key="t.tid"
@@ -118,6 +120,13 @@ function onDragEnd() {
             />
           </svg>
         </button>
+      </div>
+
+      <!-- Add recipe — sticky to the right edge so it shares the chips' line
+           (aligned) and stays visible when the strip scrolls. Desktop only;
+           on mobile the + lives next to the per-minute amount. -->
+      <div class="hidden sm:flex items-center sticky right-0 z-10 pl-1.5 bg-[var(--panel)]">
+        <AddRecipeButton />
       </div>
     </div>
   </div>

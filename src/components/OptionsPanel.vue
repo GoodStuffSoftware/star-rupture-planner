@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { usePlannerStore } from '../stores/plannerStore'
 import GameIcon from './GameIcon.vue'
 import ChamferToggle from './ChamferToggle.vue'
+import SegmentedControl from './SegmentedControl.vue'
 
 const store = usePlannerStore()
 
@@ -12,6 +13,16 @@ const fontScales = [
   { value: 0.85, label: '85%' },
   { value: 1, label: '100%' },
   { value: 1.15, label: '115%' },
+]
+
+// Option toggles backed by SegmentedControl.
+const themeOptions = [
+  { value: 'starrupture', label: 'Star Rupture' },
+  { value: 'spaceage', label: 'Space Age' },
+]
+const totalsOptions = [
+  { value: 'side', label: 'Side' },
+  { value: 'bottom', label: 'Bottom' },
 ]
 
 function buildingName(id: string): string {
@@ -228,88 +239,34 @@ function selectedBuildingId(chain: { baseId: string; upgradedId: string }): stri
             />
           </label>
 
-          <!-- Theme segmented control -->
+          <!-- Theme -->
           <div class="flex items-center justify-between gap-3">
             <span class="text-base text-[var(--text)]">Theme</span>
-            <div
-              class="chamfer-sm [--cf-fill:var(--panel-2)] flex shrink-0 p-px gap-px overflow-hidden text-xs font-medium"
-            >
-              <button
-                :class="
-                  store.theme !== 'spaceage'
-                    ? 'bg-[var(--accent)] text-[var(--accent-on)]'
-                    : 'bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)]'
-                "
-                class="px-2.5 py-1 transition-colors"
-                @click="store.setTheme('starrupture')"
-              >
-                Star Rupture
-              </button>
-              <button
-                :class="
-                  store.theme === 'spaceage'
-                    ? 'bg-[var(--accent)] text-[var(--accent-on)]'
-                    : 'bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)]'
-                "
-                class="px-2.5 py-1 transition-colors"
-                @click="store.setTheme('spaceage')"
-              >
-                Space Age
-              </button>
-            </div>
+            <SegmentedControl
+              :options="themeOptions"
+              :model-value="store.theme"
+              @update:model-value="store.setTheme($event as 'starrupture' | 'spaceage')"
+            />
           </div>
 
-          <!-- Tree text size segmented control -->
+          <!-- Tree text size -->
           <div class="flex items-center justify-between gap-3">
             <span class="text-base text-[var(--text)]">Text size</span>
-            <div
-              class="chamfer-sm [--cf-fill:var(--panel-2)] flex shrink-0 p-px gap-px overflow-hidden text-xs font-medium"
-            >
-              <button
-                v-for="opt in fontScales"
-                :key="opt.value"
-                :class="
-                  store.treeFontScale === opt.value
-                    ? 'bg-[var(--accent)] text-[var(--accent-on)]'
-                    : 'bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)]'
-                "
-                class="px-2.5 py-1 transition-colors"
-                @click="store.setTreeFontScale(opt.value)"
-              >
-                {{ opt.label }}
-              </button>
-            </div>
+            <SegmentedControl
+              :options="fontScales"
+              :model-value="store.treeFontScale"
+              @update:model-value="store.setTreeFontScale($event as number)"
+            />
           </div>
 
-          <!-- Totals placement segmented control -->
+          <!-- Totals placement -->
           <div class="flex items-center justify-between gap-3">
             <span class="text-base text-[var(--text)]">Totals position</span>
-            <div
-              class="chamfer-sm [--cf-fill:var(--panel-2)] flex shrink-0 p-px gap-px overflow-hidden text-xs font-medium"
-            >
-              <button
-                :class="
-                  store.totalsPlacement === 'side'
-                    ? 'bg-[var(--accent)] text-[var(--accent-on)]'
-                    : 'bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)]'
-                "
-                class="px-2.5 py-1 transition-colors"
-                @click="store.setTotalsPlacement('side')"
-              >
-                Side
-              </button>
-              <button
-                :class="
-                  store.totalsPlacement === 'bottom'
-                    ? 'bg-[var(--accent)] text-[var(--accent-on)]'
-                    : 'bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)]'
-                "
-                class="px-2.5 py-1 transition-colors"
-                @click="store.setTotalsPlacement('bottom')"
-              >
-                Bottom
-              </button>
-            </div>
+            <SegmentedControl
+              :options="totalsOptions"
+              :model-value="store.totalsPlacement"
+              @update:model-value="store.setTotalsPlacement($event as 'side' | 'bottom')"
+            />
           </div>
 
           <!-- Reset overrides button (only when overrides exist) -->

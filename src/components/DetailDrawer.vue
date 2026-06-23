@@ -7,6 +7,7 @@
 import { computed, onMounted, onBeforeUnmount } from 'vue'
 import { usePlannerStore } from '../stores/plannerStore'
 import { fmt } from '../lib/format'
+import { itemTypeChipClass } from '../lib/itemTypeChip'
 import GameIcon from './GameIcon.vue'
 
 const store = usePlannerStore()
@@ -58,15 +59,6 @@ const buildingData = computed(() => {
 
   return { building, chain, isV2, pairedId, pairedBuilding, unlock, costs }
 })
-
-// ─── Type chip colors ─────────────────────────────────────────────────────
-const typeColors: Record<string, string> = {
-  raw: 'bg-amber-900/60 text-amber-300',
-  processed: 'bg-blue-900/60 text-blue-300',
-  component: 'bg-emerald-900/60 text-emerald-300',
-  material: 'bg-purple-900/60 text-purple-300',
-  ammo: 'bg-red-900/60 text-red-300',
-}
 
 // Building type chip colors
 const buildingTypeColors: Record<string, string> = {
@@ -146,7 +138,7 @@ function setAsTarget() {
                   {{ itemData.item.name }}
                 </h2>
                 <span
-                  :class="typeColors[itemData.item.type] ?? 'bg-slate-700 text-slate-300'"
+                  :class="itemTypeChipClass(itemData.item.type)"
                   class="text-xs px-2 py-0.5 rounded font-medium"
                 >
                   {{ itemData.item.type }}

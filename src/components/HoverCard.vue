@@ -5,6 +5,7 @@
  * The 350ms open delay is handled in the store (setHover action).
  */
 import { computed } from 'vue'
+import { itemTypeChipClass } from '../lib/itemTypeChip'
 import { usePlannerStore } from '../stores/plannerStore'
 import GameIcon from './GameIcon.vue'
 
@@ -77,14 +78,6 @@ const buildingStats = computed(() => {
     tier,
   }
 })
-
-const typeColors: Record<string, string> = {
-  raw: 'bg-amber-900/60 text-amber-300',
-  processed: 'bg-blue-900/60 text-blue-300',
-  component: 'bg-emerald-900/60 text-emerald-300',
-  material: 'bg-purple-900/60 text-purple-300',
-  ammo: 'bg-red-900/60 text-red-300',
-}
 </script>
 
 <template>
@@ -109,10 +102,7 @@ const typeColors: Record<string, string> = {
             </div>
             <div class="flex items-center gap-2 flex-wrap">
               <span
-                :class="
-                  typeColors[store.itemsById.get(store.hover.id)?.type ?? 'component'] ??
-                  'bg-slate-700 text-slate-300'
-                "
+                :class="itemTypeChipClass(store.itemsById.get(store.hover.id)?.type)"
                 class="text-xs px-1.5 py-0.5 rounded font-medium"
               >
                 {{ store.itemsById.get(store.hover.id)?.type ?? 'item' }}

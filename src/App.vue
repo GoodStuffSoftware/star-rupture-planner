@@ -4,6 +4,7 @@ import { usePlannerStore } from './stores/plannerStore'
 import VersionSelector from './components/VersionSelector.vue'
 import TargetSelector from './components/TargetSelector.vue'
 import RecipeTabs from './components/RecipeTabs.vue'
+import AddRecipeButton from './components/AddRecipeButton.vue'
 import OptionsPanel from './components/OptionsPanel.vue'
 import CraftTree from './components/CraftTree.vue'
 import TotalsPanel from './components/TotalsPanel.vue'
@@ -72,52 +73,17 @@ onMounted(() => {
                  in its trailing slot, so it stays on the per-minute line. With
                  multiple recipes it's hidden at sm+ (the tab line carries it). -->
             <TargetSelector>
-              <button
-                type="button"
-                aria-label="Add recipe"
-                title="Add recipe"
-                class="chamfer-sm [--cf-fill:var(--panel-2)] hover:[--cf-fill:var(--border)] shrink-0 w-8 h-8 flex items-center justify-center text-[var(--muted)] hover:text-[var(--text)] transition-colors"
-                :class="store.targets.length > 1 ? 'sm:hidden' : ''"
-                @click="store.addTarget()"
-              >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M12 5v14M5 12h14"
-                  />
-                </svg>
-              </button>
+              <span :class="store.targets.length > 1 ? 'sm:hidden' : ''">
+                <AddRecipeButton />
+              </span>
             </TargetSelector>
           </div>
         </div>
 
-        <!-- Row 2: recipe tabs — only once a second recipe exists. The + sticks to
-             the right of the bar (outside the scroll) at sm+. -->
-        <div
-          v-if="store.targets.length > 1"
-          class="flex items-center gap-2 border-t border-[var(--border)] pt-2.5 min-w-0"
-        >
-          <div class="min-w-0 flex-1">
-            <RecipeTabs />
-          </div>
-          <button
-            type="button"
-            aria-label="Add recipe"
-            title="Add recipe"
-            class="chamfer-sm [--cf-fill:var(--panel-2)] hover:[--cf-fill:var(--border)] shrink-0 w-8 h-8 hidden sm:flex items-center justify-center text-[var(--muted)] hover:text-[var(--text)] transition-colors"
-            @click="store.addTarget()"
-          >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M12 5v14M5 12h14"
-              />
-            </svg>
-          </button>
+        <!-- Row 2: recipe tabs — only once a second recipe exists. The tab strip
+             carries its own sticky-right + add button (at sm+). -->
+        <div v-if="store.targets.length > 1" class="border-t border-[var(--border)] pt-2.5 min-w-0">
+          <RecipeTabs />
         </div>
       </div>
     </header>

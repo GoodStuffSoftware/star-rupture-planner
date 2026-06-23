@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { usePlannerStore } from '../stores/plannerStore'
+import { itemTypeChipClass } from '../lib/itemTypeChip'
 import type { Item } from '../types/game'
 
 const store = usePlannerStore()
@@ -12,15 +13,6 @@ const inputRef = ref<HTMLInputElement | null>(null)
 const dropdownEl = ref<HTMLElement | null>(null)
 const dropdownStyle = ref<Record<string, string>>({})
 const activeIndex = ref(0)
-
-// Color mapping for item types
-const typeColors: Record<string, string> = {
-  raw: 'bg-amber-900/60 text-amber-300',
-  processed: 'bg-blue-900/60 text-blue-300',
-  component: 'bg-emerald-900/60 text-emerald-300',
-  material: 'bg-purple-900/60 text-purple-300',
-  ammo: 'bg-red-900/60 text-red-300',
-}
 
 // Sync search text when store's targetItemId changes externally
 watch(
@@ -249,7 +241,7 @@ function onRateChange() {
           >
             <span class="flex-1 truncate">{{ item.name }}</span>
             <span
-              :class="typeColors[item.type] ?? 'bg-slate-700 text-slate-300'"
+              :class="itemTypeChipClass(item.type)"
               class="text-xs px-1.5 py-0.5 rounded font-medium shrink-0"
             >
               {{ item.type }}

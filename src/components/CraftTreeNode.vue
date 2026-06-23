@@ -3,6 +3,7 @@
 import { ref, watch, computed } from 'vue'
 import type { CraftNode } from '../types/game'
 import { fmt, fmtBuildings } from '../lib/format'
+import { itemTypeChipClass } from '../lib/itemTypeChip'
 import { usePlannerStore } from '../stores/plannerStore'
 import GameIcon from './GameIcon.vue'
 
@@ -79,14 +80,6 @@ watch(
     expanded.value = props.depth < l
   },
 )
-
-const typeColors: Record<string, string> = {
-  raw: 'bg-amber-900/60 text-amber-300',
-  processed: 'bg-blue-900/60 text-blue-300',
-  component: 'bg-emerald-900/60 text-emerald-300',
-  material: 'bg-purple-900/60 text-purple-300',
-  ammo: 'bg-red-900/60 text-red-300',
-}
 
 const depthBorderColors = [
   'border-cyan-700/60',
@@ -196,7 +189,7 @@ function onBuildingMouseLeave() {
 
       <!-- Item type chip -->
       <span
-        :class="typeColors[node.itemType] ?? 'bg-slate-700 text-slate-300'"
+        :class="itemTypeChipClass(node.itemType)"
         class="text-xs px-1.5 py-0.5 rounded font-medium shrink-0"
       >
         {{ node.itemType }}
