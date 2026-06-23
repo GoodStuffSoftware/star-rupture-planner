@@ -129,8 +129,11 @@ const constructionTotal = computed(() =>
     <div v-if="!store.totals" class="text-[var(--muted-2)] text-sm italic">No target selected</div>
 
     <template v-else>
-      <!-- Power & Heat — at the top -->
-      <div class="grid grid-cols-2 gap-3">
+      <!-- Power & Heat — at the top. Capped in the (full-width) bottom layout. -->
+      <div
+        class="grid grid-cols-2 gap-3"
+        :class="!aggregate && store.totalsPlacement === 'bottom' ? 'max-w-[365px]' : ''"
+      >
         <div class="chamfer-sm [--cf-fill:var(--panel-2)] p-2.5">
           <div class="text-xs text-[var(--muted-2)] mb-1">Power</div>
           <div class="text-base font-mono text-amber-400">{{ fmt(store.totals.totalPower) }} W</div>
