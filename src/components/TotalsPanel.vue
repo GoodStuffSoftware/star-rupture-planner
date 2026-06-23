@@ -2,9 +2,15 @@
 import { computed } from 'vue'
 import { usePlannerStore } from '../stores/plannerStore'
 import { fmt, fmtBuildings } from '../lib/format'
+import { itemTypeTextClass } from '../lib/itemTypeChip'
 import GameIcon from './GameIcon.vue'
 
 const store = usePlannerStore()
+
+// Value colour for an item, derived from its type (consistent with the row chips).
+function valueColor(itemId: string): string {
+  return itemTypeTextClass(store.itemsById.get(itemId)?.type)
+}
 
 // ─── Collapsible section state ────────────────────────────────────────────
 // Each totals subsection can be collapsed by clicking its header. Persisted in
@@ -141,7 +147,7 @@ const constructionTotal = computed(() =>
             />
           </svg>
           Raw materials / min
-          <span class="ml-auto font-mono normal-case tracking-normal text-emerald-400">
+          <span class="ml-auto font-mono normal-case tracking-normal text-amber-400">
             {{ fmt(rawTotal) }}
           </span>
         </button>
@@ -164,7 +170,9 @@ const constructionTotal = computed(() =>
               <GameIcon :id="mat.itemId" kind="item" :name="mat.itemName" :size="22" />
               {{ mat.itemName }}
             </span>
-            <span class="text-emerald-400 font-mono ml-2 shrink-0">{{ fmt(mat.ratePerMin) }}</span>
+            <span class="font-mono ml-2 shrink-0" :class="valueColor(mat.itemId)">{{
+              fmt(mat.ratePerMin)
+            }}</span>
           </div>
         </div>
       </div>
@@ -195,7 +203,7 @@ const constructionTotal = computed(() =>
             />
           </svg>
           Intermediate products / min
-          <span class="ml-auto font-mono normal-case tracking-normal text-[var(--accent)]">
+          <span class="ml-auto font-mono normal-case tracking-normal text-[var(--text)]">
             {{ fmt(intermediatesTotal) }}
           </span>
         </button>
@@ -212,7 +220,7 @@ const constructionTotal = computed(() =>
               <GameIcon :id="item.itemId" kind="item" :name="item.itemName" :size="22" />
               {{ item.itemName }}
             </span>
-            <span class="text-[var(--accent)] font-mono ml-2 shrink-0">{{
+            <span class="font-mono ml-2 shrink-0" :class="valueColor(item.itemId)">{{
               fmt(item.ratePerMin)
             }}</span>
           </div>
@@ -320,7 +328,7 @@ const constructionTotal = computed(() =>
               />
             </svg>
             Construction materials
-            <span class="ml-auto font-mono normal-case tracking-normal text-purple-300">
+            <span class="ml-auto font-mono normal-case tracking-normal text-[var(--text)]">
               {{ fmt(constructionTotal) }}
             </span>
           </button>
@@ -337,7 +345,9 @@ const constructionTotal = computed(() =>
                 <GameIcon :id="mat.id" kind="item" :name="mat.name" :size="18" />
                 {{ mat.name }}
               </span>
-              <span class="text-[var(--muted)] font-mono ml-2 shrink-0">×{{ mat.total }}</span>
+              <span class="font-mono ml-2 shrink-0" :class="valueColor(mat.id)"
+                >×{{ mat.total }}</span
+              >
             </div>
           </div>
         </div>
