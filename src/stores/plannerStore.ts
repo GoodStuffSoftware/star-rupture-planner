@@ -404,19 +404,24 @@ export const usePlannerStore = defineStore('planner', () => {
     if (targets.value.some((t) => t.tid === tid)) activeTargetId.value = tid
   }
 
-  // Add a new recipe tab (defaults to the first component) and make it active.
-  function addTarget() {
-    const newItem =
-      items.value.find((i) => i.type === 'component')?.id ?? items.value[0]?.id ?? null
+  // Open the given item in a NEW recipe tab (default rate) and make it active.
+  function addTargetItem(itemId: string | null) {
     const tid = _newTid()
     targets.value.push({
       tid,
-      targetItemId: newItem,
-      targetRate: newItem ? defaultRateForItem(newItem) : 60,
+      targetItemId: itemId,
+      targetRate: itemId ? defaultRateForItem(itemId) : 60,
       overages: {},
       expandLevel: activeTarget.value?.expandLevel ?? defaultExpandLevel.value,
     })
     activeTargetId.value = tid
+  }
+
+  // Add a new recipe tab (defaults to the first component) and make it active.
+  function addTarget() {
+    const newItem =
+      items.value.find((i) => i.type === 'component')?.id ?? items.value[0]?.id ?? null
+    addTargetItem(newItem)
   }
 
   // Close a recipe tab. Always keeps at least one tab; re-points the active tab
@@ -722,6 +727,7 @@ export const usePlannerStore = defineStore('planner', () => {
     setTarget,
     setActiveTarget,
     addTarget,
+    addTargetItem,
     closeTarget,
     moveTarget,
     selectTargetItem,

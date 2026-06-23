@@ -84,7 +84,8 @@ function goItem(id: string) {
 function setAsTarget() {
   const d = store.detail
   if (!d || d.kind !== 'item') return
-  store.selectTargetItem(d.id)
+  // Open in a new recipe tab instead of overwriting the current one.
+  store.addTargetItem(d.id)
   store.closeDetail()
 }
 </script>
@@ -148,7 +149,7 @@ function setAsTarget() {
                 class="ml-auto px-3 py-1.5 bg-[var(--accent)] text-[var(--accent-on)] text-sm font-semibold clip-chamfer-sm hover:bg-[var(--accent-hover)] transition-colors"
                 @click="setAsTarget"
               >
-                Set as target
+                Open as recipe
               </button>
             </div>
 
