@@ -4,8 +4,16 @@ import { usePlannerStore } from '../stores/plannerStore'
 import { fmt, fmtBuildings } from '../lib/format'
 import { itemTypeTextClass } from '../lib/itemTypeChip'
 import GameIcon from './GameIcon.vue'
+import TotalsIntermediate from './TotalsIntermediate.vue'
 
+// `aggregate` switches to the combined "All" layout (two columns on desktop,
+// no layout toggle) and namespaces the collapse state so it's independent.
+const props = defineProps<{ aggregate?: boolean }>()
 const store = usePlannerStore()
+
+function sectionKey(s: string): string {
+  return props.aggregate ? 'all:' + s : s
+}
 
 // Value colour for an item, derived from its type (consistent with the row chips).
 function valueColor(itemId: string): string {
@@ -65,9 +73,6 @@ const constructionMaterials = computed(() => {
 const rawTotal = computed(() =>
   (store.totals?.rawMaterials ?? []).reduce((s, m) => s + m.ratePerMin, 0),
 )
-const intermediatesTotal = computed(() =>
-  (store.totals?.intermediates ?? []).reduce((s, m) => s + m.ratePerMin, 0),
-)
 const buildingsTotal = computed(() =>
   (store.totals?.buildings ?? []).reduce((s, b) => s + b.ceilCount, 0),
 )
@@ -78,10 +83,9 @@ const constructionTotal = computed(() =>
 
 <template>
   <div class="chamfer p-4 space-y-4">
-    <div class="flex items-center justify-between gap-2">
+    <!-- Header + layout toggle (hidden in the aggregate "All" view) -->
+    <div v-if="!aggregate" class="flex items-center justify-between gap-2">
       <h3 class="text-sm font-semibold text-[var(--text)] uppercase tracking-wider">Totals</h3>
-
-      <!-- Layout toggle (md+ only — mobile always stacks the totals below) -->
       <div
         class="chamfer-sm [--cf-fill:var(--panel-2)] hidden md:flex shrink-0 p-px gap-px overflow-hidden"
       >
@@ -125,170 +129,7 @@ const constructionTotal = computed(() =>
     <div v-if="!store.totals" class="text-[var(--muted-2)] text-sm italic">No target selected</div>
 
     <template v-else>
-      <!-- Raw Materials -->
-      <div>
-        <button
-          type="button"
-          class="group flex items-center gap-1 w-full text-left text-xs font-medium text-[var(--muted)] uppercase tracking-wider mb-2 hover:text-[var(--text)] transition-colors"
-          :aria-expanded="!collapsed.raw"
-          @click="toggle('raw')"
-        >
-          <svg
-            class="w-3 h-3 shrink-0 transition-transform"
-            :class="collapsed.raw ? '-rotate-90' : ''"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M19 9l-7 7-7-7"
-            />
-          </svg>
-          Raw materials / min
-          <span class="ml-auto font-mono normal-case tracking-normal text-amber-400">
-            {{ fmt(rawTotal) }}
-          </span>
-        </button>
-        <div
-          v-if="!collapsed.raw && store.totals.rawMaterials.length === 0"
-          class="text-[var(--muted-2)] text-sm italic"
-        >
-          None
-        </div>
-        <div v-else-if="!collapsed.raw" class="space-y-1">
-          <div
-            v-for="mat in store.totals.rawMaterials"
-            :key="mat.itemId"
-            class="flex justify-between items-center text-base cursor-pointer hover:bg-[var(--panel-2)] rounded px-1 -mx-1 transition-colors"
-            @click="store.openItemDetail(mat.itemId)"
-            @mouseenter="(e) => onItemEnter(e, mat.itemId)"
-            @mouseleave="onLeave"
-          >
-            <span class="flex items-center gap-1.5 text-[var(--text)] truncate">
-              <GameIcon :id="mat.itemId" kind="item" :name="mat.itemName" :size="22" />
-              {{ mat.itemName }}
-            </span>
-            <span class="font-mono ml-2 shrink-0" :class="valueColor(mat.itemId)">{{
-              fmt(mat.ratePerMin)
-            }}</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Divider -->
-      <div class="border-t border-[var(--border)]" />
-
-      <!-- Intermediate products — everything produced between raw materials and the final target -->
-      <div v-if="store.totals.intermediates.length > 0">
-        <button
-          type="button"
-          class="group flex items-center gap-1 w-full text-left text-xs font-medium text-[var(--muted)] uppercase tracking-wider mb-2 hover:text-[var(--text)] transition-colors"
-          :aria-expanded="!collapsed.intermediates"
-          @click="toggle('intermediates')"
-        >
-          <svg
-            class="w-3 h-3 shrink-0 transition-transform"
-            :class="collapsed.intermediates ? '-rotate-90' : ''"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M19 9l-7 7-7-7"
-            />
-          </svg>
-          Intermediate products / min
-          <span class="ml-auto font-mono normal-case tracking-normal text-emerald-400">
-            {{ fmt(intermediatesTotal) }}
-          </span>
-        </button>
-        <div v-show="!collapsed.intermediates" class="space-y-1">
-          <div
-            v-for="item in store.totals.intermediates"
-            :key="item.itemId"
-            class="flex justify-between items-center text-base cursor-pointer hover:bg-[var(--panel-2)] rounded px-1 -mx-1 transition-colors"
-            @click="store.openItemDetail(item.itemId)"
-            @mouseenter="(e) => onItemEnter(e, item.itemId)"
-            @mouseleave="onLeave"
-          >
-            <span class="flex items-center gap-1.5 text-[var(--text)] truncate">
-              <GameIcon :id="item.itemId" kind="item" :name="item.itemName" :size="22" />
-              {{ item.itemName }}
-            </span>
-            <span class="font-mono ml-2 shrink-0" :class="valueColor(item.itemId)">{{
-              fmt(item.ratePerMin)
-            }}</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Divider -->
-      <div v-if="store.totals.intermediates.length > 0" class="border-t border-[var(--border)]" />
-
-      <!-- Buildings -->
-      <div>
-        <button
-          type="button"
-          class="group flex items-center gap-1 w-full text-left text-xs font-medium text-[var(--muted)] uppercase tracking-wider mb-2 hover:text-[var(--text)] transition-colors"
-          :aria-expanded="!collapsed.buildings"
-          @click="toggle('buildings')"
-        >
-          <svg
-            class="w-3 h-3 shrink-0 transition-transform"
-            :class="collapsed.buildings ? '-rotate-90' : ''"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M19 9l-7 7-7-7"
-            />
-          </svg>
-          Buildings
-          <span class="ml-auto font-mono normal-case tracking-normal text-[var(--accent-2)]">
-            &times;{{ buildingsTotal }}
-          </span>
-        </button>
-        <div
-          v-if="!collapsed.buildings && store.totals.buildings.length === 0"
-          class="text-[var(--muted-2)] text-sm italic"
-        >
-          None
-        </div>
-        <div v-else-if="!collapsed.buildings" class="space-y-1">
-          <div
-            v-for="bld in store.totals.buildings"
-            :key="bld.buildingId"
-            class="flex justify-between items-center text-base cursor-pointer hover:bg-[var(--panel-2)] rounded px-1 -mx-1 transition-colors"
-            @click="store.openBuildingDetail(bld.buildingId)"
-            @mouseenter="(e) => onBuildingEnter(e, bld.buildingId)"
-            @mouseleave="onLeave"
-          >
-            <span class="flex items-center gap-1.5 text-[var(--text)] truncate">
-              <GameIcon :id="bld.buildingId" kind="building" :name="bld.buildingName" :size="22" />
-              {{ bld.buildingName }}
-            </span>
-            <span class="text-[var(--accent-2)] font-mono ml-2 shrink-0">
-              &times;{{ bld.ceilCount }}
-              <span class="text-[var(--muted-2)] text-xs">({{ fmtBuildings(bld.count) }})</span>
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Divider -->
-      <div class="border-t border-[var(--border)]" />
-
-      <!-- Power & Heat -->
+      <!-- Power & Heat — at the top -->
       <div class="grid grid-cols-2 gap-3">
         <div class="chamfer-sm [--cf-fill:var(--panel-2)] p-2.5">
           <div class="text-xs text-[var(--muted-2)] mb-1">Power</div>
@@ -302,57 +143,186 @@ const constructionTotal = computed(() =>
         </div>
       </div>
 
-      <!-- v6: Construction materials (hidden when no buildingCosts data) -->
-      <template v-if="constructionMaterials && constructionMaterials.length > 0">
-        <!-- Divider -->
-        <div class="border-t border-[var(--border)]" />
-
-        <div>
-          <button
-            type="button"
-            class="group flex items-center gap-1 w-full text-left text-xs font-medium text-[var(--muted)] uppercase tracking-wider mb-2 hover:text-[var(--text)] transition-colors"
-            :aria-expanded="!collapsed.construction"
-            @click="toggle('construction')"
-          >
-            <svg
-              class="w-3 h-3 shrink-0 transition-transform"
-              :class="collapsed.construction ? '-rotate-90' : ''"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+      <!-- Sections. Aggregate view: two columns on desktop (col 1: raw / buildings /
+           construction, col 2: intermediates), single normal-order column on mobile. -->
+      <div
+        :class="
+          aggregate
+            ? 'space-y-4 md:space-y-0 md:grid md:grid-cols-2 md:gap-x-6 md:items-start'
+            : 'space-y-4'
+        "
+      >
+        <!-- Column 1 (and the single mobile/normal column) -->
+        <div class="space-y-4">
+          <!-- Raw materials -->
+          <div>
+            <button
+              type="button"
+              class="group flex items-center gap-1 w-full text-left text-xs font-medium text-[var(--muted)] uppercase tracking-wider mb-2 hover:text-[var(--text)] transition-colors"
+              :aria-expanded="!collapsed[sectionKey('raw')]"
+              @click="toggle(sectionKey('raw'))"
             >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M19 9l-7 7-7-7"
-              />
-            </svg>
-            Construction materials
-            <span class="ml-auto font-mono normal-case tracking-normal text-purple-400">
-              {{ fmt(constructionTotal) }}
-            </span>
-          </button>
-          <div v-show="!collapsed.construction" class="space-y-1">
-            <div
-              v-for="mat in constructionMaterials"
-              :key="mat.id"
-              class="flex justify-between items-center text-sm cursor-pointer hover:bg-[var(--panel-2)] rounded px-1 -mx-1 transition-colors"
-              @click="store.openItemDetail(mat.id)"
-              @mouseenter="(e) => onItemEnter(e, mat.id)"
-              @mouseleave="onLeave"
-            >
-              <span class="flex items-center gap-1.5 text-[var(--text)] truncate">
-                <GameIcon :id="mat.id" kind="item" :name="mat.name" :size="18" />
-                {{ mat.name }}
-              </span>
-              <span class="font-mono ml-2 shrink-0" :class="valueColor(mat.id)"
-                >×{{ mat.total }}</span
+              <svg
+                class="w-3 h-3 shrink-0 transition-transform"
+                :class="collapsed[sectionKey('raw')] ? '-rotate-90' : ''"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
               >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M19 9l-7 7-7-7"
+                />
+              </svg>
+              Raw materials / min
+              <span class="ml-auto font-mono normal-case tracking-normal text-amber-400">
+                {{ fmt(rawTotal) }}
+              </span>
+            </button>
+            <div
+              v-if="!collapsed[sectionKey('raw')] && store.totals.rawMaterials.length === 0"
+              class="text-[var(--muted-2)] text-sm italic"
+            >
+              None
+            </div>
+            <div v-else-if="!collapsed[sectionKey('raw')]" class="space-y-1">
+              <div
+                v-for="mat in store.totals.rawMaterials"
+                :key="mat.itemId"
+                class="flex justify-between items-center text-base cursor-pointer hover:bg-[var(--panel-2)] rounded px-1 -mx-1 transition-colors"
+                @click="store.openItemDetail(mat.itemId)"
+                @mouseenter="(e) => onItemEnter(e, mat.itemId)"
+                @mouseleave="onLeave"
+              >
+                <span class="flex items-center gap-1.5 text-[var(--text)] truncate">
+                  <GameIcon :id="mat.itemId" kind="item" :name="mat.itemName" :size="22" />
+                  {{ mat.itemName }}
+                </span>
+                <span class="font-mono ml-2 shrink-0" :class="valueColor(mat.itemId)">{{
+                  fmt(mat.ratePerMin)
+                }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Intermediates — normal view here; aggregate shows it here only on mobile -->
+          <TotalsIntermediate v-if="!aggregate" />
+          <TotalsIntermediate v-else key-prefix="all:" class="md:hidden" />
+
+          <!-- Buildings -->
+          <div>
+            <button
+              type="button"
+              class="group flex items-center gap-1 w-full text-left text-xs font-medium text-[var(--muted)] uppercase tracking-wider mb-2 hover:text-[var(--text)] transition-colors"
+              :aria-expanded="!collapsed[sectionKey('buildings')]"
+              @click="toggle(sectionKey('buildings'))"
+            >
+              <svg
+                class="w-3 h-3 shrink-0 transition-transform"
+                :class="collapsed[sectionKey('buildings')] ? '-rotate-90' : ''"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M19 9l-7 7-7-7"
+                />
+              </svg>
+              Buildings
+              <span class="ml-auto font-mono normal-case tracking-normal text-[var(--accent-2)]">
+                &times;{{ buildingsTotal }}
+              </span>
+            </button>
+            <div
+              v-if="!collapsed[sectionKey('buildings')] && store.totals.buildings.length === 0"
+              class="text-[var(--muted-2)] text-sm italic"
+            >
+              None
+            </div>
+            <div v-else-if="!collapsed[sectionKey('buildings')]" class="space-y-1">
+              <div
+                v-for="bld in store.totals.buildings"
+                :key="bld.buildingId"
+                class="flex justify-between items-center text-base cursor-pointer hover:bg-[var(--panel-2)] rounded px-1 -mx-1 transition-colors"
+                @click="store.openBuildingDetail(bld.buildingId)"
+                @mouseenter="(e) => onBuildingEnter(e, bld.buildingId)"
+                @mouseleave="onLeave"
+              >
+                <span class="flex items-center gap-1.5 text-[var(--text)] truncate">
+                  <GameIcon
+                    :id="bld.buildingId"
+                    kind="building"
+                    :name="bld.buildingName"
+                    :size="22"
+                  />
+                  {{ bld.buildingName }}
+                </span>
+                <span class="text-[var(--accent-2)] font-mono ml-2 shrink-0">
+                  &times;{{ bld.ceilCount }}
+                  <span class="text-[var(--muted-2)] text-xs">({{ fmtBuildings(bld.count) }})</span>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Construction materials (hidden when no buildingCosts data) -->
+          <div v-if="constructionMaterials && constructionMaterials.length > 0">
+            <button
+              type="button"
+              class="group flex items-center gap-1 w-full text-left text-xs font-medium text-[var(--muted)] uppercase tracking-wider mb-2 hover:text-[var(--text)] transition-colors"
+              :aria-expanded="!collapsed[sectionKey('construction')]"
+              @click="toggle(sectionKey('construction'))"
+            >
+              <svg
+                class="w-3 h-3 shrink-0 transition-transform"
+                :class="collapsed[sectionKey('construction')] ? '-rotate-90' : ''"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M19 9l-7 7-7-7"
+                />
+              </svg>
+              Construction materials
+              <span class="ml-auto font-mono normal-case tracking-normal text-purple-400">
+                {{ fmt(constructionTotal) }}
+              </span>
+            </button>
+            <div v-show="!collapsed[sectionKey('construction')]" class="space-y-1">
+              <div
+                v-for="mat in constructionMaterials"
+                :key="mat.id"
+                class="flex justify-between items-center text-sm cursor-pointer hover:bg-[var(--panel-2)] rounded px-1 -mx-1 transition-colors"
+                @click="store.openItemDetail(mat.id)"
+                @mouseenter="(e) => onItemEnter(e, mat.id)"
+                @mouseleave="onLeave"
+              >
+                <span class="flex items-center gap-1.5 text-[var(--text)] truncate">
+                  <GameIcon :id="mat.id" kind="item" :name="mat.name" :size="18" />
+                  {{ mat.name }}
+                </span>
+                <span class="font-mono ml-2 shrink-0" :class="valueColor(mat.id)"
+                  >×{{ mat.total }}</span
+                >
+              </div>
             </div>
           </div>
         </div>
-      </template>
+
+        <!-- Column 2 (aggregate, desktop only): intermediates -->
+        <div v-if="aggregate" class="hidden md:block">
+          <TotalsIntermediate key-prefix="all:" />
+        </div>
+      </div>
     </template>
   </div>
 </template>

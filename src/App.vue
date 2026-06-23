@@ -96,7 +96,7 @@ onMounted(() => {
       <OptionsPanel />
 
       <!-- Combined "all totals" view -->
-      <div v-if="store.isAllView" class="mx-auto w-full max-w-3xl flex flex-col gap-2 sm:gap-4">
+      <div v-if="store.isAllView" class="mx-auto w-full max-w-5xl flex flex-col gap-2 sm:gap-4">
         <section class="chamfer px-4 py-3">
           <h2 class="text-lg font-bold text-[var(--accent)] uppercase tracking-tight">
             Big ambitions, convict?
@@ -106,7 +106,7 @@ onMounted(() => {
             enthusiasm — and added it to your tab.
           </p>
         </section>
-        <TotalsPanel />
+        <TotalsPanel aggregate />
       </div>
 
       <!-- Tree + Totals — side-by-side (Totals position: Side) or stacked (Bottom).
