@@ -55,6 +55,12 @@ onMounted(() => {
             </h1>
           </div>
 
+          <!-- Share — always on the header (title) line: top-right on mobile,
+               and pushed to the far right end on sm+ via order-last. -->
+          <div class="ml-auto shrink-0 sm:order-last">
+            <ShareButton />
+          </div>
+
           <!-- Divider -->
           <div class="hidden sm:block w-px h-6 bg-[var(--border)] shrink-0" />
 
@@ -91,11 +97,6 @@ onMounted(() => {
                 />
               </svg>
             </button>
-
-            <!-- Share — pinned to the end of the header line -->
-            <div class="ml-auto shrink-0">
-              <ShareButton />
-            </div>
           </div>
         </div>
 
