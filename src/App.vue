@@ -95,18 +95,19 @@ onMounted(() => {
       <!-- Options panel (full width, above tree/sidebar) -->
       <OptionsPanel />
 
-      <!-- Combined "all totals" view -->
-      <div v-if="store.isAllView" class="mx-auto w-full max-w-5xl flex flex-col gap-2 sm:gap-4">
-        <section class="chamfer px-4 py-3">
-          <h2 class="text-lg font-bold text-[var(--accent)] uppercase tracking-tight">
-            Big ambitions, convict?
-          </h2>
-          <p class="text-sm text-[var(--muted)] mt-0.5">
-            Every open recipe, tallied into one glorious work order. The Company has noted your
-            enthusiasm — and added it to your tab.
-          </p>
-        </section>
-        <TotalsPanel aggregate />
+      <!-- Combined "all totals" view — tagline lives inside the totals container -->
+      <div v-if="store.isAllView" class="mx-auto w-full max-w-5xl">
+        <TotalsPanel aggregate>
+          <template #header>
+            <h2 class="text-lg font-bold text-[var(--accent)] uppercase tracking-tight">
+              Big ambitions, convict?
+            </h2>
+            <p class="text-sm text-[var(--muted)] mt-0.5">
+              Every open recipe, tallied into one glorious work order. The Company has noted your
+              enthusiasm — and added it to your tab.
+            </p>
+          </template>
+        </TotalsPanel>
       </div>
 
       <!-- Tree + Totals — side-by-side (Totals position: Side) or stacked (Bottom).

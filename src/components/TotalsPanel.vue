@@ -83,8 +83,13 @@ const constructionTotal = computed(() =>
 
 <template>
   <div class="chamfer p-4 space-y-4">
+    <!-- Aggregate: a header slot (e.g. the tagline) lives in this same container -->
+    <div v-if="aggregate">
+      <slot name="header" />
+    </div>
+
     <!-- Header + layout toggle (hidden in the aggregate "All" view) -->
-    <div v-if="!aggregate" class="flex items-center justify-between gap-2">
+    <div v-else class="flex items-center justify-between gap-2">
       <h3 class="text-sm font-semibold text-[var(--text)] uppercase tracking-wider">Totals</h3>
       <div
         class="chamfer-sm [--cf-fill:var(--panel-2)] hidden md:flex shrink-0 p-px gap-px overflow-hidden"
