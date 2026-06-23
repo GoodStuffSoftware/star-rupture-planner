@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 :root {
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
@@ -12,45 +12,65 @@
   text-rendering: optimizeLegibility;
 
   /* ── Star Rupture palette (default) ─────────────────────────────────────── */
-  --bg:                #0d0c0b;
-  --panel:             #1a1714;
-  --panel-2:           #24201b;
-  --border:            #34302a;
-  --accent:            #ee8b22;
-  --accent-hover:      #f7a23f;
-  --accent-on:         #000;
-  --accent-soft:       rgba(238, 139, 34, 0.18);
-  --accent-soft-border:rgba(238, 139, 34, 0.35);
-  --accent-2:          #22d3ee;
-  --text:              #f3f1ee;
-  --text-strong:       #f6f4f1;
-  --text-2:            #d8d3cc;
-  --muted:             #a8a29a;
-  --muted-2:           #736d64;
+  --bg: #0d0c0b;
+  --panel: #1a1714;
+  --panel-2: #24201b;
+  --border: #34302a;
+  --accent: #ee8b22;
+  --accent-hover: #f7a23f;
+  --accent-on: #000;
+  --accent-soft: rgba(238, 139, 34, 0.18);
+  --accent-soft-border: rgba(238, 139, 34, 0.35);
+  --accent-2: #22d3ee;
+  --text: #f3f1ee;
+  --text-strong: #f6f4f1;
+  --text-2: #d8d3cc;
+  --muted: #a8a29a;
+  --muted-2: #736d64;
 }
 
 /* ── Space Age palette override ──────────────────────────────────────────────── */
-:root[data-theme="spaceage"] {
-  --bg:                #0f172a;
-  --panel:             #1e293b;
-  --panel-2:           #334155;
-  --border:            #475569;
-  --accent:            #22d3ee;
-  --accent-hover:      #67e8f9;
-  --accent-on:         #07252b;
-  --accent-soft:       rgba(34, 211, 238, 0.16);
-  --accent-soft-border:rgba(34, 211, 238, 0.35);
-  --accent-2:          #34d399;
-  --text:              #f1f5f9;
-  --text-strong:       #fff;
-  --text-2:            #cbd5e1;
-  --muted:             #94a3b8;
-  --muted-2:           #64748b;
+:root[data-theme='spaceage'] {
+  --bg: #0f172a;
+  --panel: #1e293b;
+  --panel-2: #334155;
+  --border: #475569;
+  --accent: #22d3ee;
+  --accent-hover: #67e8f9;
+  --accent-on: #07252b;
+  --accent-soft: rgba(34, 211, 238, 0.16);
+  --accent-soft-border: rgba(34, 211, 238, 0.35);
+  --accent-2: #34d399;
+  --text: #f1f5f9;
+  --text-strong: #fff;
+  --text-2: #cbd5e1;
+  --muted: #94a3b8;
+  --muted-2: #64748b;
 }
 
 body {
   margin: 0;
   background: var(--bg);
+}
+
+/* ── Slim custom scrollbars for every scroll container ──────────────────────── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 9999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-2);
 }
 
 #app {
@@ -71,14 +91,7 @@ body {
 }
 
 .clip-chamfer-sm {
-  clip-path: polygon(
-    6px 0,
-    100% 0,
-    100% calc(100% - 6px),
-    calc(100% - 6px) 100%,
-    0 100%,
-    0 6px
-  );
+  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
 }
 
 /* Chamfered box WITH a proper border. clip-path can't keep a real border, so the
@@ -89,10 +102,17 @@ body {
   position: relative;
   isolation: isolate;
   background: var(--cf-border, var(--border));
-  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+  clip-path: polygon(
+    10px 0,
+    100% 0,
+    100% calc(100% - 10px),
+    calc(100% - 10px) 100%,
+    0 100%,
+    0 10px
+  );
 }
 .chamfer::after {
-  content: "";
+  content: '';
   position: absolute;
   inset: var(--cf-w, 1px);
   background: var(--cf-fill, var(--panel));
@@ -106,7 +126,7 @@ body {
   clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
 }
 .chamfer-sm::after {
-  content: "";
+  content: '';
   position: absolute;
   inset: var(--cf-w, 1px);
   background: var(--cf-fill, var(--panel));

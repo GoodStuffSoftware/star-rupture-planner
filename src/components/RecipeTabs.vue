@@ -54,7 +54,7 @@ function onDragEnd() {
 <template>
   <div class="flex items-center gap-2 min-w-0">
     <!-- Tab chips (scroll horizontally when they overflow) -->
-    <div class="tab-scroll flex items-center gap-1.5 overflow-x-auto py-0.5 min-w-0">
+    <div class="flex items-center gap-1.5 overflow-x-auto py-0.5 min-w-0">
       <div
         v-for="t in store.targets"
         :key="t.tid"
@@ -122,24 +122,3 @@ function onDragEnd() {
     </div>
   </div>
 </template>
-
-<style scoped>
-/* Slimmer horizontal scrollbar for the tab strip. */
-.tab-scroll {
-  scrollbar-width: thin;
-  scrollbar-color: var(--border) transparent;
-}
-.tab-scroll::-webkit-scrollbar {
-  height: 6px;
-}
-.tab-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-.tab-scroll::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 9999px;
-}
-.tab-scroll::-webkit-scrollbar-thumb:hover {
-  background: var(--muted-2);
-}
-</style>
