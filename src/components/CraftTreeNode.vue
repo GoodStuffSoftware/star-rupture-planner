@@ -151,7 +151,7 @@ function onBuildingMouseLeave() {
   <div :class="depth > 0 ? `pl-4 border-l-2 ${getBorderColor(depth - 1)}` : ''">
     <!-- Node row -->
     <div
-      class="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-[var(--panel-2)] transition-colors group min-w-0"
+      class="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-[var(--panel-2)] transition-colors group"
       :class="[depth === 0 ? 'py-2' : '', store.showRowDividers ? 'row-underline' : '']"
     >
       <!-- Caret / expand button -->
@@ -178,14 +178,14 @@ function onBuildingMouseLeave() {
 
       <!-- Item icon + name (clickable → openItemDetail, hoverable) -->
       <span
-        class="flex items-center gap-1 min-w-0 cursor-pointer hover:text-[var(--accent)] transition-colors"
+        class="flex items-center gap-1 cursor-pointer hover:text-[var(--accent)] transition-colors"
         @click="store.openItemDetail(node.itemId)"
         @mouseenter="onItemMouseEnter"
         @mouseleave="onItemMouseLeave"
       >
         <GameIcon :id="node.itemId" kind="item" :name="node.itemName" :size="30" />
         <span
-          class="font-semibold text-base truncate"
+          class="font-semibold text-base"
           :class="depth === 0 ? 'text-[var(--text-strong)]' : 'text-[var(--text-2)]'"
         >
           {{ node.itemName }}
@@ -220,7 +220,7 @@ function onBuildingMouseLeave() {
           </span>
           <!-- Machine icon+name: clickable + hoverable -->
           <span
-            class="text-xs text-slate-400 min-w-0 flex items-center gap-1 cursor-pointer hover:text-[var(--accent)] transition-colors"
+            class="text-xs text-slate-400 shrink-0 flex items-center gap-1 cursor-pointer hover:text-[var(--accent)] transition-colors"
             @click="store.openBuildingDetail(node.building!.id)"
             @mouseenter="onBuildingMouseEnter"
             @mouseleave="onBuildingMouseLeave"
@@ -231,11 +231,9 @@ function onBuildingMouseLeave() {
               :name="node.building!.name"
               :size="38"
             />
-            <span class="text-slate-300 shrink-0"
-              >{{ fmtBuildings(node.buildingsNeeded ?? 0) }}&times;</span
-            >
-            <span class="truncate">{{ node.building!.name }}</span>
-            <span v-if="node.isOverridden" class="text-amber-400 ml-0.5 shrink-0" title="Overridden"
+            <span class="text-slate-300">{{ fmtBuildings(node.buildingsNeeded ?? 0) }}&times;</span>
+            {{ node.building!.name }}
+            <span v-if="node.isOverridden" class="text-amber-400 ml-0.5" title="Overridden"
               >&bull;</span
             >
           </span>
@@ -275,17 +273,15 @@ function onBuildingMouseLeave() {
       <!-- Producer info (non-raw nodes): machine icon+name clickable + hoverable -->
       <template v-else-if="node.building && node.buildingsNeeded !== undefined">
         <span
-          class="text-xs text-slate-400 min-w-0 flex items-center gap-1 cursor-pointer hover:text-[var(--accent)] transition-colors"
+          class="text-xs text-slate-400 shrink-0 flex items-center gap-1 cursor-pointer hover:text-[var(--accent)] transition-colors"
           @click="store.openBuildingDetail(node.building.id)"
           @mouseenter="onBuildingMouseEnter"
           @mouseleave="onBuildingMouseLeave"
         >
           <GameIcon :id="node.building.id" kind="building" :name="node.building.name" :size="38" />
-          <span class="text-slate-300 shrink-0"
-            >{{ fmtBuildings(node.buildingsNeeded) }}&times;</span
-          >
-          <span class="truncate">{{ node.building.name }}</span>
-          <span v-if="node.isOverridden" class="text-amber-400 ml-0.5 shrink-0" title="Overridden"
+          <span class="text-slate-300">{{ fmtBuildings(node.buildingsNeeded) }}&times;</span>
+          {{ node.building.name }}
+          <span v-if="node.isOverridden" class="text-amber-400 ml-0.5" title="Overridden"
             >&bull;</span
           >
         </span>
