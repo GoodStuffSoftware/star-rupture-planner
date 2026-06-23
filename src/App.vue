@@ -72,12 +72,14 @@ onMounted(() => {
             <!-- Target selector (edits the active tab) -->
             <TargetSelector />
 
-            <!-- Add recipe — next to the per-minute amount -->
+            <!-- Add recipe — next to the per-minute amount. With multiple recipes
+                 it's hidden at sm+ (the tab line carries the + there instead). -->
             <button
               type="button"
               aria-label="Add recipe"
               title="Add recipe"
               class="chamfer-sm [--cf-fill:var(--panel-2)] hover:[--cf-fill:var(--border)] shrink-0 w-8 h-8 flex items-center justify-center text-[var(--muted)] hover:text-[var(--text)] transition-colors"
+              :class="store.targets.length > 1 ? 'sm:hidden' : ''"
               @click="store.addTarget()"
             >
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
