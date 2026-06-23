@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Recipe tabs: one chip per planning target. Click to switch, × to close,
 // drag to reorder.
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { usePlannerStore } from '../stores/plannerStore'
 import { fmt } from '../lib/format'
 import GameIcon from './GameIcon.vue'
@@ -12,6 +12,17 @@ function labelFor(itemId: string | null): string {
   if (!itemId) return 'New recipe'
   return store.itemsById.get(itemId)?.name ?? itemId
 }
+
+// Desktop: names truncate more aggressively the more tabs there are, so they
+// stay readable when there's room and tighten up as the strip fills.
+const nameMaxWidth = computed(() => {
+  const n = store.targets.length
+  if (n <= 2) return 160
+  if (n <= 4) return 120
+  if (n <= 6) return 90
+  if (n <= 9) return 64
+  return 48
+})
 
 // ─── Drag-to-reorder ────────────────────────────────────────────────────────
 const dragTid = ref<string | null>(null)
@@ -70,8 +81,15 @@ function onDragEnd() {
           :name="labelFor(t.targetItemId)"
           :size="20"
         />
-        <!-- Name truncates harder on mobile to keep tabs compact -->
-        <span class="text-sm font-medium whitespace-nowrap max-w-20 sm:max-w-40 truncate">
+        <!-- Mobile: only the first 3 letters -->
+        <span class="sm:hidden text-sm font-medium whitespace-nowrap">
+          {{ labelFor(t.targetItemId).slice(0, 3) }}
+        </span>
+        <!-- Desktop: truncate, width tightens as the tab count grows -->
+        <span
+          class="hidden sm:inline-block text-sm font-medium truncate align-middle"
+          :style="{ maxWidth: nameMaxWidth + 'px' }"
+        >
           {{ labelFor(t.targetItemId) }}
         </span>
         <span
