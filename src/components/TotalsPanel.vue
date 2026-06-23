@@ -14,8 +14,9 @@ function valueColor(itemId: string): string {
 
 // ─── Collapsible section state ────────────────────────────────────────────
 // Each totals subsection can be collapsed by clicking its header. Persisted in
-// the store (view prefs), keyed by section id.
-const collapsed = store.totalsCollapsed
+// the store (view prefs), keyed by section id. Read through a computed so it
+// stays correct even after the store reassigns the object (e.g. on restore).
+const collapsed = computed(() => store.totalsCollapsed)
 function toggle(section: string) {
   store.toggleTotalsSection(section)
 }
@@ -203,7 +204,7 @@ const constructionTotal = computed(() =>
             />
           </svg>
           Intermediate products / min
-          <span class="ml-auto font-mono normal-case tracking-normal text-[var(--text)]">
+          <span class="ml-auto font-mono normal-case tracking-normal text-emerald-400">
             {{ fmt(intermediatesTotal) }}
           </span>
         </button>
@@ -328,7 +329,7 @@ const constructionTotal = computed(() =>
               />
             </svg>
             Construction materials
-            <span class="ml-auto font-mono normal-case tracking-normal text-[var(--text)]">
+            <span class="ml-auto font-mono normal-case tracking-normal text-purple-400">
               {{ fmt(constructionTotal) }}
             </span>
           </button>
