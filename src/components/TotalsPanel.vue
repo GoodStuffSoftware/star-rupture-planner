@@ -62,7 +62,49 @@ const constructionMaterials = computed(() => {
 
 <template>
   <div class="chamfer p-4 space-y-4">
-    <h3 class="text-sm font-semibold text-[var(--text)] uppercase tracking-wider">Totals</h3>
+    <div class="flex items-center justify-between gap-2">
+      <h3 class="text-sm font-semibold text-[var(--text)] uppercase tracking-wider">Totals</h3>
+
+      <!-- Layout toggle (md+ only — mobile always stacks the totals below) -->
+      <div
+        class="chamfer-sm [--cf-fill:var(--panel-2)] hidden md:flex shrink-0 p-px gap-px overflow-hidden"
+      >
+        <button
+          type="button"
+          title="Totals on the side"
+          aria-label="Totals on the side"
+          class="px-1.5 py-1 transition-colors"
+          :class="
+            store.totalsPlacement === 'side'
+              ? 'bg-[var(--accent)] text-[var(--accent-on)]'
+              : 'bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)]'
+          "
+          @click="store.setTotalsPlacement('side')"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <rect x="3" y="4" width="18" height="16" rx="1" stroke-width="2" />
+            <line x1="14" y1="4" x2="14" y2="20" stroke-width="2" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          title="Totals on the bottom"
+          aria-label="Totals on the bottom"
+          class="px-1.5 py-1 transition-colors"
+          :class="
+            store.totalsPlacement === 'bottom'
+              ? 'bg-[var(--accent)] text-[var(--accent-on)]'
+              : 'bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)]'
+          "
+          @click="store.setTotalsPlacement('bottom')"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <rect x="3" y="4" width="18" height="16" rx="1" stroke-width="2" />
+            <line x1="3" y1="14" x2="21" y2="14" stroke-width="2" />
+          </svg>
+        </button>
+      </div>
+    </div>
 
     <div v-if="!store.totals" class="text-[var(--muted-2)] text-sm italic">No target selected</div>
 

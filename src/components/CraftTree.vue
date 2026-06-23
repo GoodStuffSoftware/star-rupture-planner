@@ -76,8 +76,8 @@ const store = usePlannerStore()
       <!-- Level controls (between header and scrollable tree) -->
       <TreeControls />
 
-      <!-- Scrollable tree — zoomed by the Text size preference -->
-      <div class="flex-1 overflow-auto" :style="{ zoom: store.treeFontScale }">
+      <!-- Scrollable tree -->
+      <div class="flex-1 overflow-auto">
         <CraftTreeNode :node="store.tree" :depth="0" />
       </div>
     </template>

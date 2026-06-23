@@ -151,7 +151,7 @@ function onBuildingMouseLeave() {
   <div :class="depth > 0 ? `pl-4 border-l-2 ${getBorderColor(depth - 1)}` : ''">
     <!-- Node row -->
     <div
-      class="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-[var(--panel-2)] transition-colors group"
+      class="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-[var(--panel-2)] transition-colors group min-w-full w-max"
       :class="[depth === 0 ? 'py-2' : '', store.showRowDividers ? 'row-underline' : '']"
     >
       <!-- Caret / expand button -->

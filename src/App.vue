@@ -20,7 +20,10 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-[var(--bg)] text-[var(--text)] flex flex-col">
+  <div
+    class="min-h-screen bg-[var(--bg)] text-[var(--text)] flex flex-col"
+    :style="{ zoom: store.treeFontScale }"
+  >
     <!-- Header bar -->
     <header class="chamfer backdrop-blur-sm sticky top-0 z-30">
       <div class="max-w-screen-xl mx-auto px-2 py-3 sm:px-4 flex flex-col gap-3">
@@ -143,10 +146,11 @@ onMounted(() => {
       <!-- Options panel (full width, above tree/sidebar) -->
       <OptionsPanel />
 
-      <!-- Tree + Totals — side-by-side (Totals position: Side) or stacked (Bottom) -->
+      <!-- Tree + Totals — side-by-side (Totals position: Side) or stacked (Bottom).
+           Side only applies at md+; mobile always stacks the totals below. -->
       <div
         class="flex flex-col gap-2 sm:gap-4 flex-1 min-h-0"
-        :class="store.totalsPlacement === 'side' ? 'lg:flex-row' : ''"
+        :class="store.totalsPlacement === 'side' ? 'md:flex-row' : ''"
       >
         <!-- Left: craft tree (flex-1) — outer frame clips; inner scroll child stays rectangular -->
         <section class="flex-1 min-w-0 chamfer flex flex-col min-h-96">
@@ -161,7 +165,7 @@ onMounted(() => {
           class="w-full shrink-0 flex flex-col gap-4"
           :class="
             store.totalsPlacement === 'side'
-              ? 'lg:w-80 lg:sticky lg:top-20 lg:max-h-[calc(100vh-5.5rem)] lg:overflow-y-auto'
+              ? 'md:w-80 md:sticky md:top-20 md:max-h-[calc(100vh-5.5rem)] md:overflow-y-auto'
               : ''
           "
         >
