@@ -26,7 +26,7 @@ onMounted(() => {
   >
     <!-- Header bar -->
     <header class="chamfer backdrop-blur-sm sticky top-0 z-30">
-      <div class="max-w-screen-xl mx-auto px-2 py-3 sm:px-4 flex flex-col gap-3">
+      <div class="max-w-screen-xl mx-auto px-2 pt-3 pb-2 sm:px-4 flex flex-col gap-3">
         <!-- Row 1: title, version, target search + amount, share -->
         <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
           <!-- Title -->

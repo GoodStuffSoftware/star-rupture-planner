@@ -54,9 +54,10 @@ function onDragEnd() {
 
 <template>
   <div class="flex items-center gap-2 min-w-0">
-    <!-- Tab chips (scroll horizontally when they overflow). overflow-x-auto only
-         reserves scrollbar space when it actually overflows, so no extra padding. -->
-    <div class="flex items-center gap-1.5 overflow-x-auto py-0.5 min-w-0">
+    <!-- Tab chips (scroll horizontally when they overflow). No bottom padding so
+         there's no dead space without a scrollbar; the header's bottom padding
+         gives the scrollbar even room below it when it does appear. -->
+    <div class="flex items-center gap-1.5 overflow-x-auto pt-0.5 pb-0 min-w-0">
       <div
         v-for="t in store.targets"
         :key="t.tid"
