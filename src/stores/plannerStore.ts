@@ -57,6 +57,7 @@ export const usePlannerStore = defineStore('planner', () => {
     targetItemId: string | null
     targetRate: number
     overages: Overages
+    expandLevel: number // per-tab expand scope
   }
   let _tidSeq = 0
   function _newTid(): string {
@@ -64,7 +65,7 @@ export const usePlannerStore = defineStore('planner', () => {
   }
 
   const targets = ref<PlanTarget[]>([
-    { tid: _newTid(), targetItemId: null, targetRate: 60, overages: {} },
+    { tid: _newTid(), targetItemId: null, targetRate: 60, overages: {}, expandLevel: 2 },
   ])
   const activeTargetId = ref<string>(targets.value[0].tid)
 
@@ -92,6 +93,13 @@ export const usePlannerStore = defineStore('planner', () => {
       if (activeTarget.value) activeTarget.value.overages = v
     },
   })
+  // Per-tab expand scope (proxied onto the active tab).
+  const expandLevel = computed<number>({
+    get: () => activeTarget.value?.expandLevel ?? 2,
+    set: (v) => {
+      if (activeTarget.value) activeTarget.value.expandLevel = v
+    },
+  })
 
   // v2 state
   const overrides = ref<VersionOverrides>({})
@@ -100,8 +108,8 @@ export const usePlannerStore = defineStore('planner', () => {
   const showRowDividers = ref<boolean>(false)
   const optionsCollapsed = ref<boolean>(false)
 
-  // v3 state — default 2 (persisted view pref)
-  const expandLevel = ref<number>(2)
+  // Default expand scope for newly created/restored tabs (seeded from saved prefs).
+  const defaultExpandLevel = ref<number>(2)
 
   // Tree text zoom (1 = 100%); persisted view pref
   const treeFontScale = ref<number>(1)
@@ -287,11 +295,16 @@ export const usePlannerStore = defineStore('planner', () => {
               : validItem
                 ? defaultRateForItem(validItem)
                 : 60
+          const exp =
+            typeof s.expandLevel === 'number' && s.expandLevel >= 0
+              ? s.expandLevel
+              : defaultExpandLevel.value
           return {
             tid: _newTid(),
             targetItemId: validItem,
             targetRate: rate,
             overages: validateOverages(s.overages),
+            expandLevel: exp,
           }
         })
         if (restoredTargets.length === 0) {
@@ -299,6 +312,7 @@ export const usePlannerStore = defineStore('planner', () => {
             tid: _newTid(),
             targetItemId: fallbackItem,
             targetRate: fallbackItem ? defaultRateForItem(fallbackItem) : 60,
+            expandLevel: defaultExpandLevel.value,
             overages: {},
           })
         }
@@ -319,6 +333,7 @@ export const usePlannerStore = defineStore('planner', () => {
             targetItemId: newTarget,
             targetRate: newTarget ? defaultRateForItem(newTarget) : 60,
             overages: {},
+            expandLevel: defaultExpandLevel.value,
           },
         ]
         activeTargetId.value = targets.value[0].tid
@@ -343,7 +358,7 @@ export const usePlannerStore = defineStore('planner', () => {
       showExtractors.value = saved.prefs.showExtractors
       showIcons.value = saved.prefs.showIcons
       showRowDividers.value = saved.prefs.showRowDividers
-      expandLevel.value = saved.prefs.expandLevel
+      defaultExpandLevel.value = saved.prefs.expandLevel
       optionsCollapsed.value = saved.prefs.optionsCollapsed
       if (saved.prefs.theme) {
         theme.value = saved.prefs.theme
@@ -393,6 +408,7 @@ export const usePlannerStore = defineStore('planner', () => {
       targetItemId: newItem,
       targetRate: newItem ? defaultRateForItem(newItem) : 60,
       overages: {},
+      expandLevel: activeTarget.value?.expandLevel ?? defaultExpandLevel.value,
     })
     activeTargetId.value = tid
   }
@@ -411,11 +427,23 @@ export const usePlannerStore = defineStore('planner', () => {
         targetItemId: newItem,
         targetRate: newItem ? defaultRateForItem(newItem) : 60,
         overages: {},
+        expandLevel: defaultExpandLevel.value,
       })
     }
     if (!targets.value.some((t) => t.tid === activeTargetId.value)) {
       activeTargetId.value = targets.value[Math.min(idx, targets.value.length - 1)].tid
     }
+  }
+
+  // Reorder tabs: move the tab `fromTid` to the position of `toTid`.
+  function moveTarget(fromTid: string, toTid: string) {
+    const from = targets.value.findIndex((t) => t.tid === fromTid)
+    const to = targets.value.findIndex((t) => t.tid === toTid)
+    if (from === -1 || to === -1 || from === to) return
+    const arr = targets.value.slice()
+    const [moved] = arr.splice(from, 1)
+    arr.splice(to, 0, moved)
+    targets.value = arr
   }
 
   // The producer that will actually make this item (override first, else tier-aware default).
@@ -555,6 +583,7 @@ export const usePlannerStore = defineStore('planner', () => {
       targetItemId: t.targetItemId,
       targetRate: t.targetRate,
       overages: t.overages,
+      expandLevel: t.expandLevel,
     }))
     return {
       version: version.value,
@@ -679,6 +708,7 @@ export const usePlannerStore = defineStore('planner', () => {
     setActiveTarget,
     addTarget,
     closeTarget,
+    moveTarget,
     selectTargetItem,
     defaultRateForItem,
     setOverride,

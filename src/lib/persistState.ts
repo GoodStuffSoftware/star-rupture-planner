@@ -9,6 +9,7 @@ export interface PlanTargetState {
   targetItemId: string | null
   targetRate: number
   overages: Overages
+  expandLevel?: number // per-tab expand scope
 }
 
 export interface PlanState {
@@ -168,6 +169,7 @@ export function encodePlan(plan: PlanState): string {
     min.m = targets.map((t) => {
       const e: Record<string, unknown> = { i: t.targetItemId, r: t.targetRate }
       if (t.overages && Object.keys(t.overages).length) e.g = t.overages
+      if (typeof t.expandLevel === 'number') e.e = t.expandLevel
       return e
     })
     if (plan.activeTargetIndex) min.a = plan.activeTargetIndex
@@ -242,6 +244,7 @@ export function decodePlanFromUrl(): PlanState | null {
           targetItemId: typeof e.i === 'string' ? e.i : null,
           targetRate: typeof e.r === 'number' ? e.r : 60,
           overages: (typeof e.g === 'object' && e.g ? e.g : {}) as Overages,
+          expandLevel: typeof e.e === 'number' ? e.e : undefined,
         }
       })
       const first = targets[0] ?? { targetItemId: null, targetRate: 60, overages: {} }

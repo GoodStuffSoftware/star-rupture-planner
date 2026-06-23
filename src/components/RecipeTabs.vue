@@ -1,5 +1,7 @@
 <script setup lang="ts">
-// Recipe tabs: one chip per planning target. Click to switch, × to close, + to add.
+// Recipe tabs: one chip per planning target. Click to switch, × to close,
+// drag to reorder.
+import { ref } from 'vue'
 import { usePlannerStore } from '../stores/plannerStore'
 import { fmt } from '../lib/format'
 import GameIcon from './GameIcon.vue'
@@ -9,6 +11,30 @@ const store = usePlannerStore()
 function labelFor(itemId: string | null): string {
   if (!itemId) return 'New recipe'
   return store.itemsById.get(itemId)?.name ?? itemId
+}
+
+// ─── Drag-to-reorder ────────────────────────────────────────────────────────
+const dragTid = ref<string | null>(null)
+const overTid = ref<string | null>(null)
+
+function onDragStart(tid: string, e: DragEvent) {
+  dragTid.value = tid
+  if (e.dataTransfer) {
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', tid)
+  }
+}
+function onDragOver(tid: string) {
+  if (dragTid.value && dragTid.value !== tid) overTid.value = tid
+}
+function onDrop(tid: string) {
+  if (dragTid.value && dragTid.value !== tid) store.moveTarget(dragTid.value, tid)
+  dragTid.value = null
+  overTid.value = null
+}
+function onDragEnd() {
+  dragTid.value = null
+  overTid.value = null
 }
 </script>
 
@@ -20,15 +46,22 @@ function labelFor(itemId: string | null): string {
         v-for="t in store.targets"
         :key="t.tid"
         role="tab"
+        draggable="true"
         :aria-selected="t.tid === store.activeTargetId"
         :title="`${labelFor(t.targetItemId)} — ${fmt(t.targetRate)}/min`"
-        class="chamfer-sm group flex items-center gap-1.5 pl-2 pr-1.5 py-1.5 shrink-0 cursor-pointer transition-colors select-none"
-        :class="
+        class="chamfer-sm group flex items-center gap-1.5 pl-2 pr-1.5 py-1.5 shrink-0 cursor-grab active:cursor-grabbing transition-colors select-none"
+        :class="[
           t.tid === store.activeTargetId
             ? '[--cf-fill:var(--accent)] text-[var(--accent-on)]'
-            : '[--cf-fill:var(--panel-2)] hover:[--cf-fill:var(--border)] text-[var(--muted)] hover:text-[var(--text)]'
-        "
+            : '[--cf-fill:var(--panel-2)] hover:[--cf-fill:var(--border)] text-[var(--muted)] hover:text-[var(--text)]',
+          dragTid === t.tid ? 'opacity-50' : '',
+          overTid === t.tid ? 'ring-2 ring-[var(--accent)]' : '',
+        ]"
         @click="store.setActiveTarget(t.tid)"
+        @dragstart="onDragStart(t.tid, $event)"
+        @dragover.prevent="onDragOver(t.tid)"
+        @drop="onDrop(t.tid)"
+        @dragend="onDragEnd"
       >
         <GameIcon
           v-if="t.targetItemId"
@@ -37,7 +70,8 @@ function labelFor(itemId: string | null): string {
           :name="labelFor(t.targetItemId)"
           :size="20"
         />
-        <span class="text-sm font-medium whitespace-nowrap max-w-40 truncate">
+        <!-- Name truncates harder on mobile to keep tabs compact -->
+        <span class="text-sm font-medium whitespace-nowrap max-w-20 sm:max-w-40 truncate">
           {{ labelFor(t.targetItemId) }}
         </span>
         <span

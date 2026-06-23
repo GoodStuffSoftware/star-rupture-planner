@@ -67,8 +67,8 @@ const store = usePlannerStore()
     <template v-else>
       <!-- Header -->
       <div class="flex items-baseline gap-2 mb-2 px-2">
-        <span class="text-3xl font-bold text-[var(--accent)]">{{ fmt(store.targetRate) }}/min</span>
-        <span class="text-2xl text-slate-200 font-semibold">
+        <span class="text-xl font-bold text-[var(--accent)]">{{ fmt(store.targetRate) }}/min</span>
+        <span class="text-lg text-slate-200 font-semibold">
           {{ store.itemsById.get(store.targetItemId)?.name ?? store.targetItemId }}
         </span>
       </div>

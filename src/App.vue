@@ -22,7 +22,7 @@ onMounted(() => {
 <template>
   <div
     class="min-h-screen bg-[var(--bg)] text-[var(--text)] flex flex-col"
-    :style="{ zoom: store.treeFontScale }"
+    :style="store.treeFontScale !== 1 ? { zoom: store.treeFontScale } : undefined"
   >
     <!-- Header bar -->
     <header class="chamfer backdrop-blur-sm sticky top-0 z-30">
@@ -55,9 +55,25 @@ onMounted(() => {
             </h1>
           </div>
 
-          <!-- Share (mobile): top-right next to the title — only while there's no
-               tabs row (a single recipe). Once tabs appear it moves down there. -->
-          <div v-if="store.targets.length <= 1" class="ml-auto sm:hidden">
+          <!-- Mobile cluster: add + share sit top-right next to the title on
+               mobile (for both single and multiple recipes). -->
+          <div class="ml-auto flex items-center gap-2 sm:hidden">
+            <button
+              type="button"
+              aria-label="Add recipe"
+              title="Add recipe"
+              class="chamfer-sm [--cf-fill:var(--panel-2)] hover:[--cf-fill:var(--border)] shrink-0 w-8 h-8 flex items-center justify-center text-[var(--muted)] hover:text-[var(--text)] transition-colors"
+              @click="store.addTarget()"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 5v14M5 12h14"
+                />
+              </svg>
+            </button>
             <ShareButton />
           </div>
 
@@ -75,11 +91,15 @@ onMounted(() => {
 
             <!-- Target selector (edits the active tab) -->
             <TargetSelector />
+          </div>
 
-            <!-- Add-recipe button — on the nav row only while there's a single
-                 recipe; once the tabs row shows it carries its own + button. -->
+          <!-- Desktop nav-end cluster: add + share at the far right of the nav row,
+               only for a single recipe (with multiple, they live on the tabs row). -->
+          <div
+            v-if="store.targets.length <= 1"
+            class="ml-auto shrink-0 hidden sm:flex items-center gap-2"
+          >
             <button
-              v-if="store.targets.length <= 1"
               type="button"
               aria-label="Add recipe"
               title="Add recipe"
@@ -95,15 +115,12 @@ onMounted(() => {
                 />
               </svg>
             </button>
-          </div>
-
-          <!-- Share (desktop): far right of the nav row — only for a single recipe. -->
-          <div v-if="store.targets.length <= 1" class="ml-auto shrink-0 hidden sm:block">
             <ShareButton />
           </div>
         </div>
 
-        <!-- Row 2: recipe tabs (with the add + share controls) — only once a second recipe exists -->
+        <!-- Row 2: recipe tabs — only once a second recipe exists. On desktop it
+             also carries the add + share controls; on mobile those stay on the nav row. -->
         <div
           v-if="store.targets.length > 1"
           class="flex items-center gap-2 border-t border-[var(--border)] pt-2.5 min-w-0"
@@ -113,26 +130,24 @@ onMounted(() => {
             <RecipeTabs />
           </div>
 
-          <!-- Add-recipe button -->
-          <button
-            type="button"
-            aria-label="Add recipe"
-            title="Add recipe"
-            class="chamfer-sm [--cf-fill:var(--panel-2)] hover:[--cf-fill:var(--border)] shrink-0 w-8 h-8 flex items-center justify-center text-[var(--muted)] hover:text-[var(--text)] transition-colors"
-            @click="store.addTarget()"
-          >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M12 5v14M5 12h14"
-              />
-            </svg>
-          </button>
-
-          <!-- Share -->
-          <div class="shrink-0">
+          <!-- Desktop tabs-row cluster -->
+          <div class="hidden sm:flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              aria-label="Add recipe"
+              title="Add recipe"
+              class="chamfer-sm [--cf-fill:var(--panel-2)] hover:[--cf-fill:var(--border)] shrink-0 w-8 h-8 flex items-center justify-center text-[var(--muted)] hover:text-[var(--text)] transition-colors"
+              @click="store.addTarget()"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 5v14M5 12h14"
+                />
+              </svg>
+            </button>
             <ShareButton />
           </div>
         </div>
