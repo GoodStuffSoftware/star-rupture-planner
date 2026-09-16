@@ -1,10 +1,11 @@
 <script setup lang="ts">
 /**
  * DetailDrawer — single app-level bottom drawer, teleported to body.
- * Driven by store.detail. Slides up from bottom, ~70vh max.
+ * Driven by store.detail. Slides up from bottom, ~70vh max (expandable to full).
  * Close on ✕ button, Esc, and backdrop click.
+ * Supports back navigation via a history stack.
  */
-import { computed, onMounted, onBeforeUnmount } from 'vue'
+import { computed, ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { usePlannerStore } from '../stores/plannerStore'
 import { fmt } from '../lib/format'
 import { itemTypeChipClass } from '../lib/itemTypeChip'
@@ -13,24 +14,199 @@ import GameIcon from './GameIcon.vue'
 
 const store = usePlannerStore()
 
+// Full-screen toggle
+const isExpanded = ref(false)
+
+// Blur zone measurements
+const headerBottom = ref(48) // bottom of the full header element
+const row1Bottom = ref(48) // bottom of row 1
+const versionBottom = ref(48) // bottom of version selector (for mobile)
+const blurStartLeft = ref(0) // left edge of blur-start divider
+const isDesktop = ref(window.innerWidth >= 640)
+
+// Shared zone 1 top position
+const zone1Top = computed(() => row1Bottom.value + 6)
+
+function measureBlurZones() {
+  const header = document.querySelector('header')
+  const row = document.getElementById('header-row1')
+  const blurDiv = document.getElementById('blur-start')
+  const verWrap = document.getElementById('version-selector-wrap')
+  if (header) {
+    headerBottom.value = header.getBoundingClientRect().bottom
+  }
+  if (row) {
+    row1Bottom.value = row.getBoundingClientRect().bottom
+  }
+  if (blurDiv) {
+    blurStartLeft.value = blurDiv.getBoundingClientRect().left
+  }
+  if (verWrap) {
+    versionBottom.value = verWrap.getBoundingClientRect().bottom
+  }
+  isDesktop.value = window.innerWidth >= 640
+}
+
+// Item index search filter
+const indexSearch = ref('')
+
 // ─── Keyboard close (Esc) ─────────────────────────────────────────────────
 function onKeydown(e: KeyboardEvent) {
   if (e.key === 'Escape' && store.detail) store.closeDetail()
 }
-onMounted(() => window.addEventListener('keydown', onKeydown))
-onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
+onMounted(() => {
+  window.addEventListener('keydown', onKeydown)
+  measureBlurZones()
+  window.addEventListener('resize', measureBlurZones)
+  window.addEventListener('scroll', measureBlurZones, { passive: true })
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeydown)
+  window.removeEventListener('resize', measureBlurZones)
+  window.removeEventListener('scroll', measureBlurZones)
+})
+
+// Re-measure when drawer opens
+watch(
+  () => store.detail,
+  (v) => {
+    if (v) nextTick(measureBlurZones)
+  },
+)
+
+// ─── Is this the item index view? ─────────────────────────────────────────
+const isIndex = computed(() => store.detail?.id === '__index__')
+
+// Is the user searching?
+const isSearching = computed(() => indexSearch.value.trim().length > 0)
+
+// Collapsed section tracking — starts with ALL sections collapsed
+const ALL_SECTION_KEYS = [
+  'item-component',
+  'item-processed',
+  'item-raw',
+  'item-material',
+  'item-ammo',
+  'bld-production',
+  'bld-generator',
+  'bld-transport',
+  'bld-storage',
+  'bld-temperature',
+  'bld-defense',
+  'bld-habitat',
+  'bld-core',
+]
+const collapsedSections = ref<Set<string>>(new Set(ALL_SECTION_KEYS))
+// Track order of expansion — most recently expanded first
+const expandedOrder = ref<string[]>([])
+
+function toggleSection(key: string) {
+  const s = new Set(collapsedSections.value)
+  if (s.has(key)) {
+    // Opening — add to front of expanded order
+    s.delete(key)
+    expandedOrder.value = [key, ...expandedOrder.value.filter((k) => k !== key)]
+  } else {
+    // Closing — remove from expanded order
+    s.add(key)
+    expandedOrder.value = expandedOrder.value.filter((k) => k !== key)
+  }
+  collapsedSections.value = s
+}
+function isSectionOpen(key: string) {
+  return !collapsedSections.value.has(key)
+}
+const allExpanded = computed(() => collapsedSections.value.size === 0)
+function expandAll() {
+  collapsedSections.value = new Set()
+  // Put all keys in order (items first, then buildings)
+  expandedOrder.value = [...ALL_SECTION_KEYS]
+}
+function collapseAll() {
+  collapsedSections.value = new Set(ALL_SECTION_KEYS)
+  expandedOrder.value = []
+}
+
+// Expanded item categories in most-recently-expanded-first order
+const expandedItemCats = computed(() => {
+  return expandedOrder.value
+    .filter((k) => k.startsWith('item-'))
+    .map((k) => {
+      const type = k.replace('item-', '')
+      return categorizedItems.value.find((c) => c.type === type)
+    })
+    .filter((x): x is NonNullable<typeof x> => !!x)
+})
+
+// Expanded building categories in most-recently-expanded-first order
+const expandedBldCats = computed(() => {
+  return expandedOrder.value
+    .filter((k) => k.startsWith('bld-'))
+    .map((k) => {
+      const type = k.replace('bld-', '')
+      return categorizedBuildings.value.find((c) => c.type === type)
+    })
+    .filter((x): x is NonNullable<typeof x> => !!x)
+})
+
+// Category order and labels
+const ITEM_CATEGORIES = [
+  { type: 'component', label: 'Components' },
+  { type: 'processed', label: 'Processed' },
+  { type: 'raw', label: 'Raw Materials' },
+  { type: 'material', label: 'Materials' },
+  { type: 'ammo', label: 'Ammo' },
+]
+
+const BUILDING_CATEGORIES = [
+  { type: 'production', label: 'Production' },
+  { type: 'generator', label: 'Generators' },
+  { type: 'transport', label: 'Transport' },
+  { type: 'storage', label: 'Storage' },
+  { type: 'temperature', label: 'Temperature' },
+  { type: 'defense', label: 'Defense' },
+  { type: 'habitat', label: 'Habitat' },
+  { type: 'core', label: 'Core' },
+]
+
+// Items grouped by category (for default view)
+const categorizedItems = computed(() => {
+  return ITEM_CATEGORIES.map((cat) => ({
+    ...cat,
+    items: store.items.filter((i) => i.type === cat.type),
+  })).filter((cat) => cat.items.length > 0)
+})
+
+// Buildings grouped by type
+const categorizedBuildings = computed(() => {
+  return BUILDING_CATEGORIES.map((cat) => ({
+    ...cat,
+    buildings: store.buildings.filter((b: { type?: string }) => b.type === cat.type),
+  })).filter((cat) => cat.buildings.length > 0)
+})
+
+// Search results (items + buildings)
+const searchResults = computed(() => {
+  const q = indexSearch.value.trim().toLowerCase()
+  if (!q) return { items: [], buildings: [] }
+  const items = store.items.filter((i) => i.name.toLowerCase().includes(q))
+  const buildings = store.buildings.filter((b: { name: string }) =>
+    b.name.toLowerCase().includes(q),
+  )
+  return { items, buildings }
+})
 
 // ─── Item detail data ─────────────────────────────────────────────────────
 const itemData = computed(() => {
   const d = store.detail
-  if (!d || d.kind !== 'item') return null
+  if (!d || d.kind !== 'item' || d.id === '__index__') return null
   const item = store.itemsById.get(d.id)
   if (!item) return null
 
   // All producers for this item (from full index)
   const producers = store.fullProducerIndex.get(d.id) ?? []
 
-  // Used-in entries
+  // Used-in entries — recipes that consume this item as an input
   const usedIn = store.usedInIndex.get(d.id) ?? []
 
   // Export entries
@@ -73,24 +249,24 @@ const buildingTypeColors: Record<string, string> = {
   core: 'bg-orange-900/60 text-orange-300',
 }
 
-// ─── Cross-link helper: navigate to a building and open drawer ────────────
+// ─── Cross-link helpers ───────────────────────────────────────────────────
 function goBuilding(id: string) {
   store.openBuildingDetail(id)
+}
+
+/** Returns 'v1', 'v2', or null if the building isn't part of a version chain. */
+function buildingVersion(id: string): string | null {
+  const chain = store.chains.find((c) => c.baseId === id || c.upgradedId === id)
+  if (!chain) return null
+  return chain.upgradedId === id ? 'v2' : 'v1'
 }
 
 function goItem(id: string) {
   store.openItemDetail(id)
 }
 
-function setAsTarget() {
-  const d = store.detail
-  if (!d || d.kind !== 'item') return
-  store.addTargetItem(d.id)
-  store.closeDetail()
-}
-
 /** Open as recipe with a specific producer (building + recipe variant). */
-function setAsTargetWithProducer(
+function openAsRecipe(
   itemId: string,
   buildingId: string,
   recipe: {
@@ -110,49 +286,375 @@ function setAsTargetWithProducer(
   }
   store.closeDetail()
 }
+
+/** Open as recipe from a used-in entry (the OUTPUT item of that recipe). */
+function openUsedInAsRecipe(entry: {
+  buildingId: string
+  buildingName: string
+  recipe: {
+    id?: string
+    variant?: string
+    output: { id: string; amount_per_minute: number }
+    inputs: { id: string; amount_per_minute: number }[]
+  }
+}) {
+  openAsRecipe(entry.recipe.output.id, entry.buildingId, entry.recipe)
+}
+
+// Can go back?
+const canGoBack = computed(() => store.detailHistory.length > 0)
+
+// Header title
+const headerTitle = computed(() => {
+  if (isIndex.value) return 'Item Index'
+  if (!store.detail) return ''
+  return store.detail.kind === 'item' ? 'Item Detail' : 'Building Detail'
+})
 </script>
 
 <template>
   <Teleport to="body">
     <template v-if="store.detail">
-      <!-- Backdrop -->
+      <!-- Mobile: single positioned backdrop (below version selector) -->
       <div
-        class="fixed inset-0 z-[150] bg-black/50 backdrop-blur-sm"
+        v-if="!isDesktop"
+        class="fixed left-0 right-0 bottom-0 z-[150] bg-black/50 backdrop-blur-sm"
+        :style="{ top: versionBottom + 4 + 'px' }"
+        @click="store.closeDetail()"
+      />
+
+      <!-- Desktop zone 1: full width, from zone1Top downward
+           Feathered top edge via mask-image gradient -->
+      <div
+        v-if="isDesktop"
+        class="fixed left-0 right-0 bottom-0 z-[150] bg-black/50 backdrop-blur-sm"
+        :style="{
+          top: zone1Top + 'px',
+          maskImage: 'linear-gradient(to bottom, transparent, black 8px)',
+          WebkitMaskImage: 'linear-gradient(to bottom, transparent, black 8px)',
+        }"
+        @click="store.closeDetail()"
+      />
+
+      <!-- Desktop zone 2: from blur-start divider to right edge
+           Extends down to zone1Top to fill the gap. Feathered left edge -->
+      <div
+        v-if="isDesktop"
+        class="fixed right-0 z-[150] bg-black/50 backdrop-blur-sm"
+        :style="{
+          top: '0px',
+          left: blurStartLeft - 8 + 'px',
+          height: zone1Top + 7 + 'px',
+          maskImage: 'linear-gradient(to right, transparent, black 8px)',
+          WebkitMaskImage: 'linear-gradient(to right, transparent, black 8px)',
+        }"
         @click="store.closeDetail()"
       />
 
       <!-- Drawer panel -->
       <div
-        class="fixed bottom-0 left-0 right-0 z-[160] bg-[var(--panel)] border-t border-[var(--border)] shadow-2xl max-h-[70vh] flex flex-col"
+        class="fixed left-0 right-0 z-[160] bg-[var(--panel)] border-t border-[var(--border)] shadow-2xl flex flex-col transition-all duration-300"
+        :class="isExpanded ? 'bottom-0' : 'bottom-0 max-h-[70vh]'"
+        :style="isExpanded ? { top: (isDesktop ? zone1Top : versionBottom + 4) + 'px' } : undefined"
         style="clip-path: polygon(10px 0, 100% 0, 100% 100%, 0 100%, 0 10px)"
       >
         <!-- Drawer header -->
         <div
           class="flex items-center justify-between px-5 py-3 border-b border-[var(--border)] shrink-0"
         >
-          <span class="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider">
-            {{ store.detail.kind === 'item' ? 'Item Detail' : 'Building Detail' }}
-          </span>
-          <button
-            class="w-7 h-7 flex items-center justify-center rounded text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--panel-2)] transition-colors"
-            title="Close (Esc)"
-            @click="store.closeDetail()"
-          >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </button>
+          <div class="flex items-center gap-2">
+            <!-- Back button — accent-colored chevron -->
+            <button
+              v-if="canGoBack"
+              class="w-8 h-8 flex items-center justify-center rounded-md bg-[var(--accent-soft)] text-[var(--accent)] hover:bg-[var(--accent)] hover:text-[var(--accent-on)] transition-colors"
+              title="Go back"
+              @click="store.detailBack()"
+            >
+              <svg
+                class="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                stroke-width="2.5"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <span class="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider">
+              {{ headerTitle }}
+            </span>
+          </div>
+          <div class="flex items-center gap-1">
+            <!-- Expand/collapse toggle — single chevron that rotates -->
+            <button
+              class="w-7 h-7 flex items-center justify-center rounded text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--panel-2)] transition-colors"
+              :title="isExpanded ? 'Collapse' : 'Expand'"
+              @click="isExpanded = !isExpanded"
+            >
+              <svg
+                class="w-4 h-4 transition-transform duration-300"
+                :class="isExpanded ? 'rotate-180' : ''"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M5 15l7-7 7 7"
+                />
+              </svg>
+            </button>
+            <!-- Close button -->
+            <button
+              class="w-7 h-7 flex items-center justify-center rounded text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--panel-2)] transition-colors"
+              title="Close (Esc)"
+              @click="store.closeDetail()"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          </div>
         </div>
 
         <!-- Scrollable body -->
         <div class="overflow-y-auto flex-1 px-5 py-4">
+          <!-- ═══ ITEM INDEX ═══════════════════════════════════════════════════ -->
+          <template v-if="isIndex">
+            <!-- Search bar -->
+            <div class="mb-4">
+              <input
+                v-model="indexSearch"
+                type="text"
+                placeholder="Search items and buildings..."
+                class="w-full bg-[var(--panel-2)] text-[var(--text)] border border-[var(--border)] rounded px-3 py-2 text-sm focus:outline-none focus:border-[var(--accent)]"
+              />
+            </div>
+
+            <!-- Search results (unified items + buildings) -->
+            <template v-if="isSearching">
+              <!-- Matching items -->
+              <div v-if="searchResults.items.length > 0" class="mb-4">
+                <h3 class="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-2">
+                  Items
+                </h3>
+                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+                  <button
+                    v-for="item in searchResults.items"
+                    :key="item.id"
+                    class="chamfer-sm [--cf-fill:var(--panel-2)] flex items-center gap-2 px-2.5 py-2 text-sm text-[var(--text)] hover:[--cf-border:var(--accent)] hover:text-[var(--accent)] transition-colors text-left"
+                    @click="goItem(item.id)"
+                  >
+                    <GameIcon :id="item.id" kind="item" :name="item.name" :size="20" />
+                    <span class="truncate">{{ item.name }}</span>
+                  </button>
+                </div>
+              </div>
+              <!-- Matching buildings -->
+              <div v-if="searchResults.buildings.length > 0" class="mb-4">
+                <h3 class="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-2">
+                  Buildings
+                </h3>
+                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                  <button
+                    v-for="b in searchResults.buildings"
+                    :key="b.id"
+                    class="chamfer-sm [--cf-fill:var(--panel-2)] flex items-center gap-2 px-2.5 py-2 text-sm text-[var(--text)] hover:[--cf-border:var(--accent)] hover:text-[var(--accent)] transition-colors text-left"
+                    @click="goBuilding(b.id)"
+                  >
+                    <GameIcon :id="b.id" kind="building" :name="b.name" :size="20" />
+                    <span class="truncate">{{ b.name }}</span>
+                  </button>
+                </div>
+              </div>
+              <!-- No results -->
+              <p
+                v-if="searchResults.items.length === 0 && searchResults.buildings.length === 0"
+                class="text-[var(--muted)] italic text-sm"
+              >
+                No results found.
+              </p>
+            </template>
+
+            <!-- Default: categorized view with collapsible sections -->
+            <template v-else>
+              <!-- Expand/collapse all control -->
+              <div class="flex items-center justify-end mb-3">
+                <button
+                  class="text-[10px] font-semibold text-[var(--muted)] hover:text-[var(--accent)] transition-colors uppercase tracking-wider"
+                  @click="allExpanded ? collapseAll() : expandAll()"
+                >
+                  {{ allExpanded ? '▸ Collapse all' : '▾ Expand all' }}
+                </button>
+              </div>
+
+              <!-- ── Items ── -->
+              <h2 class="text-xs font-bold text-[var(--muted)] uppercase tracking-widest mb-3">
+                Items
+              </h2>
+              <div class="flex flex-wrap gap-2 mb-2">
+                <template v-for="cat in categorizedItems" :key="'item-' + cat.type">
+                  <!-- Collapsed: just the chip (forms columns) -->
+                  <button
+                    v-if="!isSectionOpen('item-' + cat.type)"
+                    class="flex items-center gap-1.5 py-1 px-1 cursor-pointer"
+                    @click="toggleSection('item-' + cat.type)"
+                  >
+                    <svg
+                      class="w-3 h-3 text-[var(--muted)]"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M9 5l7 7-7 7"
+                      />
+                    </svg>
+                    <span
+                      :class="itemTypeChipClass(cat.type)"
+                      class="px-2 py-0.5 rounded text-[10px] font-bold"
+                      >{{ cat.label }}</span
+                    >
+                    <span class="text-[var(--muted-2)] text-[10px]">{{ cat.items.length }}</span>
+                  </button>
+                </template>
+              </div>
+              <!-- Expanded item sections — ordered by most recently expanded -->
+              <template v-for="cat in expandedItemCats" :key="'item-exp-' + cat.type">
+                <div class="mb-4">
+                  <button
+                    class="w-full flex items-center gap-2 py-1.5 cursor-pointer"
+                    @click="toggleSection('item-' + cat.type)"
+                  >
+                    <svg
+                      class="w-3 h-3 text-[var(--muted)] rotate-90 transition-transform duration-200"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M9 5l7 7-7 7"
+                      />
+                    </svg>
+                    <span
+                      :class="itemTypeChipClass(cat.type)"
+                      class="px-2 py-0.5 rounded text-[10px] font-bold"
+                      >{{ cat.label }}</span
+                    >
+                    <span class="text-[var(--muted-2)] text-[10px]">{{ cat.items.length }}</span>
+                  </button>
+                  <div
+                    class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 mt-2"
+                  >
+                    <button
+                      v-for="item in cat.items"
+                      :key="item.id"
+                      class="chamfer-sm [--cf-fill:var(--panel-2)] flex items-center gap-2 px-2.5 py-2 text-sm text-[var(--text)] hover:[--cf-border:var(--accent)] hover:text-[var(--accent)] transition-colors text-left"
+                      @click="goItem(item.id)"
+                    >
+                      <GameIcon :id="item.id" kind="item" :name="item.name" :size="20" />
+                      <span class="truncate">{{ item.name }}</span>
+                    </button>
+                  </div>
+                </div>
+              </template>
+
+              <!-- ── Buildings ── -->
+              <h2 class="text-xs font-bold text-[var(--muted)] uppercase tracking-widest mt-5 mb-3">
+                Buildings
+              </h2>
+              <div class="flex flex-wrap gap-2 mb-2">
+                <template v-for="cat in categorizedBuildings" :key="'bld-' + cat.type">
+                  <!-- Collapsed: just the chip -->
+                  <button
+                    v-if="!isSectionOpen('bld-' + cat.type)"
+                    class="flex items-center gap-1.5 py-1 px-1 cursor-pointer"
+                    @click="toggleSection('bld-' + cat.type)"
+                  >
+                    <svg
+                      class="w-3 h-3 text-[var(--muted)]"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M9 5l7 7-7 7"
+                      />
+                    </svg>
+                    <span
+                      :class="buildingTypeColors[cat.type] ?? 'bg-slate-700 text-slate-300'"
+                      class="px-2 py-0.5 rounded text-[10px] font-bold"
+                      >{{ cat.label }}</span
+                    >
+                    <span class="text-[var(--muted-2)] text-[10px]">{{
+                      cat.buildings.length
+                    }}</span>
+                  </button>
+                </template>
+              </div>
+              <!-- Expanded building sections — ordered by most recently expanded -->
+              <template v-for="cat in expandedBldCats" :key="'bld-exp-' + cat.type">
+                <div class="mb-4">
+                  <button
+                    class="w-full flex items-center gap-2 py-1.5 cursor-pointer"
+                    @click="toggleSection('bld-' + cat.type)"
+                  >
+                    <svg
+                      class="w-3 h-3 text-[var(--muted)] rotate-90 transition-transform duration-200"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M9 5l7 7-7 7"
+                      />
+                    </svg>
+                    <span
+                      :class="buildingTypeColors[cat.type] ?? 'bg-slate-700 text-slate-300'"
+                      class="px-2 py-0.5 rounded text-[10px] font-bold"
+                      >{{ cat.label }}</span
+                    >
+                    <span class="text-[var(--muted-2)] text-[10px]">{{
+                      cat.buildings.length
+                    }}</span>
+                  </button>
+                  <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 mt-2">
+                    <button
+                      v-for="b in cat.buildings"
+                      :key="b.id"
+                      class="chamfer-sm [--cf-fill:var(--panel-2)] flex items-center gap-2 px-2.5 py-2 text-sm text-[var(--text)] hover:[--cf-border:var(--accent)] hover:text-[var(--accent)] transition-colors text-left"
+                      @click="goBuilding(b.id)"
+                    >
+                      <GameIcon :id="b.id" kind="building" :name="b.name" :size="20" />
+                      <span class="truncate">{{ b.name }}</span>
+                    </button>
+                  </div>
+                </div>
+              </template>
+            </template>
+          </template>
+
           <!-- ═══ ITEM VIEW ═══════════════════════════════════════════════════ -->
-          <template v-if="store.detail.kind === 'item' && itemData">
+          <template v-else-if="store.detail.kind === 'item' && itemData">
             <!-- Item header -->
             <div class="flex items-center gap-3 mb-4">
               <GameIcon :id="itemData.item.id" kind="item" :name="itemData.item.name" :size="40" />
@@ -167,12 +669,6 @@ function setAsTargetWithProducer(
                   {{ itemData.item.type }}
                 </span>
               </div>
-              <button
-                class="ml-auto px-3 py-1.5 bg-[var(--accent)] text-[var(--accent-on)] text-sm font-semibold clip-chamfer-sm hover:bg-[var(--accent-hover)] transition-colors"
-                @click="setAsTarget"
-              >
-                Open as recipe
-              </button>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -187,35 +683,66 @@ function setAsTargetWithProducer(
                     :key="prod.building.id + '-' + i"
                     class="chamfer-sm [--cf-fill:var(--panel-2)] p-3"
                   >
-                    <!-- Building link + open as recipe -->
+                    <!-- Top row: output item + building with version + ⚡ -->
                     <div class="flex items-center gap-2 mb-2">
                       <button
-                        class="flex items-center gap-2 hover:text-[var(--accent)] transition-colors cursor-pointer text-left flex-1 min-w-0"
+                        class="flex items-center gap-1.5 hover:text-[var(--accent)] transition-colors font-semibold text-[var(--text)] text-left flex-1 min-w-0"
+                        @click="goItem(itemData.item.id)"
+                      >
+                        <GameIcon
+                          :id="itemData.item.id"
+                          kind="item"
+                          :name="itemData.item.name"
+                          :size="20"
+                        />
+                        <span class="truncate">{{ itemData.item.name }}</span>
+                      </button>
+                      <button
+                        class="flex items-center gap-1 text-xs text-[var(--muted)] hover:text-[var(--accent)] transition-colors shrink-0"
                         @click="goBuilding(prod.building.id)"
                       >
                         <GameIcon
                           :id="prod.building.id"
                           kind="building"
                           :name="prod.building.name"
-                          :size="22"
+                          :size="16"
                         />
-                        <span class="font-semibold text-[var(--text)]">{{
-                          prod.building.name
-                        }}</span>
+                        <span>{{ prod.building.name }}</span>
                         <span
-                          v-if="prod.recipe.variant"
-                          class="text-[10px] px-1.5 py-0.5 rounded bg-purple-900/60 text-purple-300 font-medium"
-                          >Alt</span
+                          v-if="buildingVersion(prod.building.id)"
+                          class="text-[10px] font-bold"
+                          :class="
+                            buildingVersion(prod.building.id) === 'v2'
+                              ? 'text-[var(--accent-2)]'
+                              : 'text-[var(--muted-2)]'
+                          "
+                          >{{ buildingVersion(prod.building.id) }}</span
                         >
                       </button>
-                      <button
-                        class="shrink-0 px-2 py-1 text-[10px] font-semibold bg-[var(--accent)] text-[var(--accent-on)] clip-chamfer-sm hover:bg-[var(--accent-hover)] transition-colors whitespace-nowrap"
-                        title="Open this recipe in a new planning tab"
-                        @click="
-                          setAsTargetWithProducer(itemData.item.id, prod.building.id, prod.recipe)
-                        "
+                      <span
+                        v-if="prod.recipe.variant"
+                        class="text-[10px] px-1.5 py-0.5 rounded bg-purple-900/60 text-purple-300 font-medium shrink-0"
+                        >Alt</span
                       >
-                        Open as recipe
+                      <!-- Open as recipe button -->
+                      <button
+                        class="shrink-0 w-7 h-7 flex items-center justify-center rounded-md bg-[var(--accent)] text-[var(--accent-on)] hover:bg-[var(--accent-hover)] transition-colors"
+                        title="Open this recipe in a new planning tab"
+                        @click="openAsRecipe(itemData.item.id, prod.building.id, prod.recipe)"
+                      >
+                        <svg
+                          class="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                          stroke-width="2.5"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            d="M12 5v14M5 12h14"
+                          />
+                        </svg>
                       </button>
                     </div>
                     <!-- Recipe inputs → output -->
@@ -257,32 +784,110 @@ function setAsTargetWithProducer(
                 </div>
               </div>
 
-              <!-- Used in -->
+              <!-- Used in — full recipe cards showing what this item is consumed by -->
               <div v-if="itemData.usedIn.length > 0">
                 <h3 class="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-2">
                   Used in
                 </h3>
-                <div class="flex flex-wrap gap-2">
-                  <button
+                <div class="space-y-3">
+                  <div
                     v-for="(entry, i) in itemData.usedIn"
-                    :key="entry.buildingId + '-' + i"
-                    class="chamfer-sm [--cf-fill:var(--panel-2)] flex items-center gap-1.5 px-2 py-1 text-sm text-[var(--text)] hover:[--cf-border:var(--accent)] hover:text-[var(--accent)] transition-colors"
-                    @click="goBuilding(entry.buildingId)"
+                    :key="entry.buildingId + '-' + entry.recipe.output.id + '-' + i"
+                    class="chamfer-sm [--cf-fill:var(--panel-2)] p-3"
                   >
-                    <GameIcon
-                      :id="entry.buildingId"
-                      kind="building"
-                      :name="entry.buildingName"
-                      :size="16"
-                    />
-                    {{ entry.buildingName }}
-                    <span class="text-[var(--muted-2)] text-xs"
-                      >(→
-                      {{
-                        store.itemsById.get(entry.recipe.output.id)?.name ?? entry.recipe.output.id
-                      }})</span
-                    >
-                  </button>
+                    <!-- Output item name + building — top row -->
+                    <div class="flex items-center gap-2 mb-2">
+                      <button
+                        class="flex items-center gap-1.5 hover:text-[var(--accent)] transition-colors font-semibold text-[var(--text)] text-left flex-1 min-w-0"
+                        @click="goItem(entry.recipe.output.id)"
+                      >
+                        <GameIcon
+                          :id="entry.recipe.output.id"
+                          kind="item"
+                          :name="
+                            store.itemsById.get(entry.recipe.output.id)?.name ??
+                            entry.recipe.output.id
+                          "
+                          :size="20"
+                        />
+                        <span class="truncate">{{
+                          store.itemsById.get(entry.recipe.output.id)?.name ??
+                          entry.recipe.output.id
+                        }}</span>
+                      </button>
+                      <button
+                        class="flex items-center gap-1 text-xs text-[var(--muted)] hover:text-[var(--accent)] transition-colors shrink-0"
+                        @click="goBuilding(entry.buildingId)"
+                      >
+                        <GameIcon
+                          :id="entry.buildingId"
+                          kind="building"
+                          :name="entry.buildingName"
+                          :size="16"
+                        />
+                        <span>{{ entry.buildingName }}</span>
+                        <span
+                          v-if="buildingVersion(entry.buildingId)"
+                          class="text-[10px] font-bold"
+                          :class="
+                            buildingVersion(entry.buildingId) === 'v2'
+                              ? 'text-[var(--accent-2)]'
+                              : 'text-[var(--muted-2)]'
+                          "
+                          >{{ buildingVersion(entry.buildingId) }}</span
+                        >
+                      </button>
+                      <!-- Open as recipe button -->
+                      <button
+                        class="shrink-0 w-7 h-7 flex items-center justify-center rounded-md bg-[var(--accent)] text-[var(--accent-on)] hover:bg-[var(--accent-hover)] transition-colors"
+                        title="Open this recipe in a new planning tab"
+                        @click="openUsedInAsRecipe(entry)"
+                      >
+                        <svg
+                          class="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                          stroke-width="2.5"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            d="M12 5v14M5 12h14"
+                          />
+                        </svg>
+                      </button>
+                    </div>
+                    <!-- Recipe inputs -->
+                    <div class="text-xs text-[var(--muted)] space-y-1">
+                      <div
+                        v-for="inp in entry.recipe.inputs"
+                        :key="inp.id"
+                        class="flex items-center gap-1"
+                      >
+                        <button
+                          class="flex items-center gap-1 hover:text-[var(--accent)] transition-colors"
+                          @click="goItem(inp.id)"
+                        >
+                          <GameIcon
+                            :id="inp.id"
+                            kind="item"
+                            :name="store.itemsById.get(inp.id)?.name ?? inp.id"
+                            :size="14"
+                          />
+                          <span>{{ store.itemsById.get(inp.id)?.name ?? inp.id }}</span>
+                        </button>
+                        <span class="text-[var(--muted-2)]"
+                          >{{ fmt(inp.amount_per_minute) }}/min</span
+                        >
+                      </div>
+                      <div
+                        class="flex items-center gap-1 text-[var(--accent)] mt-1 pt-1 border-t border-[var(--border)]"
+                      >
+                        <span>→ {{ fmt(entry.recipe.output.amount_per_minute) }}/min</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -317,9 +922,47 @@ function setAsTargetWithProducer(
                 :size="40"
               />
               <div>
-                <h2 class="text-xl font-bold text-[var(--text-strong)]">
-                  {{ buildingData.building.name }}
-                </h2>
+                <div class="flex items-center gap-2">
+                  <h2 class="text-xl font-bold text-[var(--text-strong)]">
+                    {{ buildingData.building.name }}
+                  </h2>
+                  <!-- Inline v1/v2 toggle -->
+                  <div
+                    v-if="buildingData.pairedBuilding"
+                    class="inline-flex rounded overflow-hidden border border-[var(--border)] text-xs font-semibold"
+                  >
+                    <button
+                      class="px-2 py-0.5 transition-colors"
+                      :class="
+                        !buildingData.isV2
+                          ? 'bg-[var(--accent)] text-[var(--accent-on)]'
+                          : 'bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)]'
+                      "
+                      @click="
+                        !buildingData.isV2
+                          ? null
+                          : store.replaceDetail('building', buildingData.chain!.baseId)
+                      "
+                    >
+                      v1
+                    </button>
+                    <button
+                      class="px-2 py-0.5 transition-colors"
+                      :class="
+                        buildingData.isV2
+                          ? 'bg-[var(--accent)] text-[var(--accent-on)]'
+                          : 'bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)]'
+                      "
+                      @click="
+                        buildingData.isV2
+                          ? null
+                          : store.replaceDetail('building', buildingData.chain!.upgradedId)
+                      "
+                    >
+                      v2
+                    </button>
+                  </div>
+                </div>
                 <span
                   :class="
                     buildingTypeColors[buildingData.building.type] ?? 'bg-slate-700 text-slate-300'
@@ -339,28 +982,6 @@ function setAsTargetWithProducer(
               <span class="flex items-center gap-1 text-red-400">
                 <span>🔥</span> {{ buildingData.building.heat ?? 0 }}
               </span>
-            </div>
-
-            <!-- Tier link (v1 ↔ v2) -->
-            <div v-if="buildingData.pairedBuilding" class="mb-4">
-              <h3 class="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-2">
-                {{ buildingData.isV2 ? 'Base version (v1)' : 'Upgraded version (v2)' }}
-              </h3>
-              <button
-                class="chamfer-sm [--cf-fill:var(--panel-2)] flex items-center gap-2 px-3 py-2 hover:[--cf-border:var(--accent)] hover:text-[var(--accent)] transition-colors text-sm text-[var(--text)]"
-                @click="goBuilding(buildingData.pairedId!)"
-              >
-                <GameIcon
-                  :id="buildingData.pairedId!"
-                  kind="building"
-                  :name="buildingData.pairedBuilding.name"
-                  :size="20"
-                />
-                {{ buildingData.pairedBuilding.name }}
-                <span class="text-[var(--muted)] text-xs ml-1"
-                  >({{ buildingData.isV2 ? 'v1' : 'v2' }})</span
-                >
-              </button>
             </div>
 
             <!-- Unlocked by -->

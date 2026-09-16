@@ -155,7 +155,11 @@ function selectedBuildingId(chain: { baseId: string; upgradedId: string }): stri
             class="flex items-center justify-between gap-3"
           >
             <!-- Building icon (swaps to the v2 building) + name + a 'v2' tag when active -->
-            <div class="flex items-center gap-2 min-w-0">
+            <button
+              class="flex items-center gap-2 min-w-0 hover:text-[var(--accent)] transition-colors cursor-pointer text-left"
+              :title="`View ${buildingName(selectedBuildingId(chain))} recipes`"
+              @click="store.openBuildingDetail(selectedBuildingId(chain))"
+            >
               <GameIcon
                 :id="selectedBuildingId(chain)"
                 kind="building"
@@ -163,7 +167,7 @@ function selectedBuildingId(chain: { baseId: string; upgradedId: string }): stri
                 :size="38"
               />
               <span class="flex items-center gap-1.5 min-w-0">
-                <span class="text-base text-[var(--text)] truncate">{{
+                <span class="text-base text-inherit truncate">{{
                   buildingName(chain.baseId)
                 }}</span>
                 <span
@@ -173,7 +177,7 @@ function selectedBuildingId(chain: { baseId: string; upgradedId: string }): stri
                   v2
                 </span>
               </span>
-            </div>
+            </button>
 
             <!-- v1/v2 segmented toggle (mimics the tree's version picker) -->
             <div

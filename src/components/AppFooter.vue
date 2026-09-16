@@ -24,6 +24,14 @@ const year = 2026
         <span>© {{ year }}</span>
         <span class="opacity-50">·</span>
         <SupportButton />
+        <span class="opacity-50">·</span>
+        <a
+          href="https://github.com/GoodStuffSoftware/star-rupture-planner/issues/new?labels=feedback&template=feedback.md&title=%5BFeedback%5D+"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="hover:text-[var(--accent)] transition-colors"
+          >Feedback</a
+        >
       </div>
 
       <!-- Credits / disclaimer -->

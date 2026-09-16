@@ -681,17 +681,53 @@ export const usePlannerStore = defineStore('planner', () => {
     document.documentElement.dataset.theme = t === 'spaceage' ? 'spaceage' : ''
   }
 
-  // v6 detail drawer actions
+  // v6 detail drawer actions — with navigation history for back-tracking
+  const detailHistory = ref<{ kind: 'item' | 'building' | 'index'; id: string }[]>([])
+
   function openItemDetail(id: string) {
+    if (detail.value)
+      detailHistory.value.push({ ...detail.value } as {
+        kind: 'item' | 'building' | 'index'
+        id: string
+      })
     detail.value = { kind: 'item', id }
   }
 
   function openBuildingDetail(id: string) {
+    if (detail.value)
+      detailHistory.value.push({ ...detail.value } as {
+        kind: 'item' | 'building' | 'index'
+        id: string
+      })
     detail.value = { kind: 'building', id }
+  }
+
+  function openItemIndex() {
+    if (detail.value)
+      detailHistory.value.push({ ...detail.value } as {
+        kind: 'item' | 'building' | 'index'
+        id: string
+      })
+    detail.value = { kind: 'item' as any, id: '__index__' }
+  }
+
+  function detailBack() {
+    const prev = detailHistory.value.pop()
+    if (prev) {
+      detail.value = prev as { kind: 'item' | 'building'; id: string }
+    } else {
+      detail.value = null
+    }
   }
 
   function closeDetail() {
     detail.value = null
+    detailHistory.value = []
+  }
+
+  /** Replace current detail without pushing to history (for v1↔v2 toggling). */
+  function replaceDetail(kind: 'item' | 'building', id: string) {
+    detail.value = { kind, id }
   }
 
   // v6 hover card actions (350ms open delay handled via a timer)
@@ -888,7 +924,11 @@ export const usePlannerStore = defineStore('planner', () => {
     // v6 actions
     openItemDetail,
     openBuildingDetail,
+    openItemIndex,
+    detailBack,
+    detailHistory,
     closeDetail,
+    replaceDetail,
     setHover,
     clearHover,
   }

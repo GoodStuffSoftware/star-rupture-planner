@@ -25,12 +25,16 @@ onMounted(() => {
     :style="store.treeFontScale !== 1 ? { zoom: store.treeFontScale } : undefined"
   >
     <!-- Header bar -->
-    <header class="chamfer backdrop-blur-sm sticky top-0 z-30">
+    <header class="chamfer backdrop-blur-sm sticky top-0 relative overflow-hidden z-30">
       <div class="max-w-screen-xl mx-auto px-2 pt-3 pb-2 sm:px-4 flex flex-col gap-3">
         <!-- Row 1: title, version, target search + amount, share -->
-        <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div id="header-row1" class="flex flex-wrap items-center gap-x-4 gap-y-2">
           <!-- Title -->
-          <div class="flex items-center gap-2 mr-2">
+          <button
+            class="flex items-center gap-2 mr-2 hover:opacity-80 transition-opacity cursor-pointer"
+            title="Browse all items"
+            @click="store.openItemIndex()"
+          >
             <div
               class="w-7 h-7 chamfer-sm [--cf-fill:var(--accent-soft)] [--cf-border:var(--accent-soft-border)] flex items-center justify-center shrink-0"
             >
@@ -53,7 +57,7 @@ onMounted(() => {
             >
               Star Rupture Planner
             </h1>
-          </div>
+          </button>
 
           <!-- Divider -->
           <div class="hidden sm:block w-px h-6 bg-[var(--border)] shrink-0" />
@@ -64,10 +68,10 @@ onMounted(() => {
                pushed (ml-auto) to the very end of the header line. -->
           <div class="flex flex-wrap items-center gap-x-3 gap-y-2 w-full sm:contents">
             <!-- Version selector -->
-            <VersionSelector />
+            <span id="version-selector-wrap"><VersionSelector /></span>
 
-            <!-- Divider -->
-            <div class="hidden sm:block w-px h-6 bg-[var(--border)] shrink-0" />
+            <!-- Divider — marks start of blur zone in row 1 -->
+            <div id="blur-start" class="hidden sm:block w-px h-6 bg-[var(--border)] shrink-0" />
 
             <!-- Target selector (edits the active tab). The add (+) button rides
                  in its trailing slot, so it stays on the per-minute line. With
