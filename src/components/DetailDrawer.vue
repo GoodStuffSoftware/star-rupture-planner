@@ -8,6 +8,7 @@ import { computed, onMounted, onBeforeUnmount } from 'vue'
 import { usePlannerStore } from '../stores/plannerStore'
 import { fmt } from '../lib/format'
 import { itemTypeChipClass } from '../lib/itemTypeChip'
+import { recipeKey } from '../lib/recipeIndex'
 import GameIcon from './GameIcon.vue'
 
 const store = usePlannerStore()
@@ -84,8 +85,29 @@ function goItem(id: string) {
 function setAsTarget() {
   const d = store.detail
   if (!d || d.kind !== 'item') return
-  // Open in a new recipe tab instead of overwriting the current one.
   store.addTargetItem(d.id)
+  store.closeDetail()
+}
+
+/** Open as recipe with a specific producer (building + recipe variant). */
+function setAsTargetWithProducer(
+  itemId: string,
+  buildingId: string,
+  recipe: {
+    id?: string
+    variant?: string
+    output: { id: string; amount_per_minute: number }
+    inputs: { id: string; amount_per_minute: number }[]
+  },
+) {
+  store.addTargetItem(itemId)
+  store.setOverride(itemId, buildingId)
+  // If this is an alternate recipe, set the recipe override too
+  const building = store.buildingsById.get(buildingId)
+  if (building && (recipe.variant || recipe.id)) {
+    const rKey = recipeKey(recipe, building)
+    store.setRecipeOverride(itemId, rKey)
+  }
   store.closeDetail()
 }
 </script>
@@ -165,19 +187,37 @@ function setAsTarget() {
                     :key="prod.building.id + '-' + i"
                     class="chamfer-sm [--cf-fill:var(--panel-2)] p-3"
                   >
-                    <!-- Building link -->
-                    <button
-                      class="flex items-center gap-2 hover:text-[var(--accent)] transition-colors cursor-pointer mb-2 w-full text-left"
-                      @click="goBuilding(prod.building.id)"
-                    >
-                      <GameIcon
-                        :id="prod.building.id"
-                        kind="building"
-                        :name="prod.building.name"
-                        :size="22"
-                      />
-                      <span class="font-semibold text-[var(--text)]">{{ prod.building.name }}</span>
-                    </button>
+                    <!-- Building link + open as recipe -->
+                    <div class="flex items-center gap-2 mb-2">
+                      <button
+                        class="flex items-center gap-2 hover:text-[var(--accent)] transition-colors cursor-pointer text-left flex-1 min-w-0"
+                        @click="goBuilding(prod.building.id)"
+                      >
+                        <GameIcon
+                          :id="prod.building.id"
+                          kind="building"
+                          :name="prod.building.name"
+                          :size="22"
+                        />
+                        <span class="font-semibold text-[var(--text)]">{{
+                          prod.building.name
+                        }}</span>
+                        <span
+                          v-if="prod.recipe.variant"
+                          class="text-[10px] px-1.5 py-0.5 rounded bg-purple-900/60 text-purple-300 font-medium"
+                          >Alt</span
+                        >
+                      </button>
+                      <button
+                        class="shrink-0 px-2 py-1 text-[10px] font-semibold bg-[var(--accent)] text-[var(--accent-on)] clip-chamfer-sm hover:bg-[var(--accent-hover)] transition-colors whitespace-nowrap"
+                        title="Open this recipe in a new planning tab"
+                        @click="
+                          setAsTargetWithProducer(itemData.item.id, prod.building.id, prod.recipe)
+                        "
+                      >
+                        Open as recipe
+                      </button>
+                    </div>
                     <!-- Recipe inputs → output -->
                     <div class="text-xs text-[var(--muted)] space-y-1">
                       <div

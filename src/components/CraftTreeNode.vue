@@ -14,6 +14,37 @@ const props = defineProps<{
 
 const store = usePlannerStore()
 
+// ─── Alternate recipe dropdown ──────────────────────────────────────────────
+const showRecipeDropdown = ref(false)
+
+const hasAlternateRecipes = computed(() => (props.node.alternateRecipes?.length ?? 0) > 1)
+
+function toggleRecipeDropdown(e: Event) {
+  e.stopPropagation()
+  showRecipeDropdown.value = !showRecipeDropdown.value
+}
+
+function selectRecipe(rKey: string, e: Event) {
+  e.stopPropagation()
+  store.setRecipeOverride(props.node.itemId, rKey)
+  showRecipeDropdown.value = false
+}
+
+// Format a recipe's inputs as a short summary
+function recipeInputSummary(inputs: { id: string; amount_per_minute: number }[]): string {
+  return inputs.map((i) => store.itemsById.get(i.id)?.name ?? i.id).join(' + ')
+}
+
+// Label for a recipe variant
+function recipeLabel(r: {
+  recipeKey: string
+  recipe: { variant?: string; id?: string; output: { amount_per_minute: number } }
+}): string {
+  if (r.recipe.variant) return 'Alt'
+  if (r.recipe.id) return 'Std'
+  return 'Default'
+}
+
 // ─── Per-row overage (overproduction) controls ─────────────────────────────
 // The root row is driven by the top target control; cycle rows don't recurse,
 // so neither gets an overage stepper.
@@ -171,21 +202,85 @@ function onBuildingMouseLeave() {
       <!-- Spacer for leaf nodes -->
       <div v-else class="w-4 shrink-0" />
 
-      <!-- Item icon + name (clickable → openItemDetail, hoverable) -->
-      <span
-        class="flex items-center gap-1 cursor-pointer hover:text-[var(--accent)] transition-colors"
-        @click="store.openItemDetail(node.itemId)"
-        @mouseenter="onItemMouseEnter"
-        @mouseleave="onItemMouseLeave"
-      >
-        <GameIcon :id="node.itemId" kind="item" :name="node.itemName" :size="30" />
+      <!-- Item icon + name + alternate recipe dropdown (wrapped together so dropdown sits under the name) -->
+      <div class="relative flex items-center gap-1" @click.stop>
         <span
-          class="font-semibold text-base whitespace-nowrap"
-          :class="depth === 0 ? 'text-[var(--text-strong)]' : 'text-[var(--text-2)]'"
+          class="flex items-center gap-1 cursor-pointer hover:text-[var(--accent)] transition-colors"
+          @click="store.openItemDetail(node.itemId)"
+          @mouseenter="onItemMouseEnter"
+          @mouseleave="onItemMouseLeave"
         >
-          {{ node.itemName }}
+          <GameIcon :id="node.itemId" kind="item" :name="node.itemName" :size="30" />
+          <span
+            class="font-semibold text-base whitespace-nowrap"
+            :class="depth === 0 ? 'text-[var(--text-strong)]' : 'text-[var(--text-2)]'"
+          >
+            {{ node.itemName }}
+          </span>
         </span>
-      </span>
+
+        <!-- Small dropdown arrow (only when alternates exist) -->
+        <button
+          v-if="hasAlternateRecipes"
+          class="flex items-center justify-center w-5 h-5 rounded transition-colors shrink-0"
+          :class="
+            showRecipeDropdown
+              ? 'bg-[var(--accent)] text-[var(--accent-on)]'
+              : 'text-[var(--muted)] hover:bg-[var(--panel-2)] hover:text-[var(--text)]'
+          "
+          title="Switch recipe variant"
+          @click="toggleRecipeDropdown"
+        >
+          <svg
+            class="w-3 h-3"
+            :class="showRecipeDropdown ? 'rotate-180' : ''"
+            fill="currentColor"
+            viewBox="0 0 20 20"
+            style="transition: transform 0.15s"
+          >
+            <path
+              fill-rule="evenodd"
+              d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+              clip-rule="evenodd"
+            />
+          </svg>
+        </button>
+
+        <!-- Dropdown panel: anchored to left edge of the name -->
+        <div
+          v-if="hasAlternateRecipes && showRecipeDropdown"
+          class="absolute top-full left-0 mt-1 z-50 min-w-[220px] max-w-[320px] bg-[var(--panel)] border border-[var(--border)] rounded-lg shadow-xl overflow-hidden"
+        >
+          <div
+            v-for="alt in node.alternateRecipes"
+            :key="alt.recipeKey"
+            class="px-3 py-2 cursor-pointer transition-colors text-xs border-b border-[var(--border)] last:border-b-0"
+            :class="
+              node.selectedRecipeKey === alt.recipeKey
+                ? 'bg-[var(--accent)]/15 text-[var(--accent)]'
+                : 'hover:bg-[var(--panel-2)] text-[var(--text)]'
+            "
+            @click="selectRecipe(alt.recipeKey, $event)"
+          >
+            <div class="flex items-center gap-2 mb-1">
+              <span class="font-semibold">
+                {{ recipeLabel(alt) }}
+              </span>
+              <span class="text-[var(--muted)] font-mono"
+                >{{ fmt(alt.recipe.output.amount_per_minute) }}/min</span
+              >
+              <span
+                v-if="node.selectedRecipeKey === alt.recipeKey"
+                class="text-[var(--accent)] ml-auto"
+                >✓</span
+              >
+            </div>
+            <div class="text-[var(--muted-2)]">
+              {{ recipeInputSummary(alt.recipe.inputs) }}
+            </div>
+          </div>
+        </div>
+      </div>
 
       <!-- Item type chip -->
       <span

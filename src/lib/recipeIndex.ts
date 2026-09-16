@@ -8,6 +8,21 @@ export interface ProducerEntry {
 }
 
 /**
+ * Generate a stable key for a recipe, used for alternate recipe overrides.
+ * Uses the recipe's `id` or `variant` field if available, otherwise derives
+ * a key from the building id and input item ids.
+ */
+export function recipeKey(recipe: Recipe, building: Building): string {
+  if (recipe.id) return recipe.id
+  if (recipe.variant) return `var:${recipe.output.id}`
+  // Fallback: deterministic key from building + output + sorted inputs
+  return `${building.id}:${recipe.output.id}:${recipe.inputs
+    .map((i) => i.id)
+    .sort()
+    .join('+')}`
+}
+
+/**
  * Filter buildings based on tier selections.
  *
  * Owning v2 does NOT remove your v1 buildings — in-game v2 is an unlock you build
@@ -112,4 +127,48 @@ export function getCandidates(
     }
   }
   return result
+}
+
+/**
+ * Get all alternate recipes for an item from a specific building.
+ * Returns all recipe variants (including the one currently selected) from the
+ * same building that produce the same output item, keyed for stable override storage.
+ * Returns empty array if the building has only one recipe for this output.
+ */
+export function getAlternateRecipes(
+  itemId: string,
+  buildingId: string,
+  fullIndex: Map<string, ProducerEntry[]>,
+): { recipeKey: string; recipe: Recipe }[] {
+  const entries = fullIndex.get(itemId)
+  if (!entries) return []
+
+  const fromSameBuilding = entries.filter((e) => e.building.id === buildingId)
+  if (fromSameBuilding.length <= 1) return [] // No alternates
+
+  return fromSameBuilding.map((e) => ({
+    recipeKey: recipeKey(e.recipe, e.building),
+    recipe: e.recipe,
+  }))
+}
+
+/**
+ * Pick a specific recipe variant from a building for an item, using a recipeKey.
+ * Falls back to the first recipe from that building if the key doesn't match.
+ */
+export function pickRecipeVariant(
+  itemId: string,
+  buildingId: string,
+  rKey: string,
+  fullIndex: Map<string, ProducerEntry[]>,
+): ProducerEntry | undefined {
+  const entries = fullIndex.get(itemId)
+  if (!entries) return undefined
+
+  const fromBuilding = entries.filter((e) => e.building.id === buildingId)
+  if (fromBuilding.length === 0) return undefined
+
+  // Try to match by recipe key
+  const match = fromBuilding.find((e) => recipeKey(e.recipe, e.building) === rKey)
+  return match ?? fromBuilding[0]
 }

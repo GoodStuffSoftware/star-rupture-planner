@@ -23,6 +23,10 @@ export interface RecipePort {
 export interface Recipe {
   output: RecipePort
   inputs: RecipePort[]
+  /** Present on alternate recipes — marks this as a variant (e.g. different ingredient path) */
+  variant?: string
+  /** Present on original (non-variant) recipes when an alternate exists */
+  id?: string
 }
 
 export interface Building {
@@ -44,6 +48,11 @@ export interface UpgradeChain {
 // Per-item building override: itemId -> buildingId
 export type VersionOverrides = Record<string, string>
 
+// Per-item alternate recipe override: itemId -> recipeKey
+// When a building has multiple recipes producing the same item (alternate recipes),
+// this picks which recipe variant to use.
+export type RecipeOverrides = Record<string, string>
+
 // Per-occurrence overproduction (overage): node path -> extra items/min beyond demand
 // (negative = intentional deficit). See CraftNode.path for the key format.
 export type Overages = Record<string, number>
@@ -64,6 +73,10 @@ export interface CraftNode {
   children: CraftNode[]
   candidates?: { buildingId: string; buildingName: string }[] // all buildings that produce this item
   isOverridden?: boolean // producer came from an override, not the global default
+  /** Alternate recipes from the SAME building for this item's output (empty = no alternates) */
+  alternateRecipes?: { recipeKey: string; recipe: Recipe }[]
+  /** The recipeKey of the currently selected recipe */
+  selectedRecipeKey?: string
 }
 
 export interface Totals {

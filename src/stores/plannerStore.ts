@@ -7,6 +7,7 @@ import type {
   CraftNode,
   Totals,
   VersionOverrides,
+  RecipeOverrides,
   Overages,
 } from '../types/game'
 import { loadGameData } from '../data/loader'
@@ -14,6 +15,7 @@ import {
   getAvailableBuildings,
   buildProducerIndex,
   pickProducer,
+  recipeKey,
   type TierSelection,
   type ProducerEntry,
 } from '../lib/recipeIndex'
@@ -103,6 +105,7 @@ export const usePlannerStore = defineStore('planner', () => {
 
   // v2 state
   const overrides = ref<VersionOverrides>({})
+  const recipeOverrides = ref<RecipeOverrides>({})
   const showExtractors = ref<boolean>(false)
   const showIcons = ref<boolean>(true)
   const showRowDividers = ref<boolean>(false)
@@ -184,6 +187,7 @@ export const usePlannerStore = defineStore('planner', () => {
       producerIndex: producerIndex.value,
       fullProducerIndex: fullProducerIndex.value,
       overrides: overrides.value,
+      recipeOverrides: recipeOverrides.value,
       overages: overages.value,
     })
   })
@@ -207,6 +211,7 @@ export const usePlannerStore = defineStore('planner', () => {
         producerIndex: producerIndex.value,
         fullProducerIndex: fullProducerIndex.value,
         overrides: overrides.value,
+        recipeOverrides: recipeOverrides.value,
         overages: t.overages,
       })
       const tot = aggregateTotals(tr, { showExtractors: showExtractors.value })
@@ -330,6 +335,15 @@ export const usePlannerStore = defineStore('planner', () => {
         }
         overrides.value = restoredOverrides
 
+        // recipeOverrides: keep only entries where item exists
+        const restoredRecipeOverrides: RecipeOverrides = {}
+        for (const [itemId, rKey] of Object.entries(plan.recipeOverrides ?? {})) {
+          if (freshItemsById.has(itemId) && typeof rKey === 'string') {
+            restoredRecipeOverrides[itemId] = rKey
+          }
+        }
+        recipeOverrides.value = restoredRecipeOverrides
+
         // Build target tabs from the plan (multi-target, or legacy single fields),
         // validating each item and its overages against the freshly loaded data.
         const fallbackItem =
@@ -405,6 +419,7 @@ export const usePlannerStore = defineStore('planner', () => {
         // ── Default reset ─────────────────────────────────────────────────────
         tier.value = defaultTier
         overrides.value = {}
+        recipeOverrides.value = {}
 
         const newTarget =
           data.items.find((i) => i.type === 'component')?.id ?? data.items[0]?.id ?? null
@@ -581,6 +596,22 @@ export const usePlannerStore = defineStore('planner', () => {
 
   function clearOverrides() {
     overrides.value = {}
+    recipeOverrides.value = {}
+  }
+
+  function setRecipeOverride(itemId: string, rKey: string) {
+    // If the key matches the default (first) recipe, remove the override
+    const producers = fullProducerIndex.value.get(itemId)
+    if (producers && producers.length > 0) {
+      const defaultKey = recipeKey(producers[0].recipe, producers[0].building)
+      if (rKey === defaultKey) {
+        const next = { ...recipeOverrides.value }
+        delete next[itemId]
+        recipeOverrides.value = next
+        return
+      }
+    }
+    recipeOverrides.value = { ...recipeOverrides.value, [itemId]: rKey }
   }
 
   // Set a per-occurrence overproduction delta (items/min beyond demand) for the
@@ -700,6 +731,7 @@ export const usePlannerStore = defineStore('planner', () => {
       activeTargetIndex: idx,
       tier: tier.value,
       overrides: overrides.value,
+      recipeOverrides: recipeOverrides.value,
     }
   }
 
@@ -713,6 +745,7 @@ export const usePlannerStore = defineStore('planner', () => {
       overages: active?.overages ?? {},
       tier: tier.value,
       overrides: overrides.value,
+      recipeOverrides: recipeOverrides.value,
       // No `targets` array → encodePlan emits the compact single-target form.
     })
   }
@@ -745,6 +778,7 @@ export const usePlannerStore = defineStore('planner', () => {
   watch(targets, _scheduleSave, { deep: true })
   watch(tier, _scheduleSave, { deep: true })
   watch(overrides, _scheduleSave, { deep: true })
+  watch(recipeOverrides, _scheduleSave, { deep: true })
   // Watch view prefs
   watch(
     [
@@ -773,6 +807,7 @@ export const usePlannerStore = defineStore('planner', () => {
     targetItemId,
     targetRate,
     overrides,
+    recipeOverrides,
     overages,
     // multi-target tabs
     targets,
@@ -824,6 +859,7 @@ export const usePlannerStore = defineStore('planner', () => {
     selectTargetItem,
     defaultRateForItem,
     setOverride,
+    setRecipeOverride,
     clearOverrides,
     setOverage,
     clearOverages,

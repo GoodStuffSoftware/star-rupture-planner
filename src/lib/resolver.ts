@@ -1,11 +1,26 @@
-import type { CraftNode, Item, Overages, Totals, VersionOverrides } from '../types/game'
-import { pickProducer, getCandidates, type ProducerEntry } from './recipeIndex'
+import type {
+  CraftNode,
+  Item,
+  Overages,
+  RecipeOverrides,
+  Totals,
+  VersionOverrides,
+} from '../types/game'
+import {
+  pickProducer,
+  getCandidates,
+  getAlternateRecipes,
+  pickRecipeVariant,
+  recipeKey,
+  type ProducerEntry,
+} from './recipeIndex'
 
 export interface ResolverContext {
   itemsById: Map<string, Item>
   producerIndex: Map<string, ProducerEntry[]>
   fullProducerIndex: Map<string, ProducerEntry[]>
   overrides: VersionOverrides
+  recipeOverrides: RecipeOverrides
   // Per-occurrence overproduction, keyed by node path (see CraftNode.path). Each
   // tree row is adjusted independently, so a shared item can be overproduced (or
   // run at a deficit) differently in each branch it appears in.
@@ -59,6 +74,26 @@ function _resolve(
   if (!producer) {
     node.isRaw = true
     return node // no recipe -> raw leaf
+  }
+
+  // Check for alternate recipes from the same building for this item.
+  // If the user has selected a specific recipe variant, use that instead.
+  const alternates = getAlternateRecipes(itemId, producer.building.id, ctx.fullProducerIndex)
+  if (alternates.length > 0) {
+    node.alternateRecipes = alternates
+    const rKey = ctx.recipeOverrides[itemId]
+    if (rKey) {
+      const variantProducer = pickRecipeVariant(
+        itemId,
+        producer.building.id,
+        rKey,
+        ctx.fullProducerIndex,
+      )
+      if (variantProducer) {
+        producer = variantProducer
+      }
+    }
+    node.selectedRecipeKey = recipeKey(producer.recipe, producer.building)
   }
 
   node.building = producer.building

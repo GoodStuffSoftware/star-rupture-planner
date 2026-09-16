@@ -1,5 +1,5 @@
 import type { TierSelection } from './recipeIndex'
-import type { VersionOverrides, Overages } from '../types/game'
+import type { VersionOverrides, RecipeOverrides, Overages } from '../types/game'
 import { DEFAULT_VERSION } from '../data/versions'
 
 // ─── Shared state types ───────────────────────────────────────────────────────
@@ -24,6 +24,7 @@ export interface PlanState {
   activeTargetIndex?: number
   tier: TierSelection
   overrides: VersionOverrides
+  recipeOverrides?: RecipeOverrides
 }
 
 export interface ViewPrefs {
@@ -121,6 +122,10 @@ export function loadSaved(): { plan?: PlanState; prefs?: ViewPrefs } | null {
           targetRate: pl.targetRate,
           tier: pl.tier as TierSelection,
           overrides: pl.overrides as VersionOverrides,
+          recipeOverrides:
+            typeof pl.recipeOverrides === 'object' && pl.recipeOverrides !== null
+              ? (pl.recipeOverrides as RecipeOverrides)
+              : {},
           overages:
             typeof pl.overages === 'object' && pl.overages !== null
               ? (pl.overages as Overages)
@@ -192,6 +197,7 @@ export function encodePlan(plan: PlanState): string {
     .map(([k]) => k)
   if (v2.length) min.t = v2
   if (Object.keys(plan.overrides).length) min.o = plan.overrides
+  if (plan.recipeOverrides && Object.keys(plan.recipeOverrides).length) min.R = plan.recipeOverrides
   const encoded = toBase64Url(JSON.stringify(min))
   return `${location.origin}${location.pathname}?p=${encoded}`
 }
@@ -239,6 +245,7 @@ export function decodePlanFromUrl(): PlanState | null {
       for (const baseId of o.t) if (typeof baseId === 'string') tier[baseId] = 'v2'
     }
     const overrides = (typeof o.o === 'object' && o.o ? o.o : {}) as VersionOverrides
+    const recipeOv = (typeof o.R === 'object' && o.R ? o.R : {}) as RecipeOverrides
     const version = typeof o.v === 'string' ? o.v : DEFAULT_VERSION
 
     // Multi-target (`m`)
@@ -262,6 +269,7 @@ export function decodePlanFromUrl(): PlanState | null {
         activeTargetIndex: typeof o.a === 'number' ? o.a : 0,
         tier,
         overrides,
+        recipeOverrides: recipeOv,
       }
     }
 
@@ -273,6 +281,7 @@ export function decodePlanFromUrl(): PlanState | null {
       targetRate: typeof o.r === 'number' ? o.r : 60,
       tier,
       overrides,
+      recipeOverrides: recipeOv,
       overages: (typeof o.g === 'object' && o.g ? o.g : {}) as Overages,
     }
   } catch {
