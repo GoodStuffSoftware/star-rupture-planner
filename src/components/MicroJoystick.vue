@@ -109,7 +109,7 @@ function triggerAction(side: 'left' | 'right') {
 
 <template>
   <div
-    class="relative w-11 h-7 rounded-full bg-[var(--panel)] border border-[var(--border)] select-none shrink-0 overflow-hidden flex items-center justify-between shadow-inner group touch-none"
+    class="relative w-14 h-9 sm:w-11 sm:h-7 rounded-full bg-[var(--panel)] border border-[var(--border)] select-none shrink-0 overflow-hidden flex items-center justify-between shadow-inner group touch-none"
     title="Navigation Joystick (Click or Drag left for Back, right for Forward)"
     @pointerdown="onPointerDown"
     @pointermove="onPointerMove"
@@ -119,7 +119,7 @@ function triggerAction(side: 'left' | 'right') {
   >
     <!-- Left hover detection overlay (50%) -->
     <div
-      class="absolute left-0 top-0 w-[22px] h-7 z-20"
+      class="absolute left-0 top-0 w-1/2 h-full z-20"
       :class="props.canGoBack ? 'cursor-pointer' : 'cursor-not-allowed'"
       @mouseenter="handleMouseEnter('left', $event)"
       @mouseleave="handleMouseLeave"
@@ -127,7 +127,7 @@ function triggerAction(side: 'left' | 'right') {
 
     <!-- Right hover detection overlay (50%) -->
     <div
-      class="absolute right-0 top-0 w-[22px] h-7 z-20"
+      class="absolute right-0 top-0 w-1/2 h-full z-20"
       :class="props.canGoForward ? 'cursor-pointer' : 'cursor-not-allowed'"
       @mouseenter="handleMouseEnter('right', $event)"
       @mouseleave="handleMouseLeave"
@@ -136,11 +136,11 @@ function triggerAction(side: 'left' | 'right') {
     <!-- Click flash pulse overlay -->
     <div
       v-if="flashSide === 'left'"
-      class="absolute left-0 top-0 w-[22px] h-7 bg-[var(--accent)]/40 z-10 animate-pulse pointer-events-none rounded-l-full"
+      class="absolute left-0 top-0 w-1/2 h-full bg-[var(--accent)]/40 z-10 animate-pulse pointer-events-none rounded-l-full"
     />
     <div
       v-if="flashSide === 'right'"
-      class="absolute right-0 top-0 w-[22px] h-7 bg-[var(--accent)]/40 z-10 animate-pulse pointer-events-none rounded-r-full"
+      class="absolute right-0 top-0 w-1/2 h-full bg-[var(--accent)]/40 z-10 animate-pulse pointer-events-none rounded-r-full"
     />
 
     <!-- SVG Schematic Overlay -->

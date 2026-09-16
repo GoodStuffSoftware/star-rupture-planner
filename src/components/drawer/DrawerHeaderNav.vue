@@ -170,12 +170,12 @@ watch(
 
 <template>
   <div
-    class="h-11 sm:h-9 border-b border-[var(--border)] px-3 flex items-center justify-between shrink-0 select-none relative bg-[var(--panel-2)] text-sm"
+    class="h-14 sm:h-10 border-b border-[var(--border)] px-3.5 sm:px-3 flex items-center justify-between shrink-0 select-none relative bg-[var(--panel-2)] text-base sm:text-sm"
   >
     <!-- Left & Center Zone: Micro-Joystick + Sliding Breadcrumb Track -->
-    <div class="flex items-center gap-1.5 min-w-0 flex-1">
+    <div class="flex items-center gap-2 sm:gap-1.5 min-w-0 flex-1">
       <!-- Zone 1: Micro-Joystick Navigation Component + History Dropdown -->
-      <div class="flex items-center gap-1 shrink-0">
+      <div class="flex items-center gap-1.5 sm:gap-1 shrink-0">
         <MicroJoystick
           :can-go-back="canGoBack"
           :can-go-forward="canGoForward"
@@ -186,13 +186,13 @@ watch(
         <div class="history-dropdown-wrap relative">
           <!-- Navigation History Dropdown Button -->
           <button
-            class="w-8 h-8 sm:w-6 sm:h-6 flex items-center justify-center rounded text-[var(--muted)] hover:text-[var(--accent)] hover:bg-[var(--panel)] transition-colors relative shrink-0"
+            class="w-10 h-10 sm:w-7 sm:h-7 flex items-center justify-center rounded-lg sm:rounded text-[var(--muted)] hover:text-[var(--accent)] hover:bg-[var(--panel)] transition-colors relative shrink-0"
             :class="{ 'text-[var(--accent)] bg-[var(--panel)]': isHistoryOpen }"
             title="Past Navigation History Tracks"
             @click.stop="isHistoryOpen = !isHistoryOpen"
           >
             <svg
-              class="w-4 h-4 sm:w-3.5 sm:h-3.5"
+              class="w-5 h-5 sm:w-4 sm:h-4"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -206,11 +206,11 @@ watch(
             </svg>
             <span
               v-if="detailStore.savedTracks.length > 0 || activeBreadcrumbs.length > 0"
-              class="absolute top-1 right-1 sm:top-0.5 sm:right-0.5 w-1.5 h-1.5 rounded-full bg-[var(--accent)]"
+              class="absolute top-1.5 right-1.5 sm:top-0.5 sm:right-0.5 w-2 h-2 sm:w-1.5 sm:h-1.5 rounded-full bg-[var(--accent)]"
             />
           </button>
 
-          <!-- Past Breadcrumbs History Dropdown (Translucent Glassmorphism, Content-Based Width with Max Cap, Blinds Animation) -->
+          <!-- Past Breadcrumbs History Dropdown -->
           <Transition
             enter-active-class="transition-all duration-300 cubic-bezier(0.16, 1, 0.3, 1)"
             enter-from-class="opacity-0 -translate-y-6 scale-y-75"
@@ -221,10 +221,10 @@ watch(
           >
             <div
               v-if="isHistoryOpen"
-              class="absolute top-11 sm:top-9 left-0 z-[300] p-2 w-max max-w-[calc(100vw-72px)] max-h-[65vh] flex flex-col gap-2 select-none origin-top-left rounded-xl"
+              class="absolute top-14 sm:top-10 left-0 z-[300] p-2 w-max max-w-[calc(100vw-72px)] max-h-[65vh] flex flex-col gap-2 select-none origin-top-left rounded-xl"
               @click.stop
             >
-              <!-- Dedicated background layer with soft blurred mask edges (leaves content elements 100% crisp) -->
+              <!-- Dedicated background layer with soft blurred mask edges -->
               <div
                 class="absolute -inset-2 bg-black/30 backdrop-blur-md rounded-2xl pointer-events-none -z-10 shadow-[0_0_30px_rgba(0,0,0,0.6)]"
                 style="
@@ -253,7 +253,7 @@ watch(
               </div>
 
               <div class="overflow-y-auto flex flex-col gap-2 pr-1 max-h-[52vh]">
-                <!-- Active Session Trail (blinds animation delay 20ms) -->
+                <!-- Active Session Trail -->
                 <div
                   v-if="activeBreadcrumbs.length > 0"
                   class="flex flex-col gap-1 blinds-item"
@@ -299,7 +299,7 @@ watch(
                   </div>
                 </div>
 
-                <!-- Saved Past Session Tracks (staggered blinds animation delay per item) -->
+                <!-- Saved Past Session Tracks -->
                 <div v-if="detailStore.savedTracks.length > 0" class="flex flex-col gap-1.5">
                   <div
                     class="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider px-2.5 py-1 bg-black rounded-md border border-[var(--border)]/50 shadow-xs w-max"
@@ -447,7 +447,7 @@ watch(
         </button>
 
         <div
-          class="flex items-center gap-1.5 text-[var(--text-strong)] font-semibold shrink min-w-0 cursor-pointer py-0.5 px-1 rounded hover:bg-[var(--panel)]/60 transition-colors ml-0.5"
+          class="flex items-center gap-1.5 text-[var(--text-strong)] font-semibold shrink min-w-0 cursor-pointer py-1 px-1.5 sm:py-0.5 sm:px-1 rounded hover:bg-[var(--panel)]/60 transition-colors ml-0.5"
           @click="toggleBreadcrumbExpand"
         >
           <GameIcon
@@ -455,17 +455,17 @@ watch(
             :id="currentNode.id"
             :kind="iconKind(currentNode.kind)"
             :name="currentNode.title"
-            :size="20"
+            :size="props.isDesktop ? 20 : 24"
           />
           <span
-            class="text-sm font-bold text-[var(--text-strong)] tracking-wide truncate max-w-[110px] min-[380px]:max-w-[160px] sm:max-w-none"
+            class="text-base sm:text-sm font-bold text-[var(--text-strong)] tracking-wide truncate max-w-[120px] min-[380px]:max-w-[180px] sm:max-w-none"
           >
             {{ currentNode?.title }}
           </span>
 
           <svg
             v-if="formattedHistory.length > 0"
-            class="w-3.5 h-3.5 text-[var(--muted)] transition-transform duration-300 ml-0.5 shrink-0"
+            class="w-4 h-4 sm:w-3.5 sm:h-3.5 text-[var(--muted)] transition-transform duration-300 ml-0.5 shrink-0"
             :class="isBreadcrumbExpanded ? 'rotate-90 text-[var(--accent)]' : ''"
             fill="none"
             stroke="currentColor"
@@ -485,7 +485,7 @@ watch(
     <!-- Mobile Downward Breadcrumb Expansion Dropdown -->
     <div
       v-if="!props.isDesktop && isBreadcrumbExpanded && formattedHistory.length > 0"
-      class="absolute top-11 sm:top-9 left-14 z-[200] bg-[var(--panel)] border border-[var(--border)] rounded-lg shadow-xl p-2 min-w-[220px] max-w-[85vw] flex flex-col gap-1 text-sm animate-in fade-in duration-200"
+      class="absolute top-14 sm:top-10 left-14 z-[200] bg-[var(--panel)] border border-[var(--border)] rounded-lg shadow-xl p-2 min-w-[220px] max-w-[85vw] flex flex-col gap-1 text-sm animate-in fade-in duration-200"
     >
       <div
         class="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider px-2 py-1 border-b border-[var(--border)]"
@@ -504,23 +504,23 @@ watch(
             :id="item.id"
             :kind="iconKind(item.kind)"
             :name="item.title"
-            :size="16"
+            :size="18"
           />
-          <span class="truncate font-medium text-xs">{{ item.title }}</span>
+          <span class="truncate font-semibold text-xs">{{ item.title }}</span>
         </button>
       </div>
     </div>
 
     <!-- Right Controls: Search, Expand/Collapse & Close Button -->
-    <div class="flex items-center gap-1 shrink-0 ml-1.5">
+    <div class="flex items-center gap-1.5 sm:gap-1 shrink-0 ml-2">
       <!-- Search Index Button -->
       <button
-        class="w-8 h-8 sm:w-6 sm:h-6 flex items-center justify-center rounded text-[var(--muted)] hover:text-[var(--accent)] hover:bg-[var(--panel)] transition-colors"
+        class="w-10 h-10 sm:w-7 sm:h-7 flex items-center justify-center rounded-lg sm:rounded text-[var(--muted)] hover:text-[var(--accent)] hover:bg-[var(--panel)] transition-colors"
         title="Search Index"
         @click="store.openItemIndex()"
       >
         <svg
-          class="w-4 h-4 sm:w-3.5 sm:h-3.5"
+          class="w-5 h-5 sm:w-4 sm:h-4"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -536,12 +536,12 @@ watch(
 
       <!-- Chevron Expand/Collapse Button -->
       <button
-        class="w-8 h-8 sm:w-6 sm:h-6 flex items-center justify-center rounded text-[var(--muted)] hover:text-[var(--text-strong)] hover:bg-[var(--panel)] transition-colors"
+        class="w-10 h-10 sm:w-7 sm:h-7 flex items-center justify-center rounded-lg sm:rounded text-[var(--muted)] hover:text-[var(--text-strong)] hover:bg-[var(--panel)] transition-colors"
         :title="props.isExpanded ? 'Collapse' : 'Expand'"
         @click="emit('update:isExpanded', !props.isExpanded)"
       >
         <svg
-          class="w-4 h-4 sm:w-3.5 sm:h-3.5 transition-transform duration-300"
+          class="w-5 h-5 sm:w-4 sm:h-4 transition-transform duration-300"
           :class="props.isExpanded ? 'rotate-180' : ''"
           fill="none"
           stroke="currentColor"
@@ -552,12 +552,12 @@ watch(
       </button>
 
       <button
-        class="w-8 h-8 sm:w-6 sm:h-6 flex items-center justify-center rounded text-[var(--muted)] hover:text-red-400 hover:bg-[var(--panel)] transition-colors"
+        class="w-10 h-10 sm:w-7 sm:h-7 flex items-center justify-center rounded-lg sm:rounded text-[var(--muted)] hover:text-red-400 hover:bg-[var(--panel)] transition-colors"
         title="Close drawer (Esc)"
         @click="emit('close')"
       >
         <svg
-          class="w-4 h-4 sm:w-3.5 sm:h-3.5"
+          class="w-5 h-5 sm:w-4 sm:h-4"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
