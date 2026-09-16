@@ -1,17 +1,20 @@
 {
   "name": "starruptureplanner",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.5.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
+    "build:watch": "vite build --watch",
     "preview": "vite preview",
     "refresh-data": "node scripts/refresh-data.mjs",
     "typecheck": "vue-tsc -b --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"src/**/*.{ts,vue}\"",
+    "release-gate": "node scripts/check-release-gate.mjs",
+    "release": "npm run release-gate && git tag -a v$(node -e \"process.stdout.write(require('./package.json').version)\") -m \"v$(node -e \"process.stdout.write(require('./package.json').version)\"): release\"",
     "prepare": "husky"
   },
   "lint-staged": {

@@ -1,11 +1,15 @@
 <script setup lang="ts">
 // Recursive crafting-tree node: item + producer + per-node version picker.
-import { ref, watch, computed } from 'vue'
+import { ref, watch } from 'vue'
 import type { CraftNode } from '../types/game'
-import { fmt, fmtBuildings } from '../lib/format'
+import { fmtBuildings } from '../lib/format'
 import { itemTypeChipClass } from '../lib/itemTypeChip'
 import { usePlannerStore } from '../stores/plannerStore'
+import { stripBuildingVersion } from '../lib/buildingVersion'
 import GameIcon from './GameIcon.vue'
+import NodeRecipePicker from './tree/NodeRecipePicker.vue'
+import NodeBuildingPicker from './tree/NodeBuildingPicker.vue'
+import NodeOverageInput from './tree/NodeOverageInput.vue'
 
 const props = defineProps<{
   node: CraftNode
@@ -13,119 +17,6 @@ const props = defineProps<{
 }>()
 
 const store = usePlannerStore()
-
-// ─── Alternate recipe dropdown ──────────────────────────────────────────────
-const showRecipeDropdown = ref(false)
-
-const hasAlternateRecipes = computed(() => (props.node.alternateRecipes?.length ?? 0) > 1)
-
-function toggleRecipeDropdown(e: Event) {
-  e.stopPropagation()
-  showRecipeDropdown.value = !showRecipeDropdown.value
-}
-
-function selectRecipe(rKey: string, e: Event) {
-  e.stopPropagation()
-  store.setRecipeOverride(props.node.path, rKey)
-  showRecipeDropdown.value = false
-}
-
-// Format a recipe's inputs as a short summary
-function recipeInputSummary(inputs: { id: string; amount_per_minute: number }[]): string {
-  return inputs.map((i) => store.itemsById.get(i.id)?.name ?? i.id).join(' + ')
-}
-
-// Label for a recipe variant
-function recipeLabel(r: {
-  recipeKey: string
-  recipe: { variant?: string; id?: string; output: { amount_per_minute: number } }
-}): string {
-  if (r.recipe.variant) return 'Alt'
-  if (r.recipe.id) return 'Std'
-  return 'Default'
-}
-
-// ─── Per-row overage (overproduction) controls ─────────────────────────────
-// The root row is driven by the top target control; cycle rows don't recurse,
-// so neither gets an overage stepper.
-const canOverage = computed(() => props.depth > 0 && !props.node.isCycle)
-
-// One producing machine's output for this item — the "+/− a machine" step.
-const machineStep = computed(() => props.node.recipe?.output.amount_per_minute ?? 0)
-
-// Demand for this item excluding any overage applied here (i.e. what parents need).
-const baseDemand = computed(() => props.node.ratePerMin - (props.node.overage ?? 0))
-
-// The "auto-overage" amount: how much extra you'd get by rounding up to whole machines.
-// Only relevant when showOverages is enabled and the demand isn't already a whole-machine multiple.
-const autoOverage = computed(() => {
-  const step = machineStep.value
-  if (!step || !canOverage.value) return 0
-  const demand = baseDemand.value
-  const wholeMachineOutput = Math.ceil(demand / step - 1e-9) * step
-  return wholeMachineOutput - demand
-})
-
-// True when the user has manually set an overage on this row (not just the auto-snap).
-const hasManualOverage = computed(() => Math.abs(props.node.overage ?? 0) > 1e-9)
-
-// The effective overage to display: manual if set, or auto if showOverages is on.
-const displayOverage = computed(() => {
-  if (hasManualOverage.value) return props.node.overage ?? 0
-  if (store.showOverages) return autoOverage.value
-  return 0
-})
-
-// Editable per-minute output for this row = demand + overage. Re-synced when the
-// resolved rate changes (the node is also re-keyed on rate, so this stays fresh).
-const outputInput = ref(props.node.ratePerMin)
-watch(
-  () => props.node.ratePerMin,
-  (r) => {
-    outputInput.value = r
-  },
-)
-
-// True when this row is producing below what its parents require (a deficit).
-const isDeficit = computed(() => (props.node.overage ?? 0) < -1e-9)
-
-// Set the row's total output (floored at zero). The delta from demand becomes the
-// item's overage — positive overproduces, negative is an intentional deficit.
-function setOutput(total: number) {
-  store.setOverage(props.node.path, Math.max(0, total) - baseDemand.value)
-}
-// Step the row's output by whole machines. The first click snaps up to the next
-// whole-machine output (so the demand's fractional machine fills out to an even
-// count), and further clicks add/remove one full machine. A machine-less raw row
-// falls back to single items/min.
-function stepOutput(dir: number) {
-  const step = machineStep.value
-  if (!step) {
-    setOutput(props.node.ratePerMin + dir)
-    return
-  }
-  const out = props.node.ratePerMin
-  const eps = 1e-9
-  const target =
-    dir > 0
-      ? (Math.floor(out / step + eps) + 1) * step // next whole-machine output above current
-      : (Math.ceil(out / step - eps) - 1) * step // previous whole-machine output (clamped to demand)
-  setOutput(target)
-}
-function onOutputChange() {
-  const v = Number(outputInput.value)
-  if (isFinite(v)) setOutput(v)
-  else outputInput.value = props.node.ratePerMin
-}
-
-// Reset this row's overage back to default (clear the manual override).
-function resetOverage() {
-  store.setOverage(props.node.path, 0)
-}
-
-const stepTitle = computed(() =>
-  machineStep.value ? `${machineStep.value}/min (one machine)` : '1/min',
-)
 
 // Expanded based on expandLevel from store; caret toggle still works locally
 const expanded = ref(props.depth < store.expandLevel)
@@ -150,17 +41,6 @@ function getBorderColor(depth: number): string {
   return depthBorderColors[depth % depthBorderColors.length]
 }
 
-// Derive a short version tag for a building id given the chain list
-function versionTag(buildingId: string): string {
-  const chains = store.productionChains
-  // Is it an upgraded (v2) id?
-  if (chains.some((c) => c.upgradedId === buildingId)) return 'v2'
-  // Is it a base (v1) id in a production chain?
-  if (chains.some((c) => c.baseId === buildingId)) return 'v1'
-  // Fall back to short name
-  return store.buildingsById.get(buildingId)?.name ?? buildingId
-}
-
 // Check if this node is an extractor-type raw node (has a building, no inputs)
 function isExtractorNode(node: CraftNode): boolean {
   return node.isRaw && !!node.building
@@ -171,7 +51,7 @@ function showExtractorMachine(node: CraftNode): boolean {
   return isExtractorNode(node) && store.showExtractors
 }
 
-// ─── v6: hover handlers ────────────────────────────────────────────────────
+// Hover handlers
 function onItemMouseEnter(e: MouseEvent) {
   store.setHover(
     'item',
@@ -179,6 +59,7 @@ function onItemMouseEnter(e: MouseEvent) {
     (e.currentTarget as HTMLElement).getBoundingClientRect(),
   )
 }
+
 function onItemMouseLeave() {
   store.clearHover()
 }
@@ -191,16 +72,17 @@ function onBuildingMouseEnter(e: MouseEvent) {
     (e.currentTarget as HTMLElement).getBoundingClientRect(),
   )
 }
+
 function onBuildingMouseLeave() {
   store.clearHover()
+}
+function isV2Building(buildingId: string): boolean {
+  return store.chains.some((c) => c.upgradedId === buildingId)
 }
 </script>
 
 <template>
   <div :class="depth > 0 ? `pl-4 border-l-2 ${getBorderColor(depth - 1)}` : ''">
-    <!-- Node row. w-full = the width of the min-w-max tree wrapper (the widest
-         row), so all rows are equal width and the sticky amount pins to the
-         visible right edge when the tree scrolls sideways. -->
     <div
       class="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-[var(--panel-2)] transition-colors group w-full"
       :class="[depth === 0 ? 'py-2' : '', store.showRowDividers ? 'row-underline' : '']"
@@ -224,10 +106,9 @@ function onBuildingMouseLeave() {
           />
         </svg>
       </button>
-      <!-- Spacer for leaf nodes -->
       <div v-else class="w-4 shrink-0" />
 
-      <!-- Item icon + name + alternate recipe dropdown (wrapped together so dropdown sits under the name) -->
+      <!-- Item icon + name + alternate recipe picker -->
       <div class="relative flex items-center gap-1" @click.stop>
         <span
           class="flex items-center gap-1 cursor-pointer hover:text-[var(--accent)] transition-colors"
@@ -235,76 +116,28 @@ function onBuildingMouseLeave() {
           @mouseenter="onItemMouseEnter"
           @mouseleave="onItemMouseLeave"
         >
-          <GameIcon :id="node.itemId" kind="item" :name="node.itemName" :size="30" />
+          <GameIcon
+            :id="node.itemId"
+            kind="item"
+            :name="node.itemName"
+            :size="depth === 0 ? 48 : 30"
+          />
           <span
-            class="font-semibold text-base whitespace-nowrap"
-            :class="depth === 0 ? 'text-[var(--text-strong)]' : 'text-[var(--text-2)]'"
+            :class="[
+              depth === 0
+                ? 'text-xl font-bold text-[var(--text-strong)]'
+                : depth === 1
+                  ? 'text-base font-semibold text-[var(--text-2)]'
+                  : 'text-base font-semibold text-[var(--text-2)]',
+            ]"
+            class="whitespace-nowrap"
           >
             {{ node.itemName }}
           </span>
         </span>
 
-        <!-- Small dropdown arrow (only when alternates exist) -->
-        <button
-          v-if="hasAlternateRecipes"
-          class="flex items-center justify-center w-5 h-5 rounded transition-colors shrink-0"
-          :class="
-            showRecipeDropdown
-              ? 'bg-[var(--accent)] text-[var(--accent-on)]'
-              : 'text-[var(--muted)] hover:bg-[var(--panel-2)] hover:text-[var(--text)]'
-          "
-          title="Switch recipe variant"
-          @click="toggleRecipeDropdown"
-        >
-          <svg
-            class="w-3 h-3"
-            :class="showRecipeDropdown ? 'rotate-180' : ''"
-            fill="currentColor"
-            viewBox="0 0 20 20"
-            style="transition: transform 0.15s"
-          >
-            <path
-              fill-rule="evenodd"
-              d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
-              clip-rule="evenodd"
-            />
-          </svg>
-        </button>
-
-        <!-- Dropdown panel: anchored to left edge of the name -->
-        <div
-          v-if="hasAlternateRecipes && showRecipeDropdown"
-          class="absolute top-full left-0 mt-1 z-50 min-w-[220px] max-w-[320px] bg-[var(--panel)] border border-[var(--border)] rounded-lg shadow-xl overflow-hidden"
-        >
-          <div
-            v-for="alt in node.alternateRecipes"
-            :key="alt.recipeKey"
-            class="px-3 py-2 cursor-pointer transition-colors text-xs border-b border-[var(--border)] last:border-b-0"
-            :class="
-              node.selectedRecipeKey === alt.recipeKey
-                ? 'bg-[var(--accent)]/15 text-[var(--accent)]'
-                : 'hover:bg-[var(--panel-2)] text-[var(--text)]'
-            "
-            @click="selectRecipe(alt.recipeKey, $event)"
-          >
-            <div class="flex items-center gap-2 mb-1">
-              <span class="font-semibold">
-                {{ recipeLabel(alt) }}
-              </span>
-              <span class="text-[var(--muted)] font-mono"
-                >{{ fmt(alt.recipe.output.amount_per_minute) }}/min</span
-              >
-              <span
-                v-if="node.selectedRecipeKey === alt.recipeKey"
-                class="text-[var(--accent)] ml-auto"
-                >✓</span
-              >
-            </div>
-            <div class="text-[var(--muted-2)]">
-              {{ recipeInputSummary(alt.recipe.inputs) }}
-            </div>
-          </div>
-        </div>
+        <!-- Modular Recipe Variant Picker Component -->
+        <NodeRecipePicker :node="node" />
       </div>
 
       <!-- Item type chip -->
@@ -325,7 +158,6 @@ function onBuildingMouseLeave() {
 
       <!-- Raw node handling -->
       <template v-else-if="node.isRaw">
-        <!-- Extractor with machine shown (showExtractors ON) -->
         <template v-if="showExtractorMachine(node)">
           <span
             v-if="node.itemType !== 'raw'"
@@ -333,7 +165,6 @@ function onBuildingMouseLeave() {
           >
             raw
           </span>
-          <!-- Machine icon+name: clickable + hoverable -->
           <span
             class="text-xs text-slate-400 shrink-0 flex items-center gap-1 whitespace-nowrap cursor-pointer hover:text-[var(--accent)] transition-colors"
             @click="store.openBuildingDetail(node.building!.id)"
@@ -347,34 +178,21 @@ function onBuildingMouseLeave() {
               :size="38"
             />
             <span class="text-slate-300">{{ fmtBuildings(node.buildingsNeeded ?? 0) }}&times;</span>
-            {{ node.building!.name }}
+            {{ stripBuildingVersion(node.building!.name) }}
+            <span
+              v-if="isV2Building(node.building!.id)"
+              class="text-[10px] font-bold text-[var(--accent-2)]"
+              >v2</span
+            >
             <span v-if="node.isOverridden" class="text-amber-400 ml-0.5" title="Overridden"
               >&bull;</span
             >
           </span>
-          <!-- Extractor version picker — stop propagation so click doesn't open drawer -->
-          <div
-            v-if="node.candidates && node.candidates.length > 1"
-            class="chamfer-sm [--cf-fill:var(--panel-2)] flex shrink-0 p-px gap-px overflow-hidden text-xs"
-          >
-            <button
-              v-for="cand in node.candidates"
-              :key="cand.buildingId"
-              :class="
-                node.building?.id === cand.buildingId
-                  ? 'bg-[var(--accent)] text-[var(--accent-on)]'
-                  : 'bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)]'
-              "
-              class="px-1.5 py-0.5 transition-colors flex items-center gap-1"
-              :title="cand.buildingName"
-              @click.stop="store.setOverride(node.path, cand.buildingId)"
-            >
-              {{ versionTag(cand.buildingId) }}
-            </button>
-          </div>
+
+          <!-- Modular Building Tier Selector Component -->
+          <NodeBuildingPicker :node="node" />
         </template>
 
-        <!-- Plain raw leaf (showExtractors OFF or no building) -->
         <template v-else>
           <span
             v-if="node.itemType !== 'raw'"
@@ -385,7 +203,7 @@ function onBuildingMouseLeave() {
         </template>
       </template>
 
-      <!-- Producer info (non-raw nodes): machine icon+name clickable + hoverable -->
+      <!-- Producer info (non-raw nodes) -->
       <template v-else-if="node.building && node.buildingsNeeded !== undefined">
         <span
           class="text-xs text-slate-400 shrink-0 flex items-center gap-1 whitespace-nowrap cursor-pointer hover:text-[var(--accent)] transition-colors"
@@ -396,131 +214,31 @@ function onBuildingMouseLeave() {
           <GameIcon :id="node.building.id" kind="building" :name="node.building.name" :size="38" />
           <span class="text-slate-300"
             >{{
-              store.showOverages && canOverage
+              store.showOverages && depth > 0 && !node.isCycle
                 ? Math.ceil(node.buildingsNeeded - 1e-9)
                 : fmtBuildings(node.buildingsNeeded)
             }}&times;</span
           >
-          {{ node.building.name }}
+          {{ stripBuildingVersion(node.building.name) }}
+          <span
+            v-if="isV2Building(node.building.id)"
+            class="text-[10px] font-bold text-[var(--accent-2)]"
+            >v2</span
+          >
           <span v-if="node.isOverridden" class="text-amber-400 ml-0.5" title="Overridden"
             >&bull;</span
           >
         </span>
 
-        <!-- Version picker (when >1 candidate) — stop propagation so click doesn't open drawer -->
-        <div
-          v-if="node.candidates && node.candidates.length > 1"
-          class="chamfer-sm [--cf-fill:var(--panel-2)] flex shrink-0 p-px gap-px overflow-hidden text-xs"
-        >
-          <button
-            v-for="cand in node.candidates"
-            :key="cand.buildingId"
-            :class="
-              node.building?.id === cand.buildingId
-                ? 'bg-[var(--accent)] text-[var(--accent-on)]'
-                : 'bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)]'
-            "
-            class="px-1.5 py-0.5 transition-colors flex items-center gap-1"
-            :title="cand.buildingName"
-            @click.stop="store.setOverride(node.path, cand.buildingId)"
-          >
-            {{ versionTag(cand.buildingId) }}
-          </button>
-        </div>
+        <!-- Modular Building Tier Selector Component -->
+        <NodeBuildingPicker :node="node" />
       </template>
 
-      <!-- Rate (right-aligned), with per-row overage stepper on non-root rows.
-           Sticky so it stays pinned to the visible right edge when a wide row
-           overflows horizontally (e.g. on mobile). -->
-      <div
-        class="ml-auto flex items-center gap-1.5 shrink-0 pl-3 sticky right-0 z-10 bg-[var(--panel)] group-hover:bg-[var(--panel-2)] transition-colors shadow-[-10px_0_10px_-6px_rgba(0,0,0,0.5)] sm:shadow-none"
-      >
-        <template v-if="canOverage">
-          <!-- Reset button (⟳) — only when this row has a manual overage set -->
-          <button
-            v-if="hasManualOverage"
-            type="button"
-            title="Reset to default production"
-            class="w-5 h-5 flex items-center justify-center rounded text-amber-400 hover:bg-amber-400/20 transition-colors shrink-0"
-            @click.stop="resetOverage"
-          >
-            <svg
-              class="w-3.5 h-3.5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              stroke-width="2"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-              />
-            </svg>
-          </button>
-          <!-- Overage badge -->
-          <span
-            v-if="displayOverage > 1e-9"
-            class="text-xs font-mono text-amber-400"
-            :title="`+${fmt(displayOverage)}/min overproduced`"
-          >
-            +{{ fmt(displayOverage) }}
-          </span>
-          <span
-            v-else-if="isDeficit"
-            class="text-xs font-mono text-red-400"
-            :title="`${fmt(node.overage ?? 0)}/min below the ${fmt(baseDemand)}/min required`"
-          >
-            {{ fmt(node.overage ?? 0) }}
-          </span>
-          <!-- Stepper: ± one machine, or type / use up-down arrows for single items -->
-          <div
-            class="chamfer-sm [--cf-fill:var(--panel-2)] flex items-center p-px gap-px overflow-hidden"
-            @click.stop
-          >
-            <button
-              type="button"
-              :title="`−${stepTitle}`"
-              class="px-1 py-0.5 bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)] transition-colors text-sm leading-none"
-              @click.stop="stepOutput(-1)"
-            >
-              &minus;
-            </button>
-            <input
-              v-model.number="outputInput"
-              type="number"
-              min="0"
-              step="1"
-              :title="'Output items/min — raise above demand to overproduce, lower below it for a deficit'"
-              class="amount-input bg-[var(--panel-2)] text-[var(--text)] text-sm px-1 py-0.5 w-9 text-right font-mono focus:outline-none"
-              @change="onOutputChange"
-              @click.stop
-            />
-            <button
-              type="button"
-              :title="`+${stepTitle}`"
-              class="px-1 py-0.5 bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)] transition-colors text-sm leading-none"
-              @click.stop="stepOutput(1)"
-            >
-              +
-            </button>
-          </div>
-          <span
-            class="text-sm font-mono"
-            :class="isDeficit ? 'text-red-400' : 'text-slate-400'"
-            :title="
-              isDeficit ? `Producing below the ${fmt(baseDemand)}/min required here` : undefined
-            "
-            >/min</span
-          >
-        </template>
-        <span v-else class="text-base font-mono text-slate-400"
-          >{{ fmt(node.ratePerMin) }}/min</span
-        >
-      </div>
+      <!-- Modular Rate & Overage Stepper Component -->
+      <NodeOverageInput :node="node" :depth="depth" />
     </div>
 
-    <!-- Children -->
+    <!-- Recursive Children -->
     <div v-if="expanded && node.children.length > 0" class="mt-0.5">
       <CraftTreeNode
         v-for="child in node.children"
@@ -531,17 +249,3 @@ function onBuildingMouseLeave() {
     </div>
   </div>
 </template>
-
-<style scoped>
-/* Hide the native number spinner so the field only needs room for ~3 digits.
-   Keyboard ↑/↓ still step by 1; the − / + buttons step by a whole machine. */
-.amount-input::-webkit-outer-spin-button,
-.amount-input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-.amount-input {
-  -moz-appearance: textfield;
-  appearance: textfield;
-}
-</style>

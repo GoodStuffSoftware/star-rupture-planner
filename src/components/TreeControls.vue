@@ -38,5 +38,10 @@ function isActive(level: number): boolean {
     >
       {{ n }}
     </button>
+
+    <!-- Right-aligned slot (Share button lives here) -->
+    <div class="ml-auto shrink-0">
+      <slot name="end" />
+    </div>
   </div>
 </template>

@@ -62,6 +62,22 @@ export function save(plan: PlanState, prefs: ViewPrefs): void {
   }
 }
 
+export function savePrefs(prefs: ViewPrefs): void {
+  try {
+    const saved = loadSaved()
+    const raw = {
+      plan: saved?.plan,
+      prefs: {
+        ...prefs,
+        expandLevel: prefs.expandLevel === Infinity ? 'all' : prefs.expandLevel,
+      },
+    }
+    localStorage.setItem(LS_KEY, JSON.stringify(raw))
+  } catch {
+    // ignore
+  }
+}
+
 /**
  * Read saved plan + prefs from localStorage.
  * Returns null if nothing is saved or if the stored data is malformed.

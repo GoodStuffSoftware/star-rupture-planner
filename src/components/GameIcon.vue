@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onUnmounted } from 'vue'
 import { usePlannerStore } from '../stores/plannerStore'
 
 withDefaults(
@@ -27,6 +27,69 @@ function fallbackLabel(name: string): string {
   }
   return name.slice(0, 2).toUpperCase()
 }
+
+// ── Hover zoom ──────────────────────────────────────────────────────────────
+const ZOOM_SIZE = 160 // px – rendered preview size
+const DELAY_MS = 500 // hover dwell / press-and-hold before popup shows
+
+const zoom = ref(false)
+const zoomX = ref(0)
+const zoomY = ref(0)
+let hoverTimer: ReturnType<typeof setTimeout> | null = null
+
+function scheduleZoom(clientX: number, clientY: number) {
+  clearZoomTimer()
+  // Capture coordinates now — don't close over the event object (stale after dispatch)
+  hoverTimer = setTimeout(() => {
+    positionZoom(clientX, clientY)
+    zoom.value = true
+  }, DELAY_MS)
+}
+
+function positionZoom(cx: number, cy: number) {
+  const padding = 8
+  const half = ZOOM_SIZE / 2
+  let x = cx - half
+  let y = cy - ZOOM_SIZE - padding - 16
+  x = Math.max(padding, Math.min(x, window.innerWidth - ZOOM_SIZE - padding))
+  if (y < padding) y = cy + 20
+  zoomX.value = x
+  zoomY.value = y
+}
+
+function onMouseEnter(e: MouseEvent) {
+  scheduleZoom(e.clientX, e.clientY)
+}
+
+function onMouseMove(e: MouseEvent) {
+  if (!zoom.value) return
+  positionZoom(e.clientX, e.clientY)
+}
+
+function onMouseLeave() {
+  clearZoomTimer()
+  zoom.value = false
+}
+
+// Touch / press-and-hold
+function onTouchStart(e: TouchEvent) {
+  const t = e.touches[0]
+  if (t) scheduleZoom(t.clientX, t.clientY)
+}
+
+function onTouchEnd() {
+  clearZoomTimer()
+  zoom.value = false
+}
+
+function clearZoomTimer() {
+  if (hoverTimer !== null) {
+    clearTimeout(hoverTimer)
+    hoverTimer = null
+  }
+}
+
+onUnmounted(() => clearZoomTimer())
 </script>
 
 <template>
@@ -43,17 +106,73 @@ function fallbackLabel(name: string): string {
     {{ fallbackLabel(name) }}
   </span>
 
-  <!-- Normal image -->
-  <img
+  <!-- Normal image with hover-zoom -->
+  <span
     v-else
-    :src="`/icons/${kind}s/${id}.webp`"
-    :alt="name"
-    :title="name"
-    :width="size"
-    :height="size"
-    loading="lazy"
-    class="rounded shrink-0 object-contain"
+    class="inline-flex shrink-0"
     :style="{ width: `${size}px`, height: `${size}px` }"
-    @error="onError"
-  />
+    @mouseenter="onMouseEnter"
+    @mousemove="onMouseMove"
+    @mouseleave="onMouseLeave"
+    @touchstart.passive="onTouchStart"
+    @touchend.passive="onTouchEnd"
+    @touchcancel.passive="onTouchEnd"
+  >
+    <img
+      :src="`/icons/${kind}s/${id}.webp`"
+      :alt="name"
+      :width="size"
+      :height="size"
+      loading="lazy"
+      class="rounded object-contain w-full h-full"
+      @error="onError"
+    />
+
+    <!-- Teleport zoom preview to body so it's never clipped -->
+    <Teleport to="body">
+      <Transition
+        enter-active-class="transition-all duration-200 ease-out"
+        enter-from-class="opacity-0 scale-75"
+        enter-to-class="opacity-100 scale-100"
+        leave-active-class="transition-all duration-150 ease-in"
+        leave-from-class="opacity-100 scale-100"
+        leave-to-class="opacity-0 scale-75"
+      >
+        <div
+          v-if="zoom"
+          class="fixed pointer-events-none select-none"
+          :style="{
+            left: `${zoomX}px`,
+            top: `${zoomY}px`,
+            width: `${ZOOM_SIZE}px`,
+            height: `${ZOOM_SIZE}px`,
+            zIndex: 2147483647,
+          }"
+        >
+          <!-- Backdrop card -->
+          <div
+            class="w-full h-full rounded-xl flex items-center justify-center p-2"
+            style="
+              background: var(--panel-2);
+              border: 1px solid var(--border);
+              box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+            "
+          >
+            <img
+              :src="`/icons/${kind}s/${id}.webp`"
+              :alt="name"
+              class="object-contain w-full h-full rounded-lg"
+            />
+          </div>
+          <!-- Name label below -->
+          <div
+            class="absolute left-1/2 -translate-x-1/2 mt-1.5 whitespace-nowrap text-xs font-semibold text-[var(--text-2)] px-2 py-0.5 rounded"
+            style="background: var(--panel-2); border: 1px solid var(--border); top: 100%"
+          >
+            {{ name }}
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+  </span>
 </template>

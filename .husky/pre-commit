@@ -3,3 +3,6 @@ npx lint-staged
 
 # Typecheck — reject commit if there are TypeScript / vue-tsc errors
 npm run typecheck
+
+# Release gate — verify version, CHANGELOG entry, and git tag alignment
+npm run release-gate
