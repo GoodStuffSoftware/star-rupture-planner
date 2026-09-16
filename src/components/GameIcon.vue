@@ -99,7 +99,9 @@ function onTouchMove(e: TouchEvent) {
 }
 
 function onTouchEnd() {
-  dismissZoom()
+  // Clear pending timer on quick tap (<500ms) so quick taps don't open zoom.
+  // If zoom is already open from a >500ms press-and-hold, leave it open so user can view graphic!
+  clearZoomTimer()
 }
 
 function clearZoomTimer() {
@@ -117,14 +119,25 @@ function dismissZoom() {
 watch(zoom, (isZoomed) => {
   if (isZoomed) {
     window.addEventListener('scroll', dismissZoom, { passive: true })
+    // Delay global tap dismiss so finger release from press-and-hold doesn't dismiss instantly
+    setTimeout(() => {
+      if (zoom.value) {
+        window.addEventListener('touchstart', dismissZoom, { passive: true, once: true })
+        window.addEventListener('pointerdown', dismissZoom, { once: true })
+      }
+    }, 150)
   } else {
     window.removeEventListener('scroll', dismissZoom)
+    window.removeEventListener('touchstart', dismissZoom)
+    window.removeEventListener('pointerdown', dismissZoom)
   }
 })
 
 onUnmounted(() => {
   clearZoomTimer()
   window.removeEventListener('scroll', dismissZoom)
+  window.removeEventListener('touchstart', dismissZoom)
+  window.removeEventListener('pointerdown', dismissZoom)
 })
 </script>
 
