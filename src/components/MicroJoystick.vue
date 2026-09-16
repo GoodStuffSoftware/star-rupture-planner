@@ -40,7 +40,8 @@ const activeSide = computed<'left' | 'right' | null>(() => {
   return hoverSide.value
 })
 
-function handleMouseEnter(side: 'left' | 'right') {
+function handleMouseEnter(side: 'left' | 'right', e?: MouseEvent) {
+  if (e && (e as PointerEvent).pointerType === 'touch') return
   if (!isDragging.value) hoverSide.value = side
 }
 
@@ -72,6 +73,7 @@ function onPointerUp(e: PointerEvent) {
   const clickX = e.clientX - rect.left
 
   isDragging.value = false
+  hoverSide.value = null
 
   if (Math.abs(delta) > 6) {
     // Drag gesture
@@ -88,7 +90,11 @@ function onPointerUp(e: PointerEvent) {
       triggerAction('right')
     }
   }
-  hoverSide.value = null
+
+  // Clear hoverSide again after synthetic mouse events fire on mobile touch
+  setTimeout(() => {
+    hoverSide.value = null
+  }, 50)
 }
 
 function triggerAction(side: 'left' | 'right') {
@@ -109,12 +115,13 @@ function triggerAction(side: 'left' | 'right') {
     @pointermove="onPointerMove"
     @pointerup="onPointerUp"
     @pointercancel="onPointerUp"
+    @pointerleave="handleMouseLeave"
   >
     <!-- Left hover detection overlay (50%) -->
     <div
       class="absolute left-0 top-0 w-[22px] h-7 z-20"
       :class="props.canGoBack ? 'cursor-pointer' : 'cursor-not-allowed'"
-      @mouseenter="handleMouseEnter('left')"
+      @mouseenter="handleMouseEnter('left', $event)"
       @mouseleave="handleMouseLeave"
     />
 
@@ -122,7 +129,7 @@ function triggerAction(side: 'left' | 'right') {
     <div
       class="absolute right-0 top-0 w-[22px] h-7 z-20"
       :class="props.canGoForward ? 'cursor-pointer' : 'cursor-not-allowed'"
-      @mouseenter="handleMouseEnter('right')"
+      @mouseenter="handleMouseEnter('right', $event)"
       @mouseleave="handleMouseLeave"
     />
 

@@ -170,7 +170,7 @@ watch(
 
 <template>
   <div
-    class="h-9 border-b border-[var(--border)] px-3 flex items-center justify-between shrink-0 select-none relative bg-[var(--panel-2)] text-sm"
+    class="h-11 sm:h-9 border-b border-[var(--border)] px-3 flex items-center justify-between shrink-0 select-none relative bg-[var(--panel-2)] text-sm"
   >
     <!-- Left & Center Zone: Micro-Joystick + Sliding Breadcrumb Track -->
     <div class="flex items-center gap-1.5 min-w-0 flex-1">
@@ -186,13 +186,13 @@ watch(
         <div class="history-dropdown-wrap relative">
           <!-- Navigation History Dropdown Button -->
           <button
-            class="w-6 h-6 flex items-center justify-center rounded text-[var(--muted)] hover:text-[var(--accent)] hover:bg-[var(--panel)] transition-colors relative shrink-0"
+            class="w-8 h-8 sm:w-6 sm:h-6 flex items-center justify-center rounded text-[var(--muted)] hover:text-[var(--accent)] hover:bg-[var(--panel)] transition-colors relative shrink-0"
             :class="{ 'text-[var(--accent)] bg-[var(--panel)]': isHistoryOpen }"
             title="Past Navigation History Tracks"
             @click.stop="isHistoryOpen = !isHistoryOpen"
           >
             <svg
-              class="w-3.5 h-3.5"
+              class="w-4 h-4 sm:w-3.5 sm:h-3.5"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -206,7 +206,7 @@ watch(
             </svg>
             <span
               v-if="detailStore.savedTracks.length > 0 || activeBreadcrumbs.length > 0"
-              class="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-[var(--accent)]"
+              class="absolute top-1 right-1 sm:top-0.5 sm:right-0.5 w-1.5 h-1.5 rounded-full bg-[var(--accent)]"
             />
           </button>
 
@@ -221,7 +221,7 @@ watch(
           >
             <div
               v-if="isHistoryOpen"
-              class="absolute top-9 left-0 z-[300] p-2 w-max max-w-[calc(100vw-72px)] max-h-[65vh] flex flex-col gap-2 select-none origin-top-left rounded-xl"
+              class="absolute top-11 sm:top-9 left-0 z-[300] p-2 w-max max-w-[calc(100vw-72px)] max-h-[65vh] flex flex-col gap-2 select-none origin-top-left rounded-xl"
               @click.stop
             >
               <!-- Dedicated background layer with soft blurred mask edges (leaves content elements 100% crisp) -->
@@ -447,7 +447,7 @@ watch(
         </button>
 
         <div
-          class="flex items-center gap-1.5 text-[var(--text-strong)] font-semibold shrink-0 cursor-pointer py-0.5 px-1 rounded hover:bg-[var(--panel)]/60 transition-colors ml-0.5"
+          class="flex items-center gap-1.5 text-[var(--text-strong)] font-semibold shrink min-w-0 cursor-pointer py-0.5 px-1 rounded hover:bg-[var(--panel)]/60 transition-colors ml-0.5"
           @click="toggleBreadcrumbExpand"
         >
           <GameIcon
@@ -457,7 +457,9 @@ watch(
             :name="currentNode.title"
             :size="20"
           />
-          <span class="text-sm font-bold text-[var(--text-strong)] tracking-wide whitespace-nowrap">
+          <span
+            class="text-sm font-bold text-[var(--text-strong)] tracking-wide truncate max-w-[110px] min-[380px]:max-w-[160px] sm:max-w-none"
+          >
             {{ currentNode?.title }}
           </span>
 
@@ -483,7 +485,7 @@ watch(
     <!-- Mobile Downward Breadcrumb Expansion Dropdown -->
     <div
       v-if="!props.isDesktop && isBreadcrumbExpanded && formattedHistory.length > 0"
-      class="absolute top-9 left-14 z-[200] bg-[var(--panel)] border border-[var(--border)] rounded-lg shadow-xl p-2 min-w-[220px] max-w-[85vw] flex flex-col gap-1 text-sm animate-in fade-in duration-200"
+      class="absolute top-11 sm:top-9 left-14 z-[200] bg-[var(--panel)] border border-[var(--border)] rounded-lg shadow-xl p-2 min-w-[220px] max-w-[85vw] flex flex-col gap-1 text-sm animate-in fade-in duration-200"
     >
       <div
         class="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider px-2 py-1 border-b border-[var(--border)]"
@@ -510,15 +512,15 @@ watch(
     </div>
 
     <!-- Right Controls: Search, Expand/Collapse & Close Button -->
-    <div class="flex items-center gap-1 shrink-0 ml-2">
+    <div class="flex items-center gap-1 shrink-0 ml-1.5">
       <!-- Search Index Button -->
       <button
-        class="w-6 h-6 flex items-center justify-center rounded text-[var(--muted)] hover:text-[var(--accent)] hover:bg-[var(--panel)] transition-colors"
+        class="w-8 h-8 sm:w-6 sm:h-6 flex items-center justify-center rounded text-[var(--muted)] hover:text-[var(--accent)] hover:bg-[var(--panel)] transition-colors"
         title="Search Index"
         @click="store.openItemIndex()"
       >
         <svg
-          class="w-3.5 h-3.5"
+          class="w-4 h-4 sm:w-3.5 sm:h-3.5"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -534,12 +536,12 @@ watch(
 
       <!-- Chevron Expand/Collapse Button -->
       <button
-        class="w-6 h-6 flex items-center justify-center rounded text-[var(--muted)] hover:text-[var(--text-strong)] hover:bg-[var(--panel)] transition-colors"
+        class="w-8 h-8 sm:w-6 sm:h-6 flex items-center justify-center rounded text-[var(--muted)] hover:text-[var(--text-strong)] hover:bg-[var(--panel)] transition-colors"
         :title="props.isExpanded ? 'Collapse' : 'Expand'"
         @click="emit('update:isExpanded', !props.isExpanded)"
       >
         <svg
-          class="w-3.5 h-3.5 transition-transform duration-300"
+          class="w-4 h-4 sm:w-3.5 sm:h-3.5 transition-transform duration-300"
           :class="props.isExpanded ? 'rotate-180' : ''"
           fill="none"
           stroke="currentColor"
@@ -550,12 +552,12 @@ watch(
       </button>
 
       <button
-        class="w-6 h-6 flex items-center justify-center rounded text-[var(--muted)] hover:text-red-400 hover:bg-[var(--panel)] transition-colors"
+        class="w-8 h-8 sm:w-6 sm:h-6 flex items-center justify-center rounded text-[var(--muted)] hover:text-red-400 hover:bg-[var(--panel)] transition-colors"
         title="Close drawer (Esc)"
         @click="emit('close')"
       >
         <svg
-          class="w-3.5 h-3.5"
+          class="w-4 h-4 sm:w-3.5 sm:h-3.5"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"

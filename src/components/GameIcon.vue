@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onUnmounted } from 'vue'
+import { ref, watch, onUnmounted } from 'vue'
 import { usePlannerStore } from '../stores/plannerStore'
 
 withDefaults(
@@ -36,6 +36,8 @@ const zoom = ref(false)
 const zoomX = ref(0)
 const zoomY = ref(0)
 let hoverTimer: ReturnType<typeof setTimeout> | null = null
+let touchStartX = 0
+let touchStartY = 0
 
 function scheduleZoom(clientX: number, clientY: number) {
   clearZoomTimer()
@@ -58,6 +60,7 @@ function positionZoom(cx: number, cy: number) {
 }
 
 function onMouseEnter(e: MouseEvent) {
+  if ('pointerType' in e && (e as PointerEvent).pointerType === 'touch') return
   scheduleZoom(e.clientX, e.clientY)
 }
 
@@ -74,12 +77,23 @@ function onMouseLeave() {
 // Touch / press-and-hold
 function onTouchStart(e: TouchEvent) {
   const t = e.touches[0]
-  if (t) scheduleZoom(t.clientX, t.clientY)
+  if (!t) return
+  touchStartX = t.clientX
+  touchStartY = t.clientY
+  scheduleZoom(t.clientX, t.clientY)
+}
+
+function onTouchMove(e: TouchEvent) {
+  const t = e.touches[0]
+  if (!t) return
+  const dist = Math.hypot(t.clientX - touchStartX, t.clientY - touchStartY)
+  if (dist > 8) {
+    dismissZoom()
+  }
 }
 
 function onTouchEnd() {
-  clearZoomTimer()
-  zoom.value = false
+  dismissZoom()
 }
 
 function clearZoomTimer() {
@@ -89,7 +103,34 @@ function clearZoomTimer() {
   }
 }
 
-onUnmounted(() => clearZoomTimer())
+function dismissZoom() {
+  clearZoomTimer()
+  zoom.value = false
+}
+
+// Global auto-dismiss on scroll or tap anywhere
+function onGlobalDismiss() {
+  dismissZoom()
+}
+
+watch(zoom, (isZoomed) => {
+  if (isZoomed) {
+    window.addEventListener('pointerdown', onGlobalDismiss, { capture: true })
+    window.addEventListener('touchstart', onGlobalDismiss, { capture: true, passive: true })
+    window.addEventListener('scroll', onGlobalDismiss, { capture: true, passive: true })
+  } else {
+    window.removeEventListener('pointerdown', onGlobalDismiss, { capture: true })
+    window.removeEventListener('touchstart', onGlobalDismiss, { capture: true })
+    window.removeEventListener('scroll', onGlobalDismiss, { capture: true })
+  }
+})
+
+onUnmounted(() => {
+  clearZoomTimer()
+  window.removeEventListener('pointerdown', onGlobalDismiss, { capture: true })
+  window.removeEventListener('touchstart', onGlobalDismiss, { capture: true })
+  window.removeEventListener('scroll', onGlobalDismiss, { capture: true })
+})
 </script>
 
 <template>
@@ -115,6 +156,7 @@ onUnmounted(() => clearZoomTimer())
     @mousemove="onMouseMove"
     @mouseleave="onMouseLeave"
     @touchstart.passive="onTouchStart"
+    @touchmove.passive="onTouchMove"
     @touchend.passive="onTouchEnd"
     @touchcancel.passive="onTouchEnd"
   >
@@ -140,7 +182,7 @@ onUnmounted(() => clearZoomTimer())
       >
         <div
           v-if="zoom"
-          class="fixed pointer-events-none select-none"
+          class="fixed cursor-pointer select-none"
           :style="{
             left: `${zoomX}px`,
             top: `${zoomY}px`,
@@ -148,6 +190,8 @@ onUnmounted(() => clearZoomTimer())
             height: `${ZOOM_SIZE}px`,
             zIndex: 2147483647,
           }"
+          @click="dismissZoom"
+          @touchstart.passive="dismissZoom"
         >
           <!-- Backdrop card -->
           <div
