@@ -57,9 +57,12 @@ function _resolve(
     children: [],
   }
 
-  // Determine producer: check override first, fall back to global default
+  // Determine producer: check path-specific override first (tree-position-local),
+  // then item-level override (global), then fall back to global default.
   let producer: ProducerEntry | undefined
-  const ovId = ctx.overrides[itemId]
+  const pathOvId = ctx.overrides[path]
+  const itemOvId = ctx.overrides[itemId]
+  const ovId = pathOvId ?? itemOvId
   if (ovId) {
     producer = ctx.fullProducerIndex.get(itemId)?.find((e) => e.building.id === ovId)
   }
@@ -81,7 +84,7 @@ function _resolve(
   const alternates = getAlternateRecipes(itemId, producer.building.id, ctx.fullProducerIndex)
   if (alternates.length > 0) {
     node.alternateRecipes = alternates
-    const rKey = ctx.recipeOverrides[itemId]
+    const rKey = ctx.recipeOverrides[path] ?? ctx.recipeOverrides[itemId]
     if (rKey) {
       const variantProducer = pickRecipeVariant(
         itemId,

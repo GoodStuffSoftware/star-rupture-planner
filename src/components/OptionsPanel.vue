@@ -145,7 +145,10 @@ function selectedBuildingId(chain: { baseId: string; upgradedId: string }): stri
           No upgradeable buildings
         </div>
 
-        <div v-else class="space-y-2">
+        <div
+          v-else
+          class="relative grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2 md:[&>*:nth-child(even)]:pl-8 md:before:absolute md:before:left-1/2 md:before:top-0 md:before:bottom-0 md:before:w-px md:before:bg-[var(--border)]"
+        >
           <div
             v-for="chain in store.productionChains"
             :key="chain.baseId"
@@ -211,7 +214,9 @@ function selectedBuildingId(chain: { baseId: string; upgradedId: string }): stri
         <h4 class="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-3">
           Display
         </h4>
-        <div class="space-y-3">
+        <div
+          class="relative grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 md:[&>*:nth-child(even)]:pl-8 md:before:absolute md:before:left-1/2 md:before:top-0 md:before:bottom-0 md:before:w-px md:before:bg-[var(--border)]"
+        >
           <!-- Show extractors toggle -->
           <label class="flex items-center justify-between gap-3 cursor-pointer">
             <span class="text-base text-[var(--text)]">Show extractors</span>
@@ -236,6 +241,18 @@ function selectedBuildingId(chain: { baseId: string; upgradedId: string }): stri
             <ChamferToggle
               :checked="store.showRowDividers"
               @toggle="store.setShowRowDividers(!store.showRowDividers)"
+            />
+          </label>
+
+          <!-- Show overages toggle -->
+          <label class="flex items-center justify-between gap-3 cursor-pointer">
+            <div>
+              <span class="text-base text-[var(--text)]">Show overages</span>
+              <span class="block text-xs text-[var(--muted-2)]">Round up to whole machines</span>
+            </div>
+            <ChamferToggle
+              :checked="store.showOverages"
+              @toggle="store.setShowOverages(!store.showOverages)"
             />
           </label>
 

@@ -31,6 +31,7 @@ export interface ViewPrefs {
   showExtractors: boolean
   showIcons: boolean
   showRowDividers: boolean
+  showOverages: boolean
   expandLevel: number // Infinity is serialised as the string 'all'
   optionsCollapsed: boolean
   theme: 'starrupture' | 'spaceage'
@@ -89,6 +90,7 @@ export function loadSaved(): { plan?: PlanState; prefs?: ViewPrefs } | null {
         showExtractors: typeof p.showExtractors === 'boolean' ? p.showExtractors : false,
         showIcons: typeof p.showIcons === 'boolean' ? p.showIcons : true,
         showRowDividers: typeof p.showRowDividers === 'boolean' ? p.showRowDividers : false,
+        showOverages: typeof p.showOverages === 'boolean' ? p.showOverages : false,
         expandLevel,
         optionsCollapsed: typeof p.optionsCollapsed === 'boolean' ? p.optionsCollapsed : false,
         theme: p.theme === 'spaceage' || p.theme === 'cyan' ? 'spaceage' : 'starrupture',

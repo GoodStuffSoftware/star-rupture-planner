@@ -26,7 +26,7 @@ function toggleRecipeDropdown(e: Event) {
 
 function selectRecipe(rKey: string, e: Event) {
   e.stopPropagation()
-  store.setRecipeOverride(props.node.itemId, rKey)
+  store.setRecipeOverride(props.node.path, rKey)
   showRecipeDropdown.value = false
 }
 
@@ -55,6 +55,26 @@ const machineStep = computed(() => props.node.recipe?.output.amount_per_minute ?
 
 // Demand for this item excluding any overage applied here (i.e. what parents need).
 const baseDemand = computed(() => props.node.ratePerMin - (props.node.overage ?? 0))
+
+// The "auto-overage" amount: how much extra you'd get by rounding up to whole machines.
+// Only relevant when showOverages is enabled and the demand isn't already a whole-machine multiple.
+const autoOverage = computed(() => {
+  const step = machineStep.value
+  if (!step || !canOverage.value) return 0
+  const demand = baseDemand.value
+  const wholeMachineOutput = Math.ceil(demand / step - 1e-9) * step
+  return wholeMachineOutput - demand
+})
+
+// True when the user has manually set an overage on this row (not just the auto-snap).
+const hasManualOverage = computed(() => Math.abs(props.node.overage ?? 0) > 1e-9)
+
+// The effective overage to display: manual if set, or auto if showOverages is on.
+const displayOverage = computed(() => {
+  if (hasManualOverage.value) return props.node.overage ?? 0
+  if (store.showOverages) return autoOverage.value
+  return 0
+})
 
 // Editable per-minute output for this row = demand + overage. Re-synced when the
 // resolved rate changes (the node is also re-keyed on rate, so this stays fresh).
@@ -96,6 +116,11 @@ function onOutputChange() {
   const v = Number(outputInput.value)
   if (isFinite(v)) setOutput(v)
   else outputInput.value = props.node.ratePerMin
+}
+
+// Reset this row's overage back to default (clear the manual override).
+function resetOverage() {
+  store.setOverage(props.node.path, 0)
 }
 
 const stepTitle = computed(() =>
@@ -342,7 +367,7 @@ function onBuildingMouseLeave() {
               "
               class="px-1.5 py-0.5 transition-colors flex items-center gap-1"
               :title="cand.buildingName"
-              @click.stop="store.setOverride(node.itemId, cand.buildingId)"
+              @click.stop="store.setOverride(node.path, cand.buildingId)"
             >
               {{ versionTag(cand.buildingId) }}
             </button>
@@ -369,7 +394,13 @@ function onBuildingMouseLeave() {
           @mouseleave="onBuildingMouseLeave"
         >
           <GameIcon :id="node.building.id" kind="building" :name="node.building.name" :size="38" />
-          <span class="text-slate-300">{{ fmtBuildings(node.buildingsNeeded) }}&times;</span>
+          <span class="text-slate-300"
+            >{{
+              store.showOverages && canOverage
+                ? Math.ceil(node.buildingsNeeded - 1e-9)
+                : fmtBuildings(node.buildingsNeeded)
+            }}&times;</span
+          >
           {{ node.building.name }}
           <span v-if="node.isOverridden" class="text-amber-400 ml-0.5" title="Overridden"
             >&bull;</span
@@ -391,7 +422,7 @@ function onBuildingMouseLeave() {
             "
             class="px-1.5 py-0.5 transition-colors flex items-center gap-1"
             :title="cand.buildingName"
-            @click.stop="store.setOverride(node.itemId, cand.buildingId)"
+            @click.stop="store.setOverride(node.path, cand.buildingId)"
           >
             {{ versionTag(cand.buildingId) }}
           </button>
@@ -405,13 +436,35 @@ function onBuildingMouseLeave() {
         class="ml-auto flex items-center gap-1.5 shrink-0 pl-3 sticky right-0 z-10 bg-[var(--panel)] group-hover:bg-[var(--panel-2)] transition-colors shadow-[-10px_0_10px_-6px_rgba(0,0,0,0.5)] sm:shadow-none"
       >
         <template v-if="canOverage">
+          <!-- Reset button (⟳) — only when this row has a manual overage set -->
+          <button
+            v-if="hasManualOverage"
+            type="button"
+            title="Reset to default production"
+            class="w-5 h-5 flex items-center justify-center rounded text-amber-400 hover:bg-amber-400/20 transition-colors shrink-0"
+            @click.stop="resetOverage"
+          >
+            <svg
+              class="w-3.5 h-3.5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              stroke-width="2"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
+            </svg>
+          </button>
           <!-- Overage badge -->
           <span
-            v-if="(node.overage ?? 0) > 0"
+            v-if="displayOverage > 1e-9"
             class="text-xs font-mono text-amber-400"
-            :title="`+${fmt(node.overage ?? 0)}/min overproduced`"
+            :title="`+${fmt(displayOverage)}/min overproduced`"
           >
-            +{{ fmt(node.overage ?? 0) }}
+            +{{ fmt(displayOverage) }}
           </span>
           <span
             v-else-if="isDeficit"

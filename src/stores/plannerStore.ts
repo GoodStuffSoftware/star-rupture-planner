@@ -109,6 +109,7 @@ export const usePlannerStore = defineStore('planner', () => {
   const showExtractors = ref<boolean>(false)
   const showIcons = ref<boolean>(true)
   const showRowDividers = ref<boolean>(false)
+  const showOverages = ref<boolean>(false)
   const optionsCollapsed = ref<boolean>(false)
 
   // Default expand scope for newly created/restored tabs (seeded from saved prefs).
@@ -454,6 +455,9 @@ export const usePlannerStore = defineStore('planner', () => {
       showExtractors.value = saved.prefs.showExtractors
       showIcons.value = saved.prefs.showIcons
       showRowDividers.value = saved.prefs.showRowDividers
+      if (saved.prefs.showOverages !== undefined) {
+        showOverages.value = saved.prefs.showOverages
+      }
       defaultExpandLevel.value = saved.prefs.expandLevel
       optionsCollapsed.value = saved.prefs.optionsCollapsed
       if (saved.prefs.theme) {
@@ -646,6 +650,10 @@ export const usePlannerStore = defineStore('planner', () => {
     showRowDividers.value = value
   }
 
+  function setShowOverages(value: boolean) {
+    showOverages.value = value
+  }
+
   function toggleOptions() {
     optionsCollapsed.value = !optionsCollapsed.value
   }
@@ -762,6 +770,7 @@ export const usePlannerStore = defineStore('planner', () => {
         showExtractors: showExtractors.value,
         showIcons: showIcons.value,
         showRowDividers: showRowDividers.value,
+        showOverages: showOverages.value,
         expandLevel: expandLevel.value,
         optionsCollapsed: optionsCollapsed.value,
         theme: theme.value,
@@ -785,6 +794,7 @@ export const usePlannerStore = defineStore('planner', () => {
       showExtractors,
       showIcons,
       showRowDividers,
+      showOverages,
       expandLevel,
       optionsCollapsed,
       theme,
@@ -817,6 +827,7 @@ export const usePlannerStore = defineStore('planner', () => {
     showExtractors,
     showIcons,
     showRowDividers,
+    showOverages,
     optionsCollapsed,
     // Computed
     itemsById,
@@ -866,6 +877,7 @@ export const usePlannerStore = defineStore('planner', () => {
     setShowExtractors,
     setShowIcons,
     setShowRowDividers,
+    setShowOverages,
     toggleOptions,
     setExpandLevel,
     setTreeFontScale,
