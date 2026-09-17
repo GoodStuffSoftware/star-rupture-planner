@@ -13,31 +13,31 @@ const emit = defineEmits<{
 
 const hoverSide = ref<'left' | 'right' | null>(null)
 const flashSide = ref<'left' | 'right' | null>(null)
+const pointerDownSide = ref<'left' | 'right' | null>(null)
 const isDragging = ref(false)
 const dragStartX = ref(0)
 const dragCurrentX = ref(0)
 
-// Compute dot position along X axis (midpoint is 22 for 44px width)
-const dotX = computed(() => {
-  if (isDragging.value) {
-    const delta = dragCurrentX.value - dragStartX.value
-    if (delta < -6 && props.canGoBack) return 14
-    if (delta > 6 && props.canGoForward) return 30
-    return 22
-  }
-  if (hoverSide.value === 'left' && props.canGoBack) return 14
-  if (hoverSide.value === 'right' && props.canGoForward) return 30
-  return 22
-})
-
 const activeSide = computed<'left' | 'right' | null>(() => {
+  if (flashSide.value) return flashSide.value
   if (isDragging.value) {
     const delta = dragCurrentX.value - dragStartX.value
     if (delta < -6 && props.canGoBack) return 'left'
     if (delta > 6 && props.canGoForward) return 'right'
+    if (Math.abs(delta) <= 6 && pointerDownSide.value) {
+      if (pointerDownSide.value === 'left' && props.canGoBack) return 'left'
+      if (pointerDownSide.value === 'right' && props.canGoForward) return 'right'
+    }
     return null
   }
   return hoverSide.value
+})
+
+// Compute dot position along X axis (midpoint is 22 for 44px SVG viewBox width)
+const dotX = computed(() => {
+  if (activeSide.value === 'left' && props.canGoBack) return 14
+  if (activeSide.value === 'right' && props.canGoForward) return 30
+  return 22
 })
 
 function handleMouseEnter(side: 'left' | 'right', e?: MouseEvent) {
@@ -53,8 +53,13 @@ function onPointerDown(e: PointerEvent) {
   isDragging.value = true
   dragStartX.value = e.clientX
   dragCurrentX.value = e.clientX
+  const target = e.currentTarget as HTMLElement
+  const rect = target.getBoundingClientRect()
+  const clickX = e.clientX - rect.left
+  pointerDownSide.value = clickX < rect.width / 2 ? 'left' : 'right'
+
   try {
-    ;(e.currentTarget as HTMLElement)?.setPointerCapture(e.pointerId)
+    target.setPointerCapture(e.pointerId)
   } catch {
     // Ignore pointer capture errors if touch
   }
@@ -73,6 +78,7 @@ function onPointerUp(e: PointerEvent) {
   const clickX = e.clientX - rect.left
 
   isDragging.value = false
+  pointerDownSide.value = null
   hoverSide.value = null
 
   if (Math.abs(delta) > 6) {
@@ -101,7 +107,7 @@ function triggerAction(side: 'left' | 'right') {
   flashSide.value = side
   setTimeout(() => {
     flashSide.value = null
-  }, 250)
+  }, 300)
   if (side === 'left') emit('back')
   else emit('forward')
 }
