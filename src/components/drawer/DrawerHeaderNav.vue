@@ -174,210 +174,180 @@ watch(
   >
     <!-- Left & Center Zone: Micro-Joystick + Sliding Breadcrumb Track -->
     <div class="flex items-center gap-1.5 min-w-0 flex-1">
-      <!-- Zone 1: Micro-Joystick Navigation Component + History Dropdown -->
-      <div class="flex items-center gap-1 shrink-0">
+      <!-- Zone 1: Micro-Joystick Navigation Component + Integrated History Dropdown -->
+      <div class="history-dropdown-wrap relative shrink-0">
         <MicroJoystick
           :can-go-back="canGoBack"
           :can-go-forward="canGoForward"
+          :has-history="detailStore.savedTracks.length > 0 || activeBreadcrumbs.length > 0"
           @back="detailStore.detailBack()"
           @forward="detailStore.detailForward()"
+          @down="isHistoryOpen = !isHistoryOpen"
         />
 
-        <div class="history-dropdown-wrap relative">
-          <!-- Navigation History Dropdown Button -->
-          <button
-            class="w-7 h-7 flex items-center justify-center rounded text-[var(--muted)] hover:text-[var(--accent)] hover:bg-[var(--panel)] transition-colors relative shrink-0"
-            :class="{ 'text-[var(--accent)] bg-[var(--panel)]': isHistoryOpen }"
-            title="Past Navigation History Tracks"
-            @click.stop="isHistoryOpen = !isHistoryOpen"
+        <!-- Past Breadcrumbs History Dropdown -->
+        <Transition
+          enter-active-class="transition-all duration-300 cubic-bezier(0.16, 1, 0.3, 1)"
+          enter-from-class="opacity-0 -translate-y-6 scale-y-75"
+          enter-to-class="opacity-100 translate-y-0 scale-y-100"
+          leave-active-class="transition-all duration-180 ease-in"
+          leave-from-class="opacity-100 translate-y-0 scale-y-100"
+          leave-to-class="opacity-0 -translate-y-4 scale-y-85"
+        >
+          <div
+            v-if="isHistoryOpen"
+            class="absolute top-[52px] min-[859px]:top-9 left-0 z-[300] p-2 w-max max-w-[calc(100vw-72px)] max-h-[65vh] flex flex-col gap-2 select-none origin-top-left rounded-xl"
+            @click.stop
           >
-            <svg
-              class="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              stroke-width="2"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-            <span
-              v-if="detailStore.savedTracks.length > 0 || activeBreadcrumbs.length > 0"
-              class="absolute top-1 right-1 sm:top-0.5 sm:right-0.5 w-1.5 h-1.5 rounded-full bg-[var(--accent)]"
-            />
-          </button>
-
-          <!-- Past Breadcrumbs History Dropdown -->
-          <Transition
-            enter-active-class="transition-all duration-300 cubic-bezier(0.16, 1, 0.3, 1)"
-            enter-from-class="opacity-0 -translate-y-6 scale-y-75"
-            enter-to-class="opacity-100 translate-y-0 scale-y-100"
-            leave-active-class="transition-all duration-180 ease-in"
-            leave-from-class="opacity-100 translate-y-0 scale-y-100"
-            leave-to-class="opacity-0 -translate-y-4 scale-y-85"
-          >
+            <!-- Dedicated background layer with soft blurred mask edges -->
             <div
-              v-if="isHistoryOpen"
-              class="absolute top-[52px] min-[859px]:top-9 left-0 z-[300] p-2 w-max max-w-[calc(100vw-72px)] max-h-[65vh] flex flex-col gap-2 select-none origin-top-left rounded-xl"
-              @click.stop
+              class="absolute -inset-2 bg-black/30 backdrop-blur-md rounded-2xl pointer-events-none -z-10 shadow-[0_0_30px_rgba(0,0,0,0.6)]"
+              style="
+                mask-image: radial-gradient(ellipse at center, black 50%, transparent 100%);
+                -webkit-mask-image: radial-gradient(ellipse at center, black 50%, transparent 100%);
+              "
+            />
+            <!-- Header bar -->
+            <div
+              class="flex items-center justify-between px-2.5 py-1.5 font-bold text-[var(--muted)] uppercase tracking-wider text-[10px] bg-black rounded-md border border-[var(--border)]/60 shadow-md shrink-0"
             >
-              <!-- Dedicated background layer with soft blurred mask edges -->
-              <div
-                class="absolute -inset-2 bg-black/30 backdrop-blur-md rounded-2xl pointer-events-none -z-10 shadow-[0_0_30px_rgba(0,0,0,0.6)]"
-                style="
-                  mask-image: radial-gradient(ellipse at center, black 50%, transparent 100%);
-                  -webkit-mask-image: radial-gradient(
-                    ellipse at center,
-                    black 50%,
-                    transparent 100%
-                  );
-                "
-              />
-              <!-- Header bar -->
-              <div
-                class="flex items-center justify-between px-2.5 py-1.5 font-bold text-[var(--muted)] uppercase tracking-wider text-[10px] bg-black rounded-md border border-[var(--border)]/60 shadow-md shrink-0"
+              <span class="text-[var(--text-strong)] font-semibold tracking-wide"
+                >Navigation History ({{ detailStore.savedTracks.length }}/100)</span
               >
-                <span class="text-[var(--text-strong)] font-semibold tracking-wide"
-                  >Navigation History ({{ detailStore.savedTracks.length }}/100)</span
+              <button
+                v-if="detailStore.savedTracks.length > 0"
+                class="text-[10px] text-[var(--muted)] hover:text-red-400 transition-colors lowercase font-normal"
+                @click="onClearAllTracks"
+              >
+                clear all
+              </button>
+            </div>
+
+            <div class="overflow-y-auto flex flex-col gap-2 pr-1 max-h-[52vh]">
+              <!-- Active Session Trail -->
+              <div
+                v-if="activeBreadcrumbs.length > 0"
+                class="flex flex-col gap-1 blinds-item"
+                :style="{ animationDelay: '20ms' }"
+              >
+                <div
+                  class="text-[10px] font-bold text-[var(--accent)] uppercase tracking-wider px-2.5 py-1 bg-black rounded-md border border-[var(--border)]/50 shadow-xs w-max"
                 >
-                <button
-                  v-if="detailStore.savedTracks.length > 0"
-                  class="text-[10px] text-[var(--muted)] hover:text-red-400 transition-colors lowercase font-normal"
-                  @click="onClearAllTracks"
+                  Current Active Session
+                </div>
+                <div
+                  class="flex items-center gap-1.5 p-2.5 rounded-lg bg-[var(--panel)] border border-[var(--border)]/60 text-left shadow-sm"
                 >
-                  clear all
-                </button>
+                  <div
+                    class="flex items-center gap-1.5 min-w-0 flex-1 overflow-x-auto py-0.5"
+                    style="scrollbar-width: none"
+                  >
+                    <template
+                      v-for="(step, sIdx) in activeBreadcrumbs"
+                      :key="'active-' + sIdx + '-' + step.id"
+                    >
+                      <div class="flex items-center gap-1 shrink-0">
+                        <GameIcon
+                          v-if="step.id !== '__index__'"
+                          :id="step.id"
+                          :kind="iconKind(step.kind)"
+                          :name="getNodeTitle(step)"
+                          :size="16"
+                        />
+                        <span
+                          class="text-xs font-semibold text-[var(--text-strong)] whitespace-nowrap"
+                        >
+                          {{ getNodeTitle(step) }}
+                        </span>
+                      </div>
+                      <span
+                        v-if="sIdx < activeBreadcrumbs.length - 1"
+                        class="text-[10px] text-[var(--accent)] font-mono shrink-0"
+                        >&gt;</span
+                      >
+                    </template>
+                  </div>
+                </div>
               </div>
 
-              <div class="overflow-y-auto flex flex-col gap-2 pr-1 max-h-[52vh]">
-                <!-- Active Session Trail -->
+              <!-- Saved Past Session Tracks -->
+              <div v-if="detailStore.savedTracks.length > 0" class="flex flex-col gap-1.5">
                 <div
-                  v-if="activeBreadcrumbs.length > 0"
-                  class="flex flex-col gap-1 blinds-item"
-                  :style="{ animationDelay: '20ms' }"
+                  class="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider px-2.5 py-1 bg-black rounded-md border border-[var(--border)]/50 shadow-xs w-max"
                 >
-                  <div
-                    class="text-[10px] font-bold text-[var(--accent)] uppercase tracking-wider px-2.5 py-1 bg-black rounded-md border border-[var(--border)]/50 shadow-xs w-max"
-                  >
-                    Current Active Session
-                  </div>
-                  <div
-                    class="flex items-center gap-1.5 p-2.5 rounded-lg bg-[var(--panel)] border border-[var(--border)]/60 text-left shadow-sm"
-                  >
-                    <div
-                      class="flex items-center gap-1.5 min-w-0 flex-1 overflow-x-auto py-0.5"
-                      style="scrollbar-width: none"
-                    >
-                      <template
-                        v-for="(step, sIdx) in activeBreadcrumbs"
-                        :key="'active-' + sIdx + '-' + step.id"
-                      >
-                        <div class="flex items-center gap-1 shrink-0">
-                          <GameIcon
-                            v-if="step.id !== '__index__'"
-                            :id="step.id"
-                            :kind="iconKind(step.kind)"
-                            :name="getNodeTitle(step)"
-                            :size="16"
-                          />
-                          <span
-                            class="text-xs font-semibold text-[var(--text-strong)] whitespace-nowrap"
-                          >
-                            {{ getNodeTitle(step) }}
-                          </span>
-                        </div>
-                        <span
-                          v-if="sIdx < activeBreadcrumbs.length - 1"
-                          class="text-[10px] text-[var(--accent)] font-mono shrink-0"
-                          >&gt;</span
-                        >
-                      </template>
-                    </div>
-                  </div>
+                  Past Completed Sessions
                 </div>
-
-                <!-- Saved Past Session Tracks -->
-                <div v-if="detailStore.savedTracks.length > 0" class="flex flex-col gap-1.5">
+                <div
+                  v-for="(track, index) in detailStore.savedTracks"
+                  :key="track.id"
+                  class="blinds-item flex items-center justify-between p-2.5 rounded-lg bg-[var(--panel)] hover:bg-[var(--border)]/50 border border-[var(--border)]/40 transition-colors text-left group cursor-pointer shadow-sm"
+                  :style="{ animationDelay: `${(index + 1) * 45}ms` }"
+                  @click="onRestoreTrack(track)"
+                >
+                  <!-- Breadcrumb Path Preview -->
                   <div
-                    class="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider px-2.5 py-1 bg-black rounded-md border border-[var(--border)]/50 shadow-xs w-max"
+                    class="flex items-center gap-1.5 min-w-0 flex-1 overflow-x-auto pr-2 py-0.5"
+                    style="scrollbar-width: none"
                   >
-                    Past Completed Sessions
-                  </div>
-                  <div
-                    v-for="(track, index) in detailStore.savedTracks"
-                    :key="track.id"
-                    class="blinds-item flex items-center justify-between p-2.5 rounded-lg bg-[var(--panel)] hover:bg-[var(--border)]/50 border border-[var(--border)]/40 transition-colors text-left group cursor-pointer shadow-sm"
-                    :style="{ animationDelay: `${(index + 1) * 45}ms` }"
-                    @click="onRestoreTrack(track)"
-                  >
-                    <!-- Breadcrumb Path Preview -->
-                    <div
-                      class="flex items-center gap-1.5 min-w-0 flex-1 overflow-x-auto pr-2 py-0.5"
-                      style="scrollbar-width: none"
+                    <template
+                      v-for="(step, sIdx) in track.steps"
+                      :key="track.id + '-' + sIdx + '-' + step.id"
                     >
-                      <template
-                        v-for="(step, sIdx) in track.steps"
-                        :key="track.id + '-' + sIdx + '-' + step.id"
-                      >
-                        <div class="flex items-center gap-1 shrink-0">
-                          <GameIcon
-                            v-if="step.id !== '__index__'"
-                            :id="step.id"
-                            :kind="iconKind(step.kind)"
-                            :name="getNodeTitle(step)"
-                            :size="16"
-                          />
-                          <span
-                            class="text-xs font-medium text-[var(--text)] group-hover:text-[var(--accent)] transition-colors whitespace-nowrap"
-                          >
-                            {{ getNodeTitle(step) }}
-                          </span>
-                        </div>
-                        <span
-                          v-if="sIdx < track.steps.length - 1"
-                          class="text-[10px] text-[var(--muted-2)] font-mono shrink-0"
-                          >&gt;</span
-                        >
-                      </template>
-                    </div>
-
-                    <!-- Delete Session Button -->
-                    <button
-                      class="w-5 h-5 flex items-center justify-center rounded text-[var(--muted-2)] hover:text-red-400 hover:bg-red-400/10 transition-colors shrink-0 opacity-70 group-hover:opacity-100"
-                      title="Delete this history session"
-                      @click.stop="onDeleteTrack(track.id, $event)"
-                    >
-                      <svg
-                        class="w-3.5 h-3.5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                        stroke-width="2"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          d="M6 18L18 6M6 6l12 12"
+                      <div class="flex items-center gap-1 shrink-0">
+                        <GameIcon
+                          v-if="step.id !== '__index__'"
+                          :id="step.id"
+                          :kind="iconKind(step.kind)"
+                          :name="getNodeTitle(step)"
+                          :size="16"
                         />
-                      </svg>
-                    </button>
+                        <span
+                          class="text-xs font-medium text-[var(--text)] group-hover:text-[var(--accent)] transition-colors whitespace-nowrap"
+                        >
+                          {{ getNodeTitle(step) }}
+                        </span>
+                      </div>
+                      <span
+                        v-if="sIdx < track.steps.length - 1"
+                        class="text-[10px] text-[var(--muted-2)] font-mono shrink-0"
+                        >&gt;</span
+                      >
+                    </template>
                   </div>
-                </div>
 
-                <!-- Empty state -->
-                <div
-                  v-if="detailStore.savedTracks.length === 0 && activeBreadcrumbs.length === 0"
-                  class="px-2 py-4 text-center text-[var(--muted)] italic text-xs"
-                >
-                  No navigation history yet
+                  <!-- Delete Session Button -->
+                  <button
+                    class="w-5 h-5 flex items-center justify-center rounded text-[var(--muted-2)] hover:text-red-400 hover:bg-red-400/10 transition-colors shrink-0 opacity-70 group-hover:opacity-100"
+                    title="Delete this history session"
+                    @click.stop="onDeleteTrack(track.id, $event)"
+                  >
+                    <svg
+                      class="w-3.5 h-3.5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      stroke-width="2"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
+                  </button>
                 </div>
+              </div>
+
+              <!-- Empty state -->
+              <div
+                v-if="detailStore.savedTracks.length === 0 && activeBreadcrumbs.length === 0"
+                class="px-2 py-4 text-center text-[var(--muted)] italic text-xs"
+              >
+                No navigation history yet
               </div>
             </div>
-          </Transition>
-        </div>
+          </div>
+        </Transition>
       </div>
 
       <!-- Zone 2: Center/Main Sliding Breadcrumb Track -->
