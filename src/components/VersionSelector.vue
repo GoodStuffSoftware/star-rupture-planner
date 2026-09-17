@@ -45,13 +45,15 @@ const currentLabel = computed(
 </script>
 
 <template>
-  <div class="flex items-center gap-2">
-    <label class="text-xs font-medium text-[var(--muted)] uppercase tracking-wider"> Ver </label>
+  <div class="flex items-center gap-1 sm:gap-2 shrink-0">
+    <label class="text-[10px] sm:text-xs font-medium text-[var(--muted)] uppercase tracking-wider">
+      Ver
+    </label>
     <div class="relative">
       <!-- Trigger button -->
       <button
         ref="triggerEl"
-        class="chamfer-sm [--cf-fill:var(--panel-2)] flex items-center gap-1.5 px-2 py-1.5 text-sm text-[var(--text)] hover:[--cf-fill:var(--border)] transition-colors cursor-pointer select-none"
+        class="chamfer-sm [--cf-fill:var(--panel-2)] flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-1 sm:py-1.5 text-xs sm:text-sm text-[var(--text)] hover:[--cf-fill:var(--border)] transition-colors cursor-pointer select-none"
         @click.stop="toggle"
       >
         {{ currentLabel }}

@@ -161,9 +161,9 @@ function onRateChange() {
 </script>
 
 <template>
-  <div class="flex items-center gap-3 flex-wrap">
+  <div class="flex items-center gap-1.5 sm:gap-3 flex-wrap">
     <!-- Item search -->
-    <div class="relative">
+    <div class="relative shrink-0">
       <label class="sr-only" for="item-search">Search item</label>
       <div class="relative">
         <input
@@ -176,7 +176,7 @@ function onRateChange() {
           role="combobox"
           aria-autocomplete="list"
           :aria-expanded="showDropdown"
-          class="bg-[var(--panel-2)] border border-[var(--border)] text-[var(--text)] text-sm pl-3 pr-13 py-1.5 w-44 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent hover:border-[var(--muted)] transition-colors placeholder:text-[var(--muted-2)]"
+          class="bg-[var(--panel-2)] border border-[var(--border)] text-[var(--text)] text-xs sm:text-sm pl-2.5 sm:pl-3 pr-11 sm:pr-13 py-1 sm:py-1.5 w-32 min-[720px]:w-40 sm:w-44 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent hover:border-[var(--muted)] transition-colors placeholder:text-[var(--muted-2)]"
           @input="onSearchInput"
           @focus="onSearchFocus"
           @blur="onSearchBlur"
@@ -190,7 +190,7 @@ function onRateChange() {
           type="button"
           aria-label="Clear search"
           title="Clear search"
-          class="absolute right-7 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted-2)] hover:text-[var(--text)] transition-colors"
+          class="absolute right-6 sm:right-7 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted-2)] hover:text-[var(--text)] transition-colors"
           @mousedown.prevent="clearSearch"
         >
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -252,14 +252,14 @@ function onRateChange() {
     </div>
 
     <!-- Rate input with per-machine stepper (± one machine's output) -->
-    <div class="flex items-center gap-1.5">
+    <div class="flex items-center gap-1 sm:gap-1.5 shrink-0">
       <div
         class="chamfer-sm [--cf-fill:var(--panel-2)] flex items-center p-px gap-px overflow-hidden"
       >
         <button
           type="button"
           :title="machineStep ? `−${machineStep}/min (one machine)` : 'decrease'"
-          class="px-2 py-1.5 bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)] transition-colors text-base leading-none"
+          class="px-1.5 sm:px-2 py-1 sm:py-1.5 bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)] transition-colors text-xs sm:text-base leading-none"
           @click="stepRate(-1)"
         >
           &minus;
@@ -269,19 +269,19 @@ function onRateChange() {
           type="number"
           min="0"
           step="1"
-          class="bg-[var(--panel-2)] text-[var(--text)] text-sm px-1 py-1.5 w-12 focus:outline-none transition-colors text-right"
+          class="bg-[var(--panel-2)] text-[var(--text)] text-xs sm:text-sm px-0.5 sm:px-1 py-1 sm:py-1.5 w-10 sm:w-12 focus:outline-none transition-colors text-right"
           @change="onRateChange"
         />
         <button
           type="button"
           :title="machineStep ? `+${machineStep}/min (one machine)` : 'increase'"
-          class="px-2 py-1.5 bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)] transition-colors text-base leading-none"
+          class="px-1.5 sm:px-2 py-1 sm:py-1.5 bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)] transition-colors text-xs sm:text-base leading-none"
           @click="stepRate(1)"
         >
           +
         </button>
       </div>
-      <span class="text-[var(--muted)] text-sm font-medium">/min</span>
+      <span class="text-[var(--muted)] text-xs sm:text-sm font-medium">/min</span>
       <!-- Trailing slot (e.g. the add-recipe button) — stays on the rate line -->
       <slot />
     </div>

@@ -28,18 +28,18 @@ onMounted(() => {
     <header class="chamfer backdrop-blur-sm sticky top-0 relative overflow-hidden z-30">
       <div class="max-w-screen-xl mx-auto px-2 pt-3 pb-2 sm:px-4 flex flex-col gap-3">
         <!-- Row 1: title, version, target search + amount, share -->
-        <div id="header-row1" class="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div id="header-row1" class="flex flex-wrap items-center gap-x-2 sm:gap-x-4 gap-y-2">
           <!-- Title -->
           <button
-            class="flex items-center gap-2 mr-2 hover:opacity-80 transition-opacity cursor-pointer"
+            class="flex items-center gap-1.5 sm:gap-2 hover:opacity-80 transition-opacity cursor-pointer shrink-0"
             title="Browse all items"
             @click="store.openItemIndex()"
           >
             <div
-              class="w-7 h-7 chamfer-sm [--cf-fill:var(--accent-soft)] [--cf-border:var(--accent-soft-border)] flex items-center justify-center shrink-0"
+              class="w-6 h-6 sm:w-7 sm:h-7 chamfer-sm [--cf-fill:var(--accent-soft)] [--cf-border:var(--accent-soft-border)] flex items-center justify-center shrink-0"
             >
               <svg
-                class="w-4 h-4 text-[var(--accent)]"
+                class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[var(--accent)]"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -53,32 +53,29 @@ onMounted(() => {
               </svg>
             </div>
             <h1
-              class="text-base font-bold text-[var(--text)] whitespace-nowrap tracking-tight uppercase"
+              class="text-xs sm:text-base font-bold text-[var(--text)] whitespace-nowrap tracking-tight uppercase"
             >
               Star Rupture Planner
             </h1>
           </button>
 
           <!-- Divider -->
-          <div class="hidden min-[835px]:block w-px h-6 bg-[var(--border)] shrink-0" />
+          <div class="hidden sm:block w-px h-6 bg-[var(--border)] shrink-0" />
 
-          <!-- Controls: a full-width wrapping group on mobile (<835px); on >=835px it dissolves
+          <!-- Controls: a full-width wrapping group on mobile (<640px); on >=640px it dissolves
                (display:contents) so the items sit inline on the single nav row. -->
-          <div class="flex flex-wrap items-center gap-x-3 gap-y-2 w-full min-[835px]:contents">
+          <div class="flex flex-wrap items-center gap-x-2 sm:gap-x-3 gap-y-2 w-full sm:contents">
             <!-- Version selector -->
             <span id="version-selector-wrap"><VersionSelector /></span>
 
             <!-- Divider — marks start of blur zone in row 1 -->
-            <div
-              id="blur-start"
-              class="hidden min-[835px]:block w-px h-6 bg-[var(--border)] shrink-0"
-            />
+            <div id="blur-start" class="hidden sm:block w-px h-6 bg-[var(--border)] shrink-0" />
 
             <!-- Target selector (edits the active tab). The add (+) button rides
                  in its trailing slot, so it stays on the per-minute line. With
-                 multiple recipes it's hidden at >=835px (the tab line carries it). -->
+                 multiple recipes it's hidden at >=640px (the tab line carries it). -->
             <TargetSelector>
-              <span :class="store.targets.length > 1 ? 'min-[835px]:hidden' : ''">
+              <span :class="store.targets.length > 1 ? 'sm:hidden' : ''">
                 <AddRecipeButton />
               </span>
             </TargetSelector>
