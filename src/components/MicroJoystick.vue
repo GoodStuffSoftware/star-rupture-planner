@@ -321,11 +321,11 @@ function triggerAction(side: 'left' | 'right' | 'down') {
    Positioning is percentage-based so the component scales to any pixel size!
    ========================================================================== */
 
-/* Root Pill Container (44x28px with 1:1 SVG Vector Alignment) */
+/* Root Pill Container (66x42px on mobile = 1.5x scale, 44x28px on desktop) */
 .micro-joystick {
   position: relative;
-  width: 44px;
-  height: 28px;
+  width: 66px;
+  height: 42px;
   border-radius: 9999px;
   background-color: var(--panel, #1e1b18);
   border: 1px solid var(--border, #3a342e);
@@ -334,6 +334,13 @@ function triggerAction(side: 'left' | 'right' | 'down') {
   overflow: hidden;
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.25);
   flex-shrink: 0;
+}
+
+@media (min-width: 859px) {
+  .micro-joystick {
+    width: 44px;
+    height: 28px;
+  }
 }
 
 /* --------------------------------------------------------------------------
@@ -408,8 +415,8 @@ function triggerAction(side: 'left' | 'right' | 'down') {
   left: 50%;
   width: 30%;
   aspect-ratio: 1;
-  max-width: 13px;
-  max-height: 13px;
+  max-width: 19.5px;
+  max-height: 19.5px;
   border-radius: 50%;
   background-color: var(--text, #f3f1ee);
   color: var(--text, #f3f1ee);
@@ -423,6 +430,13 @@ function triggerAction(side: 'left' | 'right' | 'down') {
     top 0.3s cubic-bezier(0.16, 1, 0.3, 1),
     background-color 0.3s ease,
     opacity 0.3s ease;
+}
+
+@media (min-width: 859px) {
+  .joystick-knob {
+    max-width: 13px;
+    max-height: 13px;
+  }
 }
 
 /* Left Deflections */
