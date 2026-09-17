@@ -60,6 +60,25 @@ const deflectionLevel = computed<'none' | 'half' | 'full'>(() => {
   return 'half'
 })
 
+// Calculate SVG X & Y coordinates for shaft arm (viewBox 0 0 44 28)
+// Full deflection travels closer to the track arrowheads (x=10.5 for left, x=33.5 for right, y=21.8 for down)
+const dotX = computed(() => {
+  if (activeDirection.value === 'left' && props.canGoBack) {
+    return deflectionLevel.value === 'full' ? 10.5 : 16.3
+  }
+  if (activeDirection.value === 'right' && props.canGoForward) {
+    return deflectionLevel.value === 'full' ? 33.5 : 27.7
+  }
+  return 22
+})
+
+const dotY = computed(() => {
+  if (activeDirection.value === 'down' && props.hasHistory) {
+    return deflectionLevel.value === 'full' ? 21.8 : 17.9
+  }
+  return 14
+})
+
 function onHover(side: 'left' | 'right' | 'down', e?: MouseEvent) {
   if (e && (e as PointerEvent).pointerType === 'touch') return
   if (!isDragging.value) hoverSide.value = side
@@ -160,36 +179,119 @@ function triggerAction(side: 'left' | 'right' | 'down') {
     @pointercancel="onPointerUp"
     @pointerleave="onHoverLeave"
   >
-    <!-- Background Action Pulse Flash -->
+    <!-- Background Action Pulse Flash Overlays -->
     <div v-if="flashSide === 'left'" class="flash-pulse flash-left" />
     <div v-if="flashSide === 'right'" class="flash-pulse flash-right" />
     <div v-if="flashSide === 'down'" class="flash-pulse flash-down" />
 
-    <!-- Resting Track Indicators -->
-    <div class="resting-track track-left">
-      <span class="chevron chevron-left" />
-      <span class="track-line-h" />
-    </div>
+    <!-- Scalable Vector Schematic Layer (Resting track lines, arrowheads, shaft & pivot) -->
+    <svg
+      class="joystick-vector-layer"
+      viewBox="0 0 44 28"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <!-- Shaft Arm (Line connecting pivot 22,14 to dot position) -->
+      <line
+        x1="22"
+        y1="14"
+        :x2="dotX"
+        :y2="dotY"
+        stroke="var(--accent, #ee8b22)"
+        stroke-width="4"
+        stroke-linecap="round"
+        class="shaft-line"
+        :class="
+          activeDirection !== 'none' &&
+          ((activeDirection === 'left' && props.canGoBack) ||
+            (activeDirection === 'right' && props.canGoForward) ||
+            (activeDirection === 'down' && props.hasHistory))
+            ? 'active'
+            : ''
+        "
+      />
 
-    <div class="resting-track track-right">
-      <span class="track-line-h" />
-      <span class="chevron chevron-right" />
-    </div>
+      <!-- Resting Left Track Line -->
+      <line
+        x1="10"
+        y1="14"
+        x2="15.5"
+        y2="14"
+        stroke="currentColor"
+        stroke-width="1"
+        class="resting-line"
+        :class="props.canGoBack && activeDirection === 'none' ? 'visible' : ''"
+      />
 
-    <div class="resting-track track-down">
-      <span class="track-line-v" />
-    </div>
+      <!-- Resting Right Track Line -->
+      <line
+        x1="28.5"
+        y1="14"
+        x2="34"
+        y2="14"
+        stroke="currentColor"
+        stroke-width="1"
+        class="resting-line"
+        :class="props.canGoForward && activeDirection === 'none' ? 'visible' : ''"
+      />
 
-    <!-- Active Deflection Joystick Shaft/Arm -->
-    <div class="joystick-arm" />
+      <!-- Resting Down Track Line (Subtle 3.5px line starting outside bottom circle radius y=20.5 to y=24) -->
+      <line
+        x1="22"
+        y1="20.5"
+        x2="22"
+        y2="24"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        class="resting-line-down"
+        :class="props.hasHistory && activeDirection === 'none' ? 'visible' : ''"
+      />
 
-    <!-- Center Base Pivot Point -->
-    <div class="joystick-pivot" />
+      <!-- Resting Left Arrowhead (<) -->
+      <path
+        d="M 12 11.5 L 9.5 14 L 12 16.5"
+        stroke="currentColor"
+        stroke-width="1"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        class="resting-arrow"
+        :class="props.canGoBack && activeDirection === 'none' ? 'visible' : ''"
+      />
 
-    <!-- Joystick Knob (Dot) -->
+      <!-- Resting Right Arrowhead (>) -->
+      <path
+        d="M 32 11.5 L 34.5 14 L 32 16.5"
+        stroke="currentColor"
+        stroke-width="1"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        class="resting-arrow"
+        :class="props.canGoForward && activeDirection === 'none' ? 'visible' : ''"
+      />
+
+      <!-- Pivot Point Base Indicator -->
+      <circle
+        cx="22"
+        cy="14"
+        r="2"
+        fill="var(--accent, #ee8b22)"
+        class="pivot-dot"
+        :class="
+          activeDirection !== 'none' &&
+          ((activeDirection === 'left' && props.canGoBack) ||
+            (activeDirection === 'right' && props.canGoForward) ||
+            (activeDirection === 'down' && props.hasHistory))
+            ? 'active'
+            : ''
+        "
+      />
+    </svg>
+
+    <!-- Joystick Knob (Center Dot - Positioned via CSS Container Percentages for Fluid Scalability) -->
     <div class="joystick-knob" />
 
-    <!-- Hover & Hit-Test Target Quadrants -->
+    <!-- Hit Testing Target Quadrants -->
     <div class="hit-zones">
       <div
         class="hit-zone zone-left"
@@ -215,11 +317,11 @@ function triggerAction(side: 'left' | 'right' | 'down') {
 
 <style scoped>
 /* ==========================================================================
-   MicroJoystick - Custom HTML/CSS Component Architecture
-   Clean, self-describing CSS with zero Tailwind utility dependencies
+   MicroJoystick - Scalable HTML & CSS Component Architecture
+   Positioning is percentage-based so the component scales to any pixel size!
    ========================================================================== */
 
-/* Root Pill Container */
+/* Root Pill Container (66x42 on mobile, 44x28 on desktop) */
 .micro-joystick {
   position: relative;
   width: 66px;
@@ -232,12 +334,8 @@ function triggerAction(side: 'left' | 'right' | 'down') {
   overflow: hidden;
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.25);
   flex-shrink: 0;
-  transition:
-    width 0.2s ease,
-    height 0.2s ease;
 }
 
-/* Scaled size for Desktop viewports (>=859px) */
 @media (min-width: 859px) {
   .micro-joystick {
     width: 44px;
@@ -246,206 +344,134 @@ function triggerAction(side: 'left' | 'right' | 'down') {
 }
 
 /* --------------------------------------------------------------------------
-   Center Pivot Point (Origin dot when stick is deflected)
+   Joystick Vector Overlay (SVG Shaft, Pivot, Track Lines & Arrowheads)
    -------------------------------------------------------------------------- */
-.joystick-pivot {
+.joystick-vector-layer {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background-color: var(--accent, #ee8b22);
-  transform: translate(-50%, -50%);
-  opacity: 0;
-  transition: opacity 0.3s ease;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
+  z-index: 0;
 }
 
-.micro-joystick[data-direction='left'].can-back .joystick-pivot,
-.micro-joystick[data-direction='right'].can-forward .joystick-pivot,
-.micro-joystick[data-direction='down'].has-history .joystick-pivot {
+.shaft-line {
+  opacity: 0;
+  transition:
+    x2 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    y2 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.3s ease;
+}
+.shaft-line.active {
+  opacity: 1;
+}
+
+.pivot-dot {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.pivot-dot.active {
   opacity: 0.6;
 }
 
-/* --------------------------------------------------------------------------
-   Joystick Shaft / Connecting Arm
-   -------------------------------------------------------------------------- */
-.joystick-arm {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  height: 4px;
-  width: 0px;
-  background-color: var(--accent, #ee8b22);
-  border-radius: 9999px;
-  transform-origin: left center;
+.resting-line {
   opacity: 0;
-  pointer-events: none;
-  transition:
-    width 0.3s cubic-bezier(0.16, 1, 0.3, 1),
-    transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
-    opacity 0.3s ease;
+  transition: opacity 0.3s ease;
+}
+.resting-line.visible {
+  opacity: 0.4;
 }
 
-/* Shaft deflection transforms */
-.micro-joystick[data-direction='left'][data-deflection='half'].can-back .joystick-arm {
-  width: 18%;
-  transform: translate(0, -50%) rotate(180deg);
-  opacity: 1;
+.resting-line-down {
+  opacity: 0;
+  transition: opacity 0.3s ease;
 }
-.micro-joystick[data-direction='left'][data-deflection='full'].can-back .joystick-arm {
-  width: 36%;
-  transform: translate(0, -50%) rotate(180deg);
-  opacity: 1;
+.resting-line-down.visible {
+  opacity: 0.5;
 }
 
-.micro-joystick[data-direction='right'][data-deflection='half'].can-forward .joystick-arm {
-  width: 18%;
-  transform: translate(0, -50%) rotate(0deg);
-  opacity: 1;
+.resting-arrow {
+  opacity: 0;
+  transition: opacity 0.3s ease;
 }
-.micro-joystick[data-direction='right'][data-deflection='full'].can-forward .joystick-arm {
-  width: 36%;
-  transform: translate(0, -50%) rotate(0deg);
-  opacity: 1;
-}
-
-.micro-joystick[data-direction='down'][data-deflection='half'].has-history .joystick-arm {
-  width: 18%;
-  transform: translate(0, -50%) rotate(90deg);
-  opacity: 1;
-}
-.micro-joystick[data-direction='down'][data-deflection='full'].has-history .joystick-arm {
-  width: 32%;
-  transform: translate(0, -50%) rotate(90deg);
-  opacity: 1;
+.resting-arrow.visible {
+  opacity: 0.4;
 }
 
 /* --------------------------------------------------------------------------
    Joystick Knob (Center Dot)
+   Positioned using CSS percentages relative to container for fluid scaling:
+   - Resting Center: left 50%, top 50%
+   - Left Half Lean: left 37% (x=16.3)
+   - Left Full Deflection: left 24% (x=10.5, travels right over left track line!)
+   - Right Half Lean: left 63% (x=27.7)
+   - Right Full Deflection: left 76% (x=33.5, travels right over right track line!)
+   - Down Half Lean: top 64% (y=17.9)
+   - Down Full Deflection: top 78% (y=21.8)
    -------------------------------------------------------------------------- */
 .joystick-knob {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 13px;
-  height: 13px;
+  width: 30%;
+  aspect-ratio: 1;
+  max-width: 13px;
+  max-height: 13px;
   border-radius: 50%;
   background-color: var(--text, #f3f1ee);
+  color: var(--text, #f3f1ee);
   opacity: 0.6;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
   transform: translate(-50%, -50%);
   pointer-events: none;
   z-index: 5;
   transition:
-    transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    left 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    top 0.3s cubic-bezier(0.16, 1, 0.3, 1),
     background-color 0.3s ease,
     opacity 0.3s ease;
 }
 
-/* Knob deflection offsets: Half-lean vs Full-deflection */
+/* Left Deflections */
 .micro-joystick[data-direction='left'][data-deflection='half'].can-back .joystick-knob {
-  transform: translate(-110%, -50%);
+  left: 37%;
+  top: 50%;
   background-color: var(--accent, #ee8b22);
   opacity: 1;
 }
 .micro-joystick[data-direction='left'][data-deflection='full'].can-back .joystick-knob {
-  transform: translate(-170%, -50%);
+  left: 24%;
+  top: 50%;
   background-color: var(--accent, #ee8b22);
   opacity: 1;
 }
 
+/* Right Deflections */
 .micro-joystick[data-direction='right'][data-deflection='half'].can-forward .joystick-knob {
-  transform: translate(10%, -50%);
+  left: 63%;
+  top: 50%;
   background-color: var(--accent, #ee8b22);
   opacity: 1;
 }
 .micro-joystick[data-direction='right'][data-deflection='full'].can-forward .joystick-knob {
-  transform: translate(70%, -50%);
+  left: 76%;
+  top: 50%;
   background-color: var(--accent, #ee8b22);
   opacity: 1;
 }
 
+/* Down Deflections */
 .micro-joystick[data-direction='down'][data-deflection='half'].has-history .joystick-knob {
-  transform: translate(-50%, 0%);
+  left: 50%;
+  top: 64%;
   background-color: var(--accent, #ee8b22);
   opacity: 1;
 }
 .micro-joystick[data-direction='down'][data-deflection='full'].has-history .joystick-knob {
-  transform: translate(-50%, 50%);
+  left: 50%;
+  top: 78%;
   background-color: var(--accent, #ee8b22);
   opacity: 1;
-}
-
-/* --------------------------------------------------------------------------
-   Resting Track Indicators & Arrowheads
-   -------------------------------------------------------------------------- */
-.resting-track {
-  position: absolute;
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  opacity: 0;
-  color: var(--muted, #a8a29a);
-  pointer-events: none;
-  transition: opacity 0.3s ease;
-}
-
-.micro-joystick.can-back[data-direction='none'] .track-left {
-  opacity: 0.4;
-}
-.micro-joystick.can-forward[data-direction='none'] .track-right {
-  opacity: 0.4;
-}
-.micro-joystick.has-history[data-direction='none'] .track-down {
-  opacity: 0.5;
-}
-
-.track-left {
-  left: 14%;
-  top: 50%;
-  transform: translateY(-50%);
-}
-
-.track-right {
-  right: 14%;
-  top: 50%;
-  transform: translateY(-50%);
-}
-
-.track-down {
-  bottom: 8%;
-  left: 50%;
-  transform: translateX(-50%);
-}
-
-.track-line-h {
-  width: 7px;
-  height: 1px;
-  background-color: currentColor;
-}
-
-.track-line-v {
-  width: 1.5px;
-  height: 4px;
-  background-color: currentColor;
-  border-radius: 1px;
-}
-
-.chevron {
-  width: 5px;
-  height: 5px;
-  border-top: 1.5px solid currentColor;
-  border-left: 1.5px solid currentColor;
-}
-
-.chevron-left {
-  transform: rotate(-45deg);
-}
-
-.chevron-right {
-  transform: rotate(135deg);
 }
 
 /* --------------------------------------------------------------------------
