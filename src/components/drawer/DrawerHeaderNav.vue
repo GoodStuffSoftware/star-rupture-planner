@@ -110,8 +110,26 @@ const activeBreadcrumbs = computed(() => {
 })
 
 function onJumpHistory(originalIndex: number) {
+  isHistoryOpen.value = false
   detailStore.jumpToHistoryIndex(originalIndex)
 }
+
+function handleBackNav() {
+  isHistoryOpen.value = false
+  detailStore.detailBack()
+}
+
+function handleForwardNav() {
+  isHistoryOpen.value = false
+  detailStore.detailForward()
+}
+
+watch(
+  () => detailStore.detail,
+  () => {
+    isHistoryOpen.value = false
+  },
+)
 
 function onRestoreTrack(track: NavTrack) {
   detailStore.restoreTrack(track)
@@ -180,8 +198,8 @@ watch(
           :can-go-back="canGoBack"
           :can-go-forward="canGoForward"
           :has-history="detailStore.savedTracks.length > 0 || activeBreadcrumbs.length > 0"
-          @back="detailStore.detailBack()"
-          @forward="detailStore.detailForward()"
+          @back="handleBackNav"
+          @forward="handleForwardNav"
           @down="isHistoryOpen = !isHistoryOpen"
         />
 

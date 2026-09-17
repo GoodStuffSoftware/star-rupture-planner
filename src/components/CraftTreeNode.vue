@@ -51,31 +51,6 @@ function showExtractorMachine(node: CraftNode): boolean {
   return isExtractorNode(node) && store.showExtractors
 }
 
-// Hover handlers
-function onItemMouseEnter(e: MouseEvent) {
-  store.setHover(
-    'item',
-    props.node.itemId,
-    (e.currentTarget as HTMLElement).getBoundingClientRect(),
-  )
-}
-
-function onItemMouseLeave() {
-  store.clearHover()
-}
-
-function onBuildingMouseEnter(e: MouseEvent) {
-  if (!props.node.building) return
-  store.setHover(
-    'building',
-    props.node.building.id,
-    (e.currentTarget as HTMLElement).getBoundingClientRect(),
-  )
-}
-
-function onBuildingMouseLeave() {
-  store.clearHover()
-}
 function isV2Building(buildingId: string): boolean {
   return store.chains.some((c) => c.upgradedId === buildingId)
 }
@@ -113,8 +88,6 @@ function isV2Building(buildingId: string): boolean {
         <span
           class="flex items-center gap-1 cursor-pointer hover:text-[var(--accent)] transition-colors"
           @click="store.openItemDetail(node.itemId)"
-          @mouseenter="onItemMouseEnter"
-          @mouseleave="onItemMouseLeave"
         >
           <GameIcon
             :id="node.itemId"
@@ -168,8 +141,6 @@ function isV2Building(buildingId: string): boolean {
           <span
             class="text-xs text-slate-400 shrink-0 flex items-center gap-1 whitespace-nowrap cursor-pointer hover:text-[var(--accent)] transition-colors"
             @click="store.openBuildingDetail(node.building!.id)"
-            @mouseenter="onBuildingMouseEnter"
-            @mouseleave="onBuildingMouseLeave"
           >
             <GameIcon
               :id="node.building!.id"
@@ -208,8 +179,6 @@ function isV2Building(buildingId: string): boolean {
         <span
           class="text-xs text-slate-400 shrink-0 flex items-center gap-1 whitespace-nowrap cursor-pointer hover:text-[var(--accent)] transition-colors"
           @click="store.openBuildingDetail(node.building.id)"
-          @mouseenter="onBuildingMouseEnter"
-          @mouseleave="onBuildingMouseLeave"
         >
           <GameIcon :id="node.building.id" kind="building" :name="node.building.name" :size="38" />
           <span class="text-slate-300"
