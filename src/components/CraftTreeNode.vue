@@ -51,6 +51,32 @@ function showExtractorMachine(node: CraftNode): boolean {
   return isExtractorNode(node) && store.showExtractors
 }
 
+// Hover handlers for text words (excluding icons to prevent tooltip zoom conflicts)
+function onItemMouseEnter(e: MouseEvent) {
+  store.setHover(
+    'item',
+    props.node.itemId,
+    (e.currentTarget as HTMLElement).getBoundingClientRect(),
+  )
+}
+
+function onItemMouseLeave() {
+  store.clearHover()
+}
+
+function onBuildingMouseEnter(e: MouseEvent) {
+  if (!props.node.building) return
+  store.setHover(
+    'building',
+    props.node.building.id,
+    (e.currentTarget as HTMLElement).getBoundingClientRect(),
+  )
+}
+
+function onBuildingMouseLeave() {
+  store.clearHover()
+}
+
 function isV2Building(buildingId: string): boolean {
   return store.chains.some((c) => c.upgradedId === buildingId)
 }
@@ -104,6 +130,8 @@ function isV2Building(buildingId: string): boolean {
                   : 'text-base font-semibold text-[var(--text-2)]',
             ]"
             class="whitespace-nowrap"
+            @mouseenter="onItemMouseEnter"
+            @mouseleave="onItemMouseLeave"
           >
             {{ node.itemName }}
           </span>
@@ -148,16 +176,24 @@ function isV2Building(buildingId: string): boolean {
               :name="node.building!.name"
               :size="38"
             />
-            <span class="text-slate-300">{{ fmtBuildings(node.buildingsNeeded ?? 0) }}&times;</span>
-            {{ stripBuildingVersion(node.building!.name) }}
             <span
-              v-if="isV2Building(node.building!.id)"
-              class="text-[10px] font-bold text-[var(--accent-2)]"
-              >v2</span
+              class="inline-flex items-center gap-1"
+              @mouseenter="onBuildingMouseEnter"
+              @mouseleave="onBuildingMouseLeave"
             >
-            <span v-if="node.isOverridden" class="text-amber-400 ml-0.5" title="Overridden"
-              >&bull;</span
-            >
+              <span class="text-slate-300"
+                >{{ fmtBuildings(node.buildingsNeeded ?? 0) }}&times;</span
+              >
+              {{ stripBuildingVersion(node.building!.name) }}
+              <span
+                v-if="isV2Building(node.building!.id)"
+                class="text-[10px] font-bold text-[var(--accent-2)]"
+                >v2</span
+              >
+              <span v-if="node.isOverridden" class="text-amber-400 ml-0.5" title="Overridden"
+                >&bull;</span
+              >
+            </span>
           </span>
 
           <!-- Modular Building Tier Selector Component -->
@@ -181,22 +217,28 @@ function isV2Building(buildingId: string): boolean {
           @click="store.openBuildingDetail(node.building.id)"
         >
           <GameIcon :id="node.building.id" kind="building" :name="node.building.name" :size="38" />
-          <span class="text-slate-300"
-            >{{
-              store.showOverages && depth > 0 && !node.isCycle
-                ? Math.ceil(node.buildingsNeeded - 1e-9)
-                : fmtBuildings(node.buildingsNeeded)
-            }}&times;</span
-          >
-          {{ stripBuildingVersion(node.building.name) }}
           <span
-            v-if="isV2Building(node.building.id)"
-            class="text-[10px] font-bold text-[var(--accent-2)]"
-            >v2</span
+            class="inline-flex items-center gap-1"
+            @mouseenter="onBuildingMouseEnter"
+            @mouseleave="onBuildingMouseLeave"
           >
-          <span v-if="node.isOverridden" class="text-amber-400 ml-0.5" title="Overridden"
-            >&bull;</span
-          >
+            <span class="text-slate-300"
+              >{{
+                store.showOverages && depth > 0 && !node.isCycle
+                  ? Math.ceil(node.buildingsNeeded - 1e-9)
+                  : fmtBuildings(node.buildingsNeeded)
+              }}&times;</span
+            >
+            {{ stripBuildingVersion(node.building.name) }}
+            <span
+              v-if="isV2Building(node.building.id)"
+              class="text-[10px] font-bold text-[var(--accent-2)]"
+              >v2</span
+            >
+            <span v-if="node.isOverridden" class="text-amber-400 ml-0.5" title="Overridden"
+              >&bull;</span
+            >
+          </span>
         </span>
 
         <!-- Modular Building Tier Selector Component -->
