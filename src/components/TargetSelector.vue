@@ -161,7 +161,7 @@ function onRateChange() {
 </script>
 
 <template>
-  <div class="flex items-center gap-1.5 sm:gap-3 flex-wrap">
+  <div class="flex items-center gap-1.5 md:gap-2.5 lg:gap-3 flex-wrap">
     <!-- Item search -->
     <div class="relative shrink-0">
       <label class="sr-only" for="item-search">Search item</label>

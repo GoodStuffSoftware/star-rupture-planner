@@ -28,7 +28,10 @@ onMounted(() => {
     <header class="chamfer backdrop-blur-sm sticky top-0 relative overflow-hidden z-30">
       <div class="max-w-screen-xl mx-auto px-2 pt-3 pb-2 sm:px-4 flex flex-col gap-3">
         <!-- Row 1: title, version, target search + amount, share -->
-        <div id="header-row1" class="flex flex-wrap items-center gap-x-2 sm:gap-x-4 gap-y-2">
+        <div
+          id="header-row1"
+          class="flex flex-wrap items-center gap-x-2 md:gap-x-3 lg:gap-x-4 gap-y-2"
+        >
           <!-- Title -->
           <button
             class="flex items-center gap-1.5 sm:gap-2 hover:opacity-80 transition-opacity cursor-pointer shrink-0"
