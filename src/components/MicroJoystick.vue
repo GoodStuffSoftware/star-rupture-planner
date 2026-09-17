@@ -199,15 +199,15 @@ function triggerAction(side: 'left' | 'right' | 'down') {
       @mouseleave="handleMouseLeave"
     />
 
-    <!-- Down / Bottom-Center hover detection overlay (middle 30% bottom half) -->
+    <!-- Down / Bottom-Center hover detection overlay (middle 30% bottom third) -->
     <div
-      class="absolute left-[35%] w-[30%] bottom-0 h-1/2 z-20 cursor-pointer"
+      class="absolute left-[35%] w-[30%] bottom-0 h-1/3 z-20 cursor-pointer"
       @mouseenter="handleMouseEnter('down', $event)"
       @mouseleave="handleMouseLeave"
     />
 
-    <!-- Top-Center neutral hover detection overlay (middle 30% top half) -->
-    <div class="absolute left-[35%] w-[30%] top-0 h-1/2 z-20" @mouseenter="handleMouseLeave" />
+    <!-- Top-Center neutral hover detection overlay (middle 30% top 2/3) -->
+    <div class="absolute left-[35%] w-[30%] top-0 h-[67%] z-20" @mouseenter="handleMouseLeave" />
 
     <!-- Action flash pulse overlays -->
     <div
@@ -274,12 +274,12 @@ function triggerAction(side: 'left' | 'right' | 'down') {
         :class="props.canGoForward && !activeSide ? 'opacity-40 text-[var(--muted)]' : 'opacity-0'"
       />
 
-      <!-- Resting Down Track Line (Clean 6px line starting outside bottom circle radius y=20.5 to y=26.5) -->
+      <!-- Resting Down Track Line (Subtle 3.5px line starting outside bottom circle radius y=20.5 to y=24) -->
       <line
         x1="22"
         y1="20.5"
         x2="22"
-        y2="26.5"
+        y2="24"
         stroke="currentColor"
         stroke-width="1.5"
         stroke-linecap="round"
