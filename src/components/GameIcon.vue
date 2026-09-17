@@ -167,8 +167,14 @@ onUnmounted(() => {
   <!-- Normal image with hover-zoom -->
   <span
     v-else
-    class="inline-flex shrink-0"
-    :style="{ width: `${size}px`, height: `${size}px` }"
+    class="inline-flex shrink-0 select-none"
+    :style="{
+      width: `${size}px`,
+      height: `${size}px`,
+      WebkitTouchCallout: 'none',
+      WebkitUserSelect: 'none',
+      userSelect: 'none',
+    }"
     @mouseenter="onMouseEnter"
     @mousemove="onMouseMove"
     @mouseleave="onMouseLeave"
@@ -176,6 +182,7 @@ onUnmounted(() => {
     @touchmove.passive="onTouchMove"
     @touchend.passive="onTouchEnd"
     @touchcancel.passive="onTouchEnd"
+    @contextmenu.prevent
   >
     <img
       :src="`/icons/${kind}s/${id}.webp`"
@@ -183,8 +190,11 @@ onUnmounted(() => {
       :width="size"
       :height="size"
       loading="lazy"
-      class="rounded object-contain w-full h-full"
+      draggable="false"
+      class="rounded object-contain w-full h-full pointer-events-none select-none"
+      style="-webkit-touch-callout: none; -webkit-user-select: none; user-select: none"
       @error="onError"
+      @contextmenu.prevent
     />
 
     <!-- Teleport zoom preview to body so it's never clipped -->
@@ -220,7 +230,10 @@ onUnmounted(() => {
             <img
               :src="`/icons/${kind}s/${id}.webp`"
               :alt="name"
-              class="object-contain w-full h-full rounded-lg"
+              draggable="false"
+              class="object-contain w-full h-full rounded-lg select-none pointer-events-none"
+              style="-webkit-touch-callout: none; -webkit-user-select: none; user-select: none"
+              @contextmenu.prevent
             />
           </div>
           <!-- Name label below -->
