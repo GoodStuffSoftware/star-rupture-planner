@@ -109,7 +109,7 @@ function triggerAction(side: 'left' | 'right') {
 
 <template>
   <div
-    class="relative w-11 h-7 rounded-full bg-[var(--panel)] border border-[var(--border)] select-none shrink-0 overflow-hidden flex items-center justify-between shadow-inner group touch-none"
+    class="relative w-[66px] h-[42px] min-[859px]:w-11 min-[859px]:h-7 rounded-full bg-[var(--panel)] border border-[var(--border)] select-none shrink-0 overflow-hidden flex items-center justify-between shadow-inner group touch-none"
     title="Navigation Joystick (Click or Drag left for Back, right for Forward)"
     @pointerdown="onPointerDown"
     @pointermove="onPointerMove"

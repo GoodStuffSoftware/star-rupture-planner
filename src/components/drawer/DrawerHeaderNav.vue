@@ -170,7 +170,7 @@ watch(
 
 <template>
   <div
-    class="h-10 sm:h-9 border-b border-[var(--border)] px-3 flex items-center justify-between shrink-0 select-none relative bg-[var(--panel-2)] text-sm"
+    class="h-[52px] min-[859px]:h-9 border-b border-[var(--border)] px-3 flex items-center justify-between shrink-0 select-none relative bg-[var(--panel-2)] text-sm"
   >
     <!-- Left & Center Zone: Micro-Joystick + Sliding Breadcrumb Track -->
     <div class="flex items-center gap-1.5 min-w-0 flex-1">
@@ -221,7 +221,7 @@ watch(
           >
             <div
               v-if="isHistoryOpen"
-              class="absolute top-10 sm:top-9 left-0 z-[300] p-2 w-max max-w-[calc(100vw-72px)] max-h-[65vh] flex flex-col gap-2 select-none origin-top-left rounded-xl"
+              class="absolute top-[52px] min-[859px]:top-9 left-0 z-[300] p-2 w-max max-w-[calc(100vw-72px)] max-h-[65vh] flex flex-col gap-2 select-none origin-top-left rounded-xl"
               @click.stop
             >
               <!-- Dedicated background layer with soft blurred mask edges -->

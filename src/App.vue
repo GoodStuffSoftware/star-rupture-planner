@@ -60,24 +60,25 @@ onMounted(() => {
           </button>
 
           <!-- Divider -->
-          <div class="hidden sm:block w-px h-6 bg-[var(--border)] shrink-0" />
+          <div class="hidden min-[835px]:block w-px h-6 bg-[var(--border)] shrink-0" />
 
-          <!-- Controls: a full-width wrapping group on mobile; on sm+ it dissolves
-               (display:contents) so the items sit inline on the single nav row.
-               The add (+) button sits next to the per-minute amount, and Share is
-               pushed (ml-auto) to the very end of the header line. -->
-          <div class="flex flex-wrap items-center gap-x-3 gap-y-2 w-full sm:contents">
+          <!-- Controls: a full-width wrapping group on mobile (<835px); on >=835px it dissolves
+               (display:contents) so the items sit inline on the single nav row. -->
+          <div class="flex flex-wrap items-center gap-x-3 gap-y-2 w-full min-[835px]:contents">
             <!-- Version selector -->
             <span id="version-selector-wrap"><VersionSelector /></span>
 
             <!-- Divider — marks start of blur zone in row 1 -->
-            <div id="blur-start" class="hidden sm:block w-px h-6 bg-[var(--border)] shrink-0" />
+            <div
+              id="blur-start"
+              class="hidden min-[835px]:block w-px h-6 bg-[var(--border)] shrink-0"
+            />
 
             <!-- Target selector (edits the active tab). The add (+) button rides
                  in its trailing slot, so it stays on the per-minute line. With
-                 multiple recipes it's hidden at sm+ (the tab line carries it). -->
+                 multiple recipes it's hidden at >=835px (the tab line carries it). -->
             <TargetSelector>
-              <span :class="store.targets.length > 1 ? 'sm:hidden' : ''">
+              <span :class="store.targets.length > 1 ? 'min-[835px]:hidden' : ''">
                 <AddRecipeButton />
               </span>
             </TargetSelector>
