@@ -321,11 +321,11 @@ function triggerAction(side: 'left' | 'right' | 'down') {
    Positioning is percentage-based so the component scales to any pixel size!
    ========================================================================== */
 
-/* Root Pill Container (66x42 on mobile, 44x28 on desktop) */
+/* Root Pill Container (44x28px with 1:1 SVG Vector Alignment) */
 .micro-joystick {
   position: relative;
-  width: 66px;
-  height: 42px;
+  width: 44px;
+  height: 28px;
   border-radius: 9999px;
   background-color: var(--panel, #1e1b18);
   border: 1px solid var(--border, #3a342e);
@@ -334,13 +334,6 @@ function triggerAction(side: 'left' | 'right' | 'down') {
   overflow: hidden;
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.25);
   flex-shrink: 0;
-}
-
-@media (min-width: 859px) {
-  .micro-joystick {
-    width: 44px;
-    height: 28px;
-  }
 }
 
 /* --------------------------------------------------------------------------

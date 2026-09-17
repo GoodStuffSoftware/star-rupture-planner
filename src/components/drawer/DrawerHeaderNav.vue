@@ -196,7 +196,7 @@ watch(
         >
           <div
             v-if="isHistoryOpen"
-            class="absolute top-[52px] min-[859px]:top-9 left-0 z-[300] p-2 w-max max-w-[calc(100vw-72px)] max-h-[65vh] flex flex-col gap-2 select-none origin-top-left rounded-xl"
+            class="absolute top-full mt-1 left-0 z-[300] p-2 w-max max-w-[calc(100vw-32px)] max-h-[65vh] flex flex-col gap-2 select-none origin-top-left rounded-xl"
             @click.stop
           >
             <!-- Dedicated background layer with soft blurred mask edges -->
@@ -453,7 +453,7 @@ watch(
     <!-- Mobile Downward Breadcrumb Expansion Dropdown -->
     <div
       v-if="!props.isDesktop && isBreadcrumbExpanded && formattedHistory.length > 0"
-      class="absolute top-10 sm:top-9 left-14 z-[200] bg-[var(--panel)] border border-[var(--border)] rounded-lg shadow-xl p-2 min-w-[220px] max-w-[85vw] flex flex-col gap-1 text-sm animate-in fade-in duration-200"
+      class="absolute top-full mt-1 left-14 z-[200] bg-[var(--panel)] border border-[var(--border)] rounded-lg shadow-xl p-2 min-w-[220px] max-w-[85vw] flex flex-col gap-1 text-sm animate-in fade-in duration-200"
     >
       <div
         class="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider px-2 py-1 border-b border-[var(--border)]"
