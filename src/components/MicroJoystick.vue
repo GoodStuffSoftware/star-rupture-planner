@@ -27,68 +27,45 @@ const dragStartY = ref(0)
 const dragCurrentX = ref(0)
 const dragCurrentY = ref(0)
 
-const activeSide = computed<'left' | 'right' | 'down' | null>(() => {
+const activeDirection = computed<'none' | 'left' | 'right' | 'down'>(() => {
   if (flashSide.value) return flashSide.value
   if (isDragging.value) {
     const deltaX = dragCurrentX.value - dragStartX.value
     const deltaY = dragCurrentY.value - dragStartY.value
 
-    // Downward drag takes precedence when Y movement > 6px and exceeds X movement
-    if (deltaY > 6 && deltaY > Math.abs(deltaX)) {
-      return 'down'
-    }
+    if (deltaY > 6 && deltaY > Math.abs(deltaX) && props.hasHistory) return 'down'
     if (deltaX < -6 && Math.abs(deltaX) >= Math.abs(deltaY) && props.canGoBack) return 'left'
     if (deltaX > 6 && Math.abs(deltaX) >= Math.abs(deltaY) && props.canGoForward) return 'right'
 
     if (Math.abs(deltaX) <= 6 && Math.abs(deltaY) <= 6 && pointerDownSide.value) {
       if (pointerDownSide.value === 'left' && props.canGoBack) return 'left'
       if (pointerDownSide.value === 'right' && props.canGoForward) return 'right'
-      if (pointerDownSide.value === 'down') return 'down'
+      if (pointerDownSide.value === 'down' && props.hasHistory) return 'down'
     }
-    return null
+    return 'none'
   }
-  return hoverSide.value
+  return hoverSide.value ?? 'none'
 })
 
-const isFullDeflection = computed(() => {
-  if (flashSide.value) return true
+const deflectionLevel = computed<'none' | 'half' | 'full'>(() => {
+  if (activeDirection.value === 'none') return 'none'
+  if (flashSide.value) return 'full'
   if (isDragging.value) {
     const deltaX = dragCurrentX.value - dragStartX.value
     const deltaY = dragCurrentY.value - dragStartY.value
-    if (Math.abs(deltaX) > 6 || deltaY > 6) return true
+    if (Math.abs(deltaX) > 6 || deltaY > 6) return 'full'
+    if (pointerDownSide.value) return 'full'
   }
-  return false
+  // Mouse hover state uses half lean
+  return 'half'
 })
 
-// Compute dot position along X axis:
-// Hover = half lean (18 for left, 26 for right)
-// Active click / drag / flash = full deflection (14 for left, 30 for right)
-const dotX = computed(() => {
-  if (activeSide.value === 'left' && props.canGoBack) {
-    return isFullDeflection.value ? 14 : 18
-  }
-  if (activeSide.value === 'right' && props.canGoForward) {
-    return isFullDeflection.value ? 30 : 26
-  }
-  return 22
-})
-
-// Compute dot position along Y axis:
-// Hover down = half lean (17.5)
-// Active click / drag down / flash = full deflection (21)
-const dotY = computed(() => {
-  if (activeSide.value === 'down' && props.hasHistory) {
-    return isFullDeflection.value ? 21 : 17.5
-  }
-  return 14
-})
-
-function handleMouseEnter(side: 'left' | 'right' | 'down', e?: MouseEvent) {
+function onHover(side: 'left' | 'right' | 'down', e?: MouseEvent) {
   if (e && (e as PointerEvent).pointerType === 'touch') return
   if (!isDragging.value) hoverSide.value = side
 }
 
-function handleMouseLeave() {
+function onHoverLeave() {
   if (!isDragging.value) hoverSide.value = null
 }
 
@@ -104,7 +81,7 @@ function onPointerDown(e: PointerEvent) {
   const clickX = e.clientX - rect.left
   const clickY = e.clientY - rect.top
 
-  if (clickY > rect.height * 0.55 && clickX >= rect.width * 0.3 && clickX <= rect.width * 0.7) {
+  if (clickY > rect.height * 0.65 && clickX >= rect.width * 0.3 && clickX <= rect.width * 0.7) {
     pointerDownSide.value = 'down'
   } else {
     pointerDownSide.value = clickX < rect.width / 2 ? 'left' : 'right'
@@ -113,7 +90,7 @@ function onPointerDown(e: PointerEvent) {
   try {
     target.setPointerCapture(e.pointerId)
   } catch {
-    // Ignore pointer capture errors if touch
+    // Ignore pointer capture errors
   }
 }
 
@@ -135,28 +112,21 @@ function onPointerUp(e: PointerEvent) {
   pointerDownSide.value = null
   hoverSide.value = null
 
-  if (deltaY > 6 && deltaY > Math.abs(deltaX)) {
-    // Downward drag gesture (opens/toggles history)
+  if (deltaY > 6 && deltaY > Math.abs(deltaX) && props.hasHistory) {
     triggerAction('down')
   } else if (Math.abs(deltaX) > 6) {
-    // Horizontal drag gesture
-    if (deltaX < -6 && props.canGoBack) {
-      triggerAction('left')
-    } else if (deltaX > 6 && props.canGoForward) {
-      triggerAction('right')
-    }
+    if (deltaX < -6 && props.canGoBack) triggerAction('left')
+    else if (deltaX > 6 && props.canGoForward) triggerAction('right')
   } else {
-    // Click / Tap gesture (triggers left/right back/forward, or down if bottom quadrant clicked)
     if (clickX < rect.width * 0.35 && props.canGoBack) {
       triggerAction('left')
     } else if (clickX > rect.width * 0.65 && props.canGoForward) {
       triggerAction('right')
-    } else {
+    } else if (props.hasHistory) {
       triggerAction('down')
     }
   }
 
-  // Clear hoverSide again after synthetic mouse events fire on mobile touch
   setTimeout(() => {
     hoverSide.value = null
   }, 50)
@@ -175,180 +145,403 @@ function triggerAction(side: 'left' | 'right' | 'down') {
 
 <template>
   <div
-    class="relative w-[66px] h-[42px] min-[859px]:w-11 min-[859px]:h-7 rounded-full bg-[var(--panel)] border border-[var(--border)] select-none shrink-0 overflow-hidden flex items-center justify-between shadow-inner group touch-none"
+    class="micro-joystick"
+    :data-direction="activeDirection"
+    :data-deflection="deflectionLevel"
+    :class="{
+      'can-back': props.canGoBack,
+      'can-forward': props.canGoForward,
+      'has-history': props.hasHistory,
+    }"
     title="Navigation Joystick (Click left/right for Back/Forward, Drag down for History)"
     @pointerdown="onPointerDown"
     @pointermove="onPointerMove"
     @pointerup="onPointerUp"
     @pointercancel="onPointerUp"
-    @pointerleave="handleMouseLeave"
+    @pointerleave="onHoverLeave"
   >
-    <!-- Left hover detection overlay (left 35%) -->
-    <div
-      class="absolute left-0 top-0 w-[35%] h-full z-20"
-      :class="props.canGoBack ? 'cursor-pointer' : 'cursor-not-allowed'"
-      @mouseenter="handleMouseEnter('left', $event)"
-      @mouseleave="handleMouseLeave"
-    />
+    <!-- Background Action Pulse Flash -->
+    <div v-if="flashSide === 'left'" class="flash-pulse flash-left" />
+    <div v-if="flashSide === 'right'" class="flash-pulse flash-right" />
+    <div v-if="flashSide === 'down'" class="flash-pulse flash-down" />
 
-    <!-- Right hover detection overlay (right 35%) -->
-    <div
-      class="absolute right-0 top-0 w-[35%] h-full z-20"
-      :class="props.canGoForward ? 'cursor-pointer' : 'cursor-not-allowed'"
-      @mouseenter="handleMouseEnter('right', $event)"
-      @mouseleave="handleMouseLeave"
-    />
+    <!-- Resting Track Indicators -->
+    <div class="resting-track track-left">
+      <span class="chevron chevron-left" />
+      <span class="track-line-h" />
+    </div>
 
-    <!-- Down / Bottom-Center hover detection overlay (middle 30% bottom third) -->
-    <div
-      class="absolute left-[35%] w-[30%] bottom-0 h-1/3 z-20 cursor-pointer"
-      @mouseenter="handleMouseEnter('down', $event)"
-      @mouseleave="handleMouseLeave"
-    />
+    <div class="resting-track track-right">
+      <span class="track-line-h" />
+      <span class="chevron chevron-right" />
+    </div>
 
-    <!-- Top-Center neutral hover detection overlay (middle 30% top 2/3) -->
-    <div class="absolute left-[35%] w-[30%] top-0 h-[67%] z-20" @mouseenter="handleMouseLeave" />
+    <div class="resting-track track-down">
+      <span class="track-line-v" />
+    </div>
 
-    <!-- Action flash pulse overlays -->
-    <div
-      v-if="flashSide === 'left'"
-      class="absolute left-0 top-0 w-1/2 h-full bg-[var(--accent)]/40 z-10 animate-pulse pointer-events-none rounded-l-full"
-    />
-    <div
-      v-if="flashSide === 'right'"
-      class="absolute right-0 top-0 w-1/2 h-full bg-[var(--accent)]/40 z-10 animate-pulse pointer-events-none rounded-r-full"
-    />
-    <div
-      v-if="flashSide === 'down'"
-      class="absolute left-0 bottom-0 w-full h-1/2 bg-[var(--accent)]/40 z-10 animate-pulse pointer-events-none rounded-b-full"
-    />
+    <!-- Active Deflection Joystick Shaft/Arm -->
+    <div class="joystick-arm" />
 
-    <!-- SVG Schematic Overlay -->
-    <svg
-      class="w-full h-full pointer-events-none z-0"
-      viewBox="0 0 44 28"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <!-- Joystick Shaft/Arm (Thick line connecting center base 22,14 to active dot position) -->
-      <line
-        x1="22"
-        y1="14"
-        :x2="dotX"
-        :y2="dotY"
-        stroke="var(--accent)"
-        stroke-width="4"
-        stroke-linecap="round"
-        class="transition-all duration-300 ease-out"
-        :class="
-          activeSide &&
-          ((activeSide === 'left' && props.canGoBack) ||
-            (activeSide === 'right' && props.canGoForward) ||
-            (activeSide === 'down' && props.hasHistory))
-            ? 'opacity-100'
-            : 'opacity-0'
-        "
+    <!-- Center Base Pivot Point -->
+    <div class="joystick-pivot" />
+
+    <!-- Joystick Knob (Dot) -->
+    <div class="joystick-knob" />
+
+    <!-- Hover & Hit-Test Target Quadrants -->
+    <div class="hit-zones">
+      <div
+        class="hit-zone zone-left"
+        :class="props.canGoBack ? 'clickable' : 'disabled'"
+        @mouseenter="onHover('left', $event)"
+        @mouseleave="onHoverLeave"
       />
-
-      <!-- Resting Left Track Line (Only visible if canGoBack & not hovering/dragging) -->
-      <line
-        x1="10"
-        y1="14"
-        x2="15.5"
-        y2="14"
-        stroke="currentColor"
-        stroke-width="1"
-        class="transition-all duration-300 ease-out"
-        :class="props.canGoBack && !activeSide ? 'opacity-40 text-[var(--muted)]' : 'opacity-0'"
+      <div
+        class="hit-zone zone-right"
+        :class="props.canGoForward ? 'clickable' : 'disabled'"
+        @mouseenter="onHover('right', $event)"
+        @mouseleave="onHoverLeave"
       />
-
-      <!-- Resting Right Track Line (Only visible if canGoForward & not hovering/dragging) -->
-      <line
-        x1="28.5"
-        y1="14"
-        x2="34"
-        y2="14"
-        stroke="currentColor"
-        stroke-width="1"
-        class="transition-all duration-300 ease-out"
-        :class="props.canGoForward && !activeSide ? 'opacity-40 text-[var(--muted)]' : 'opacity-0'"
+      <div
+        class="hit-zone zone-down clickable"
+        @mouseenter="onHover('down', $event)"
+        @mouseleave="onHoverLeave"
       />
-
-      <!-- Resting Down Track Line (Subtle 3.5px line starting outside bottom circle radius y=20.5 to y=24) -->
-      <line
-        x1="22"
-        y1="20.5"
-        x2="22"
-        y2="24"
-        stroke="currentColor"
-        stroke-width="1.5"
-        stroke-linecap="round"
-        class="transition-all duration-300 ease-out"
-        :class="props.hasHistory && !activeSide ? 'opacity-50 text-[var(--muted)]' : 'opacity-0'"
-      />
-
-      <!-- Resting Left Arrowhead (Only visible if canGoBack & not hovering/dragging) -->
-      <path
-        d="M 12 11.5 L 9.5 14 L 12 16.5"
-        stroke="currentColor"
-        stroke-width="1"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        class="transition-all duration-300 ease-out"
-        :class="props.canGoBack && !activeSide ? 'opacity-40 text-[var(--muted)]' : 'opacity-0'"
-      />
-
-      <!-- Resting Right Arrowhead (Only visible if canGoForward & not hovering/dragging) -->
-      <path
-        d="M 32 11.5 L 34.5 14 L 32 16.5"
-        stroke="currentColor"
-        stroke-width="1"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        class="transition-all duration-300 ease-out"
-        :class="props.canGoForward && !activeSide ? 'opacity-40 text-[var(--muted)]' : 'opacity-0'"
-      />
-
-      <!-- Center Base Origin Indicator (Visible when joystick is deflected) -->
-      <circle
-        cx="22"
-        cy="14"
-        r="2"
-        fill="var(--accent)"
-        class="transition-opacity duration-300"
-        :class="
-          activeSide &&
-          ((activeSide === 'left' && props.canGoBack) ||
-            (activeSide === 'right' && props.canGoForward) ||
-            (activeSide === 'down' && props.hasHistory))
-            ? 'opacity-60'
-            : 'opacity-0'
-        "
-      />
-
-      <!-- Center Knob (Dot - sits cleanly on top of stick & track lines) -->
-      <circle
-        :cx="dotX"
-        :cy="dotY"
-        r="6.5"
-        class="transition-all duration-300 ease-out shadow-md"
-        :fill="
-          activeSide &&
-          ((activeSide === 'left' && props.canGoBack) ||
-            (activeSide === 'right' && props.canGoForward) ||
-            (activeSide === 'down' && props.hasHistory))
-            ? 'var(--accent)'
-            : 'currentColor'
-        "
-        :class="
-          activeSide &&
-          ((activeSide === 'left' && props.canGoBack) ||
-            (activeSide === 'right' && props.canGoForward) ||
-            (activeSide === 'down' && props.hasHistory))
-            ? 'opacity-100'
-            : 'opacity-60 text-[var(--muted)]'
-        "
-      />
-    </svg>
+      <div class="hit-zone zone-top-neutral" @mouseenter="onHoverLeave" />
+    </div>
   </div>
 </template>
+
+<style scoped>
+/* ==========================================================================
+   MicroJoystick - Custom HTML/CSS Component Architecture
+   Clean, self-describing CSS with zero Tailwind utility dependencies
+   ========================================================================== */
+
+/* Root Pill Container */
+.micro-joystick {
+  position: relative;
+  width: 66px;
+  height: 42px;
+  border-radius: 9999px;
+  background-color: var(--panel, #1e1b18);
+  border: 1px solid var(--border, #3a342e);
+  user-select: none;
+  touch-action: none;
+  overflow: hidden;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.25);
+  flex-shrink: 0;
+  transition:
+    width 0.2s ease,
+    height 0.2s ease;
+}
+
+/* Scaled size for Desktop viewports (>=859px) */
+@media (min-width: 859px) {
+  .micro-joystick {
+    width: 44px;
+    height: 28px;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Center Pivot Point (Origin dot when stick is deflected)
+   -------------------------------------------------------------------------- */
+.joystick-pivot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background-color: var(--accent, #ee8b22);
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.micro-joystick[data-direction='left'].can-back .joystick-pivot,
+.micro-joystick[data-direction='right'].can-forward .joystick-pivot,
+.micro-joystick[data-direction='down'].has-history .joystick-pivot {
+  opacity: 0.6;
+}
+
+/* --------------------------------------------------------------------------
+   Joystick Shaft / Connecting Arm
+   -------------------------------------------------------------------------- */
+.joystick-arm {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  height: 4px;
+  width: 0px;
+  background-color: var(--accent, #ee8b22);
+  border-radius: 9999px;
+  transform-origin: left center;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    width 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.3s ease;
+}
+
+/* Shaft deflection transforms */
+.micro-joystick[data-direction='left'][data-deflection='half'].can-back .joystick-arm {
+  width: 18%;
+  transform: translate(0, -50%) rotate(180deg);
+  opacity: 1;
+}
+.micro-joystick[data-direction='left'][data-deflection='full'].can-back .joystick-arm {
+  width: 36%;
+  transform: translate(0, -50%) rotate(180deg);
+  opacity: 1;
+}
+
+.micro-joystick[data-direction='right'][data-deflection='half'].can-forward .joystick-arm {
+  width: 18%;
+  transform: translate(0, -50%) rotate(0deg);
+  opacity: 1;
+}
+.micro-joystick[data-direction='right'][data-deflection='full'].can-forward .joystick-arm {
+  width: 36%;
+  transform: translate(0, -50%) rotate(0deg);
+  opacity: 1;
+}
+
+.micro-joystick[data-direction='down'][data-deflection='half'].has-history .joystick-arm {
+  width: 18%;
+  transform: translate(0, -50%) rotate(90deg);
+  opacity: 1;
+}
+.micro-joystick[data-direction='down'][data-deflection='full'].has-history .joystick-arm {
+  width: 32%;
+  transform: translate(0, -50%) rotate(90deg);
+  opacity: 1;
+}
+
+/* --------------------------------------------------------------------------
+   Joystick Knob (Center Dot)
+   -------------------------------------------------------------------------- */
+.joystick-knob {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background-color: var(--text, #f3f1ee);
+  opacity: 0.6;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 5;
+  transition:
+    transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 0.3s ease,
+    opacity 0.3s ease;
+}
+
+/* Knob deflection offsets: Half-lean vs Full-deflection */
+.micro-joystick[data-direction='left'][data-deflection='half'].can-back .joystick-knob {
+  transform: translate(-110%, -50%);
+  background-color: var(--accent, #ee8b22);
+  opacity: 1;
+}
+.micro-joystick[data-direction='left'][data-deflection='full'].can-back .joystick-knob {
+  transform: translate(-170%, -50%);
+  background-color: var(--accent, #ee8b22);
+  opacity: 1;
+}
+
+.micro-joystick[data-direction='right'][data-deflection='half'].can-forward .joystick-knob {
+  transform: translate(10%, -50%);
+  background-color: var(--accent, #ee8b22);
+  opacity: 1;
+}
+.micro-joystick[data-direction='right'][data-deflection='full'].can-forward .joystick-knob {
+  transform: translate(70%, -50%);
+  background-color: var(--accent, #ee8b22);
+  opacity: 1;
+}
+
+.micro-joystick[data-direction='down'][data-deflection='half'].has-history .joystick-knob {
+  transform: translate(-50%, 0%);
+  background-color: var(--accent, #ee8b22);
+  opacity: 1;
+}
+.micro-joystick[data-direction='down'][data-deflection='full'].has-history .joystick-knob {
+  transform: translate(-50%, 50%);
+  background-color: var(--accent, #ee8b22);
+  opacity: 1;
+}
+
+/* --------------------------------------------------------------------------
+   Resting Track Indicators & Arrowheads
+   -------------------------------------------------------------------------- */
+.resting-track {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  color: var(--muted, #a8a29a);
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.micro-joystick.can-back[data-direction='none'] .track-left {
+  opacity: 0.4;
+}
+.micro-joystick.can-forward[data-direction='none'] .track-right {
+  opacity: 0.4;
+}
+.micro-joystick.has-history[data-direction='none'] .track-down {
+  opacity: 0.5;
+}
+
+.track-left {
+  left: 14%;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.track-right {
+  right: 14%;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.track-down {
+  bottom: 8%;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.track-line-h {
+  width: 7px;
+  height: 1px;
+  background-color: currentColor;
+}
+
+.track-line-v {
+  width: 1.5px;
+  height: 4px;
+  background-color: currentColor;
+  border-radius: 1px;
+}
+
+.chevron {
+  width: 5px;
+  height: 5px;
+  border-top: 1.5px solid currentColor;
+  border-left: 1.5px solid currentColor;
+}
+
+.chevron-left {
+  transform: rotate(-45deg);
+}
+
+.chevron-right {
+  transform: rotate(135deg);
+}
+
+/* --------------------------------------------------------------------------
+   Hit Testing & Hover Quadrant Grid
+   -------------------------------------------------------------------------- */
+.hit-zones {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  pointer-events: auto;
+}
+
+.hit-zone {
+  position: absolute;
+}
+
+.hit-zone.clickable {
+  cursor: pointer;
+}
+
+.hit-zone.disabled {
+  cursor: not-allowed;
+}
+
+.zone-left {
+  left: 0;
+  top: 0;
+  width: 35%;
+  height: 100%;
+}
+
+.zone-right {
+  right: 0;
+  top: 0;
+  width: 35%;
+  height: 100%;
+}
+
+.zone-down {
+  left: 35%;
+  width: 30%;
+  bottom: 0;
+  height: 33%;
+}
+
+.zone-top-neutral {
+  left: 35%;
+  width: 30%;
+  top: 0;
+  height: 67%;
+}
+
+/* --------------------------------------------------------------------------
+   Action Pulse Flash Overlays
+   -------------------------------------------------------------------------- */
+.flash-pulse {
+  position: absolute;
+  background-color: rgba(238, 139, 34, 0.4);
+  z-index: 10;
+  pointer-events: none;
+  animation: flashPulse 0.3s ease-out;
+}
+
+.flash-left {
+  left: 0;
+  top: 0;
+  width: 50%;
+  height: 100%;
+  border-top-left-radius: 9999px;
+  border-bottom-left-radius: 9999px;
+}
+
+.flash-right {
+  right: 0;
+  top: 0;
+  width: 50%;
+  height: 100%;
+  border-top-right-radius: 9999px;
+  border-bottom-right-radius: 9999px;
+}
+
+.flash-down {
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 50%;
+  border-bottom-left-radius: 9999px;
+  border-bottom-right-radius: 9999px;
+}
+
+@keyframes flashPulse {
+  0% {
+    opacity: 0.8;
+  }
+  100% {
+    opacity: 0.2;
+  }
+}
+</style>
