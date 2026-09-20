@@ -1,5 +1,5 @@
 import type { TierSelection } from './recipeIndex'
-import type { VersionOverrides, RecipeOverrides, Overages } from '../types/game'
+import type { VersionOverrides, RecipeOverrides, Overages, NodeExpansion } from '../types/game'
 import { DEFAULT_VERSION } from '../data/versions'
 
 // ─── Shared state types ───────────────────────────────────────────────────────
@@ -10,6 +10,7 @@ export interface PlanTargetState {
   targetRate: number
   overages: Overages
   expandLevel?: number // per-tab expand scope
+  expanded?: NodeExpansion // per-tab manual caret toggles (deviations from expandLevel)
 }
 
 export interface PlanState {

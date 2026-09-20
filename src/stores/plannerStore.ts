@@ -6,6 +6,7 @@ import type {
   VersionOverrides,
   RecipeOverrides,
   Overages,
+  NodeExpansion,
   ItemType,
 } from '../types/game'
 import {
@@ -36,6 +37,13 @@ export interface PlanTarget {
   targetRate: number
   overages: Overages
   expandLevel: number
+  /**
+   * Manual caret toggles for this tab, keyed by CraftNode.path. Only nodes the
+   * user moved away from the `expandLevel` default are kept — everything else
+   * falls back to `depth < expandLevel`. Living on the target (not in the node
+   * component) is what makes expansion survive a tab switch.
+   */
+  expanded: NodeExpansion
 }
 
 let _tidSeq = 0
@@ -55,7 +63,14 @@ export const usePlannerStore = defineStore('planner', () => {
 
   // Multi-target tabs
   const targets = ref<PlanTarget[]>([
-    { tid: _newTid(), targetItemId: null, targetRate: 60, overages: {}, expandLevel: 2 },
+    {
+      tid: _newTid(),
+      targetItemId: null,
+      targetRate: 60,
+      overages: {},
+      expandLevel: 2,
+      expanded: {},
+    },
   ])
   const activeTargetId = ref<string>(targets.value[0].tid)
 
@@ -88,6 +103,25 @@ export const usePlannerStore = defineStore('planner', () => {
       if (activeTarget.value) activeTarget.value.expandLevel = v
     },
   })
+  const expanded = computed<NodeExpansion>(() => activeTarget.value?.expanded ?? {})
+
+  /** Effective expanded state for a tree row: manual toggle wins, else the tab's level. */
+  function isNodeExpanded(path: string, depth: number): boolean {
+    return expanded.value[path] ?? depth < expandLevel.value
+  }
+
+  /**
+   * Flip a row's caret on the active tab. Toggling a row back to what its
+   * expandLevel would give drops the entry, so the map only ever holds real
+   * deviations and a level change can reset everything by clearing it.
+   */
+  function toggleNode(path: string, depth: number): void {
+    const t = activeTarget.value
+    if (!t) return
+    const next = !isNodeExpanded(path, depth)
+    if (next === depth < t.expandLevel) delete t.expanded[path]
+    else t.expanded[path] = next
+  }
 
   // Derived available buildings & producer index based on selected tiers
   const availableBuildings = computed(() =>
@@ -273,6 +307,17 @@ export const usePlannerStore = defineStore('planner', () => {
           return out
         }
 
+        // Expansion is keyed by node path, which only makes sense against the
+        // tree the tab resolves to — keep well-formed entries, drop the rest.
+        const validateExpanded = (raw: NodeExpansion | undefined): NodeExpansion => {
+          const out: NodeExpansion = {}
+          for (const [path, open] of Object.entries(raw ?? {})) {
+            const leafItemId = path.split('>').pop() ?? ''
+            if (freshItemsById.has(leafItemId) && typeof open === 'boolean') out[path] = open
+          }
+          return out
+        }
+
         const sources: PlanTargetState[] =
           plan.targets && plan.targets.length
             ? plan.targets
@@ -303,6 +348,7 @@ export const usePlannerStore = defineStore('planner', () => {
             targetRate: rate,
             overages: validateOverages(s.overages),
             expandLevel: exp,
+            expanded: validateExpanded(s.expanded),
           }
         })
         if (restoredTargets.length === 0) {
@@ -312,6 +358,7 @@ export const usePlannerStore = defineStore('planner', () => {
             targetRate: fallbackItem ? defaultRateForItem(fallbackItem) : 60,
             expandLevel: prefsStore.defaultExpandLevel,
             overages: {},
+            expanded: {},
           })
         }
         targets.value = restoredTargets
@@ -334,6 +381,7 @@ export const usePlannerStore = defineStore('planner', () => {
             targetRate: newTarget ? defaultRateForItem(newTarget) : 60,
             overages: {},
             expandLevel: prefsStore.defaultExpandLevel,
+            expanded: {},
           },
         ]
         activeTargetId.value = targets.value[0].tid
@@ -363,6 +411,7 @@ export const usePlannerStore = defineStore('planner', () => {
   function setTarget(itemId: string, rate: number) {
     const t = activeTarget.value
     if (!t) return
+    if (t.targetItemId !== itemId) t.expanded = {}
     t.targetItemId = itemId
     t.targetRate = rate
   }
@@ -383,6 +432,7 @@ export const usePlannerStore = defineStore('planner', () => {
       targetRate: itemId ? defaultRateForItem(itemId) : 60,
       overages: {},
       expandLevel: activeTarget.value?.expandLevel ?? prefsStore.defaultExpandLevel,
+      expanded: {},
     })
     activeTargetId.value = tid
   }
@@ -406,6 +456,7 @@ export const usePlannerStore = defineStore('planner', () => {
         targetRate: newItem ? defaultRateForItem(newItem) : 60,
         overages: {},
         expandLevel: prefsStore.defaultExpandLevel,
+        expanded: {},
       })
     }
     if (activeTargetId.value === ALL_TARGETS_ID) {
@@ -428,6 +479,8 @@ export const usePlannerStore = defineStore('planner', () => {
   function selectTargetItem(itemId: string) {
     const t = activeTarget.value
     if (!t) return
+    // A different target means a different tree — the old paths no longer apply.
+    if (t.targetItemId !== itemId) t.expanded = {}
     t.targetItemId = itemId
     t.targetRate = defaultRateForItem(itemId)
   }
@@ -480,6 +533,9 @@ export const usePlannerStore = defineStore('planner', () => {
   }
 
   function setExpandLevel(n: number) {
+    // Picking a level is a reset: drop the tab's manual caret toggles so every
+    // row follows the new level, the way the level buttons always behaved.
+    if (activeTarget.value) activeTarget.value.expanded = {}
     expandLevel.value = n
   }
 
@@ -496,6 +552,7 @@ export const usePlannerStore = defineStore('planner', () => {
       targetRate: t.targetRate,
       overages: t.overages,
       expandLevel: t.expandLevel,
+      expanded: t.expanded,
     }))
     return {
       version: dataStore.version,
@@ -652,6 +709,7 @@ export const usePlannerStore = defineStore('planner', () => {
     targetRate,
     overages,
     expandLevel,
+    expanded,
     availableBuildings,
     producerIndex,
     isAllView,
@@ -680,6 +738,8 @@ export const usePlannerStore = defineStore('planner', () => {
     setOverage,
     clearOverages,
     setExpandLevel,
+    isNodeExpanded,
+    toggleNode,
     buildShareUrl,
   }
 })

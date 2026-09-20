@@ -57,6 +57,12 @@ export type RecipeOverrides = Record<string, string>
 // (negative = intentional deficit). See CraftNode.path for the key format.
 export type Overages = Record<string, number>
 
+// Per-occurrence manual expand/collapse: node path -> expanded. Only nodes the
+// user toggled away from the tab's expandLevel default are stored, so the map
+// stays small and an expandLevel change can reset it by clearing it.
+// See CraftNode.path for the key format.
+export type NodeExpansion = Record<string, boolean>
+
 // Resolved crafting-tree node
 export interface CraftNode {
   itemId: string

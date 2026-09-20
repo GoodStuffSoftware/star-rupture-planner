@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Recursive crafting-tree node: item + producer + per-node version picker.
-import { ref, watch } from 'vue'
+import { computed } from 'vue'
 import type { CraftNode } from '../types/game'
 import { fmtBuildings } from '../lib/format'
 import { itemTypeChipClass } from '../lib/itemTypeChip'
@@ -18,15 +18,14 @@ const props = defineProps<{
 
 const store = usePlannerStore()
 
-// Expanded based on expandLevel from store; caret toggle still works locally
-const expanded = ref(props.depth < store.expandLevel)
+// Expansion lives on the active tab (keyed by node path) rather than in this
+// component, so caret toggles survive a tab switch and re-render. Falls back to
+// the tab's expandLevel for rows the user hasn't touched.
+const expanded = computed(() => store.isNodeExpanded(props.node.path, props.depth))
 
-watch(
-  () => store.expandLevel,
-  (l) => {
-    expanded.value = props.depth < l
-  },
-)
+function toggleExpanded() {
+  store.toggleNode(props.node.path, props.depth)
+}
 
 const depthBorderColors = [
   'border-cyan-700/60',
@@ -92,7 +91,7 @@ function isV2Building(buildingId: string): boolean {
       <button
         v-if="node.children.length > 0"
         class="w-4 h-4 shrink-0 flex items-center justify-center text-[var(--muted-2)] hover:text-[var(--accent)] transition-colors"
-        @click="expanded = !expanded"
+        @click="toggleExpanded"
       >
         <svg
           :class="expanded ? 'rotate-90' : ''"
@@ -253,7 +252,7 @@ function isV2Building(buildingId: string): boolean {
     <div v-if="expanded && node.children.length > 0" class="mt-0.5">
       <CraftTreeNode
         v-for="child in node.children"
-        :key="child.itemId"
+        :key="child.path"
         :node="child"
         :depth="depth + 1"
       />
