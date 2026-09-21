@@ -43,7 +43,8 @@ export interface ViewPrefs {
 
 // ─── LocalStorage key ─────────────────────────────────────────────────────────
 
-const LS_KEY = 'srp:state:v1'
+/** Exported so the planner store can match it against `storage` events. */
+export const LS_KEY = 'srp:state:v1'
 
 // ─── save / loadSaved ─────────────────────────────────────────────────────────
 

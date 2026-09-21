@@ -1,7 +1,10 @@
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { defineStore } from 'pinia'
 import type {
   CraftNode,
+  Item,
+  Building,
+  UpgradeChain,
   Totals,
   VersionOverrides,
   RecipeOverrides,
@@ -24,6 +27,7 @@ import {
   loadSaved,
   encodePlan,
   decodePlanFromUrl,
+  LS_KEY,
   type PlanState,
   type PlanTargetState,
 } from '../lib/persistState'
@@ -244,148 +248,160 @@ export const usePlannerStore = defineStore('planner', () => {
     return out && out > 0 ? out : 60
   }
 
+  /**
+   * Apply a plan — or fall back to defaults — against an ALREADY-loaded
+   * game-data set. Split out of `load` so cross-tab sync can re-hydrate from a
+   * sibling tab's save without refetching JSON or flashing the loading spinner.
+   */
+  function _applyPlan(
+    v: string,
+    plan: PlanState | null | undefined,
+    data: { items: Item[]; buildings: Building[]; chains: UpgradeChain[] },
+  ) {
+    const defaultTier: TierSelection = {}
+    for (const chain of data.chains) {
+      if (chain.isProduction) {
+        defaultTier[chain.baseId] = 'v1'
+      }
+    }
+
+    if (plan && plan.version === v) {
+      const restoredTier: TierSelection = { ...defaultTier }
+      for (const [baseId, val] of Object.entries(plan.tier)) {
+        if ((val === 'v1' || val === 'v2') && baseId in defaultTier) {
+          restoredTier[baseId] = val
+        }
+      }
+      tier.value = restoredTier
+
+      const freshFullIndex = buildProducerIndex(
+        data.buildings,
+        new Set(data.chains.map((c) => c.upgradedId)),
+      )
+      const freshItemsById = new Map(data.items.map((i) => [i.id, i]))
+
+      const restoredOverrides: VersionOverrides = {}
+      for (const [itemId, buildingId] of Object.entries(plan.overrides)) {
+        if (!freshItemsById.has(itemId)) continue
+        const producers = freshFullIndex.get(itemId)
+        if (producers?.some((e) => e.building.id === buildingId)) {
+          restoredOverrides[itemId] = buildingId
+        }
+      }
+      overrides.value = restoredOverrides
+
+      const restoredRecipeOverrides: RecipeOverrides = {}
+      for (const [itemId, rKey] of Object.entries(plan.recipeOverrides ?? {})) {
+        if (freshItemsById.has(itemId) && typeof rKey === 'string') {
+          restoredRecipeOverrides[itemId] = rKey
+        }
+      }
+      recipeOverrides.value = restoredRecipeOverrides
+
+      const fallbackItem =
+        data.items.find((i) => i.type === 'component')?.id ?? data.items[0]?.id ?? null
+
+      const validateOverages = (raw: Overages | undefined): Overages => {
+        const out: Overages = {}
+        for (const [path, extra] of Object.entries(raw ?? {})) {
+          const leafItemId = path.split('>').pop() ?? ''
+          if (
+            freshItemsById.has(leafItemId) &&
+            typeof extra === 'number' &&
+            isFinite(extra) &&
+            extra !== 0
+          ) {
+            out[path] = extra
+          }
+        }
+        return out
+      }
+
+      // Expansion is keyed by node path, which only makes sense against the
+      // tree the tab resolves to — keep well-formed entries, drop the rest.
+      const validateExpanded = (raw: NodeExpansion | undefined): NodeExpansion => {
+        const out: NodeExpansion = {}
+        for (const [path, open] of Object.entries(raw ?? {})) {
+          const leafItemId = path.split('>').pop() ?? ''
+          if (freshItemsById.has(leafItemId) && typeof open === 'boolean') out[path] = open
+        }
+        return out
+      }
+
+      const sources: PlanTargetState[] =
+        plan.targets && plan.targets.length
+          ? plan.targets
+          : [
+              {
+                targetItemId: plan.targetItemId,
+                targetRate: plan.targetRate,
+                overages: plan.overages ?? {},
+              },
+            ]
+
+      const restoredTargets: PlanTarget[] = sources.map((s) => {
+        const validItem =
+          s.targetItemId && freshItemsById.has(s.targetItemId) ? s.targetItemId : fallbackItem
+        const rate =
+          typeof s.targetRate === 'number' && isFinite(s.targetRate) && s.targetRate > 0
+            ? s.targetRate
+            : validItem
+              ? defaultRateForItem(validItem)
+              : 60
+        const exp =
+          typeof s.expandLevel === 'number' && s.expandLevel >= 0
+            ? s.expandLevel
+            : prefsStore.defaultExpandLevel
+        return {
+          tid: _newTid(),
+          targetItemId: validItem,
+          targetRate: rate,
+          overages: validateOverages(s.overages),
+          expandLevel: exp,
+          expanded: validateExpanded(s.expanded),
+        }
+      })
+      if (restoredTargets.length === 0) {
+        restoredTargets.push({
+          tid: _newTid(),
+          targetItemId: fallbackItem,
+          targetRate: fallbackItem ? defaultRateForItem(fallbackItem) : 60,
+          expandLevel: prefsStore.defaultExpandLevel,
+          overages: {},
+          expanded: {},
+        })
+      }
+      targets.value = restoredTargets
+      const ai = plan.activeTargetIndex ?? 0
+      activeTargetId.value =
+        ai === -1 && restoredTargets.length > 1
+          ? ALL_TARGETS_ID
+          : restoredTargets[Math.min(Math.max(ai, 0), restoredTargets.length - 1)].tid
+    } else {
+      tier.value = defaultTier
+      overrides.value = {}
+      recipeOverrides.value = {}
+
+      const newTarget =
+        data.items.find((i) => i.type === 'component')?.id ?? data.items[0]?.id ?? null
+      targets.value = [
+        {
+          tid: _newTid(),
+          targetItemId: newTarget,
+          targetRate: newTarget ? defaultRateForItem(newTarget) : 60,
+          overages: {},
+          expandLevel: prefsStore.defaultExpandLevel,
+          expanded: {},
+        },
+      ]
+      activeTargetId.value = targets.value[0].tid
+    }
+  }
+
   async function load(v: string, plan?: PlanState | null) {
     try {
       const data = await dataStore.loadData(v)
-
-      const defaultTier: TierSelection = {}
-      for (const chain of data.chains) {
-        if (chain.isProduction) {
-          defaultTier[chain.baseId] = 'v1'
-        }
-      }
-
-      if (plan && plan.version === v) {
-        const restoredTier: TierSelection = { ...defaultTier }
-        for (const [baseId, val] of Object.entries(plan.tier)) {
-          if ((val === 'v1' || val === 'v2') && baseId in defaultTier) {
-            restoredTier[baseId] = val
-          }
-        }
-        tier.value = restoredTier
-
-        const freshFullIndex = buildProducerIndex(
-          data.buildings,
-          new Set(data.chains.map((c) => c.upgradedId)),
-        )
-        const freshItemsById = new Map(data.items.map((i) => [i.id, i]))
-
-        const restoredOverrides: VersionOverrides = {}
-        for (const [itemId, buildingId] of Object.entries(plan.overrides)) {
-          if (!freshItemsById.has(itemId)) continue
-          const producers = freshFullIndex.get(itemId)
-          if (producers?.some((e) => e.building.id === buildingId)) {
-            restoredOverrides[itemId] = buildingId
-          }
-        }
-        overrides.value = restoredOverrides
-
-        const restoredRecipeOverrides: RecipeOverrides = {}
-        for (const [itemId, rKey] of Object.entries(plan.recipeOverrides ?? {})) {
-          if (freshItemsById.has(itemId) && typeof rKey === 'string') {
-            restoredRecipeOverrides[itemId] = rKey
-          }
-        }
-        recipeOverrides.value = restoredRecipeOverrides
-
-        const fallbackItem =
-          data.items.find((i) => i.type === 'component')?.id ?? data.items[0]?.id ?? null
-
-        const validateOverages = (raw: Overages | undefined): Overages => {
-          const out: Overages = {}
-          for (const [path, extra] of Object.entries(raw ?? {})) {
-            const leafItemId = path.split('>').pop() ?? ''
-            if (
-              freshItemsById.has(leafItemId) &&
-              typeof extra === 'number' &&
-              isFinite(extra) &&
-              extra !== 0
-            ) {
-              out[path] = extra
-            }
-          }
-          return out
-        }
-
-        // Expansion is keyed by node path, which only makes sense against the
-        // tree the tab resolves to — keep well-formed entries, drop the rest.
-        const validateExpanded = (raw: NodeExpansion | undefined): NodeExpansion => {
-          const out: NodeExpansion = {}
-          for (const [path, open] of Object.entries(raw ?? {})) {
-            const leafItemId = path.split('>').pop() ?? ''
-            if (freshItemsById.has(leafItemId) && typeof open === 'boolean') out[path] = open
-          }
-          return out
-        }
-
-        const sources: PlanTargetState[] =
-          plan.targets && plan.targets.length
-            ? plan.targets
-            : [
-                {
-                  targetItemId: plan.targetItemId,
-                  targetRate: plan.targetRate,
-                  overages: plan.overages ?? {},
-                },
-              ]
-
-        const restoredTargets: PlanTarget[] = sources.map((s) => {
-          const validItem =
-            s.targetItemId && freshItemsById.has(s.targetItemId) ? s.targetItemId : fallbackItem
-          const rate =
-            typeof s.targetRate === 'number' && isFinite(s.targetRate) && s.targetRate > 0
-              ? s.targetRate
-              : validItem
-                ? defaultRateForItem(validItem)
-                : 60
-          const exp =
-            typeof s.expandLevel === 'number' && s.expandLevel >= 0
-              ? s.expandLevel
-              : prefsStore.defaultExpandLevel
-          return {
-            tid: _newTid(),
-            targetItemId: validItem,
-            targetRate: rate,
-            overages: validateOverages(s.overages),
-            expandLevel: exp,
-            expanded: validateExpanded(s.expanded),
-          }
-        })
-        if (restoredTargets.length === 0) {
-          restoredTargets.push({
-            tid: _newTid(),
-            targetItemId: fallbackItem,
-            targetRate: fallbackItem ? defaultRateForItem(fallbackItem) : 60,
-            expandLevel: prefsStore.defaultExpandLevel,
-            overages: {},
-            expanded: {},
-          })
-        }
-        targets.value = restoredTargets
-        const ai = plan.activeTargetIndex ?? 0
-        activeTargetId.value =
-          ai === -1 && restoredTargets.length > 1
-            ? ALL_TARGETS_ID
-            : restoredTargets[Math.min(Math.max(ai, 0), restoredTargets.length - 1)].tid
-      } else {
-        tier.value = defaultTier
-        overrides.value = {}
-        recipeOverrides.value = {}
-
-        const newTarget =
-          data.items.find((i) => i.type === 'component')?.id ?? data.items[0]?.id ?? null
-        targets.value = [
-          {
-            tid: _newTid(),
-            targetItemId: newTarget,
-            targetRate: newTarget ? defaultRateForItem(newTarget) : 60,
-            overages: {},
-            expandLevel: prefsStore.defaultExpandLevel,
-            expanded: {},
-          },
-        ]
-        activeTargetId.value = targets.value[0].tid
-      }
+      _applyPlan(v, plan, data)
     } catch {
       // handled in dataStore
     }
@@ -583,11 +599,74 @@ export const usePlannerStore = defineStore('planner', () => {
   // Persistence watcher
   let _saveTimer: ReturnType<typeof setTimeout> | null = null
   function _scheduleSave() {
+    // While adopting a sibling tab's state, our own watchers fire for every ref
+    // we touch. Saving then would write our copy straight back out and bounce
+    // the change to the other tab — so stay quiet until adoption settles.
+    if (_adopting) return
     if (_saveTimer !== null) clearTimeout(_saveTimer)
     _saveTimer = setTimeout(() => {
       _saveTimer = null
       save(_planState(), prefsStore.getPrefs())
     }, 300)
+  }
+
+  // ─── Cross-tab sync ────────────────────────────────────────────────────────
+  // The whole plan lives in one localStorage blob on a debounced save, so two
+  // browser tabs of the app would otherwise clobber each other last-writer-wins.
+  // `storage` fires only in OTHER tabs, never the one that wrote, so each tab
+  // adopts whatever its sibling just saved and the two converge instead of
+  // fighting. No per-tab slots, so nothing to garbage-collect when a tab closes.
+  let _adopting = false
+  let _adoptDepth = 0
+  let _adoptSeq = 0
+  let _lastAdoptedRaw: string | null = null
+
+  async function _adoptFromStorage(raw: string | null) {
+    // Cleared storage, or an echo of what we already took — nothing to do.
+    if (!raw || raw === _lastAdoptedRaw) return
+    _lastAdoptedRaw = raw
+
+    const incoming = loadSaved()
+    if (!incoming?.plan) return
+
+    // Depth-counted so overlapping events can't release the guard early.
+    const gen = ++_adoptSeq
+    _adoptDepth++
+    _adopting = true
+    try {
+      // Prefs share the blob; initPrefs re-reads them and reapplies the theme.
+      prefsStore.initPrefs()
+      if (incoming.plan.version === dataStore.version) {
+        // Same game data already in memory — re-hydrate in place, no refetch.
+        _applyPlan(dataStore.version, incoming.plan, {
+          items: dataStore.items,
+          buildings: dataStore.buildings,
+          chains: dataStore.chains,
+        })
+      } else {
+        // Sibling switched game version: that one does need a data load. Hold
+        // the guard across the await, or the post-load watchers would bounce
+        // the state right back at the tab we just took it from. Fetch and apply
+        // separately so a newer adopt that landed while we waited isn't undone
+        // by this staler one (3+ tabs, one of them switching version).
+        const data = await dataStore.loadData(incoming.plan.version)
+        if (gen !== _adoptSeq) return
+        _applyPlan(incoming.plan.version, incoming.plan, data)
+      }
+      // Watchers are pre-flush, so they have all run once nextTick resolves.
+      await nextTick()
+    } catch {
+      // Data fetch failed — dataStore surfaces the error; keep current state.
+    } finally {
+      if (--_adoptDepth === 0) _adopting = false
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('storage', (e) => {
+      if (e.key !== null && e.key !== LS_KEY) return
+      void _adoptFromStorage(e.key === null ? localStorage.getItem(LS_KEY) : e.newValue)
+    })
   }
 
   watch(() => dataStore.version, _scheduleSave)
