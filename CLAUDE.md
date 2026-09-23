@@ -172,7 +172,7 @@ The main session orchestrates — it does not execute code-touching changes dire
 
 ## Memory
 
-Memory files live at `C:\Users\msant\.claude\projects\C--Users-msant-dev\memory\` (Windows-only; no WSL mirroring for this project).
+Memory files live at `~/.claude/projects/<encoded-project-path>/memory/` (Windows: `%USERPROFILE%\.claude\projects\...`) (Windows-only; no WSL mirroring for this project).
 
 ---
 
