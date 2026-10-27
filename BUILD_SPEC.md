@@ -412,6 +412,9 @@ New module `src/lib/persistState.ts`:
   `expandLevel === Infinity` ↔ `'all'`. try/catch everything.
 - `encodePlan(plan)` → `${origin}${pathname}?plan=<base64url(JSON)>`; `decodePlanFromUrl()` → PlanState|null
   (unicode-safe base64url; validate shape).
+- Add-item link `?add=<itemId>[&r=<perMinute>]` (`src/lib/addItemLink.ts`): non-destructive, unlike
+  `?p=`. After the plan is restored, `init()` appends the item as a new tab (focuses it if already a
+  target, leaves its rate alone), shows a notice for an unknown id, and strips `add`/`r` from the URL.
 
 Store:
 - `expandLevel` default `2`.

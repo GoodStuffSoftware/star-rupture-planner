@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, watch } from 'vue'
 import { usePlannerStore } from './stores/plannerStore'
 import VersionSelector from './components/VersionSelector.vue'
 import TargetSelector from './components/TargetSelector.vue'
@@ -17,6 +17,14 @@ const store = usePlannerStore()
 onMounted(() => {
   store.init()
 })
+
+// Transient notices (e.g. an unknown ?add= item) clear themselves.
+watch(
+  () => store.notice,
+  (msg) => {
+    if (msg) setTimeout(() => (store.notice = null), 8000)
+  },
+)
 </script>
 
 <template>
@@ -146,6 +154,16 @@ onMounted(() => {
     </main>
 
     <AppFooter />
+
+    <!-- Non-blocking notice (dismiss on click or after a few seconds) -->
+    <div
+      v-if="store.notice"
+      role="status"
+      class="chamfer fixed bottom-4 left-1/2 -translate-x-1/2 z-50 max-w-[90vw] px-4 py-2 text-sm text-[var(--text)] cursor-pointer"
+      @click="store.notice = null"
+    >
+      {{ store.notice }}
+    </div>
 
     <!-- v6: single app-level detail drawer + hover card -->
     <DetailDrawer />

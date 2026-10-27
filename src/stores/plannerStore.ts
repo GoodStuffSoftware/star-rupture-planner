@@ -31,6 +31,7 @@ import {
   type PlanState,
   type PlanTargetState,
 } from '../lib/persistState'
+import { readAddItemRequest, stripAddItemParams, type AddItemRequest } from '../lib/addItemLink'
 import { useDataStore } from './dataStore'
 import { useDetailStore } from './detailStore'
 import { usePrefsStore } from './prefsStore'
@@ -64,6 +65,9 @@ export const usePlannerStore = defineStore('planner', () => {
   const tier = ref<TierSelection>({})
   const overrides = ref<VersionOverrides>({})
   const recipeOverrides = ref<RecipeOverrides>({})
+
+  /** Transient, non-blocking message for the UI (e.g. an unknown `?add=` item). */
+  const notice = ref<string | null>(null)
 
   // Multi-target tabs
   const targets = ref<PlanTarget[]>([
@@ -410,10 +414,38 @@ export const usePlannerStore = defineStore('planner', () => {
   async function init() {
     prefsStore.initPrefs()
     const urlPlan = decodePlanFromUrl()
+    const addRequest = readAddItemRequest(location.search)
     const saved = loadSaved()
     const plan = urlPlan ?? saved?.plan ?? null
     await load(plan?.version ?? DEFAULT_VERSION, plan)
+    if (addRequest) {
+      _applyAddItemRequest(addRequest, plan !== null)
+      stripAddItemParams()
+    }
     detailStore.loadNavHistoryFromStorage()
+  }
+
+  /**
+   * Merge an `?add=` link into the plan that was just restored. Never removes
+   * or rewrites anything: an item that is already a target is just focused
+   * (its rate is left alone), an unknown id only raises a notice, and any
+   * other item becomes a new tab. `hadPlan` is false only when nothing was
+   * saved, where the lone default tab is a placeholder and is filled instead.
+   */
+  function _applyAddItemRequest(req: AddItemRequest, hadPlan: boolean) {
+    if (!dataStore.itemsById.has(req.itemId)) {
+      notice.value = `Couldn't add "${req.itemId}": it isn't in this game version. Your plan is unchanged.`
+      return
+    }
+    const existing = targets.value.find((t) => t.targetItemId === req.itemId)
+    if (existing) {
+      setActiveTarget(existing.tid)
+    } else if (!hadPlan) {
+      setTarget(req.itemId, req.rate)
+    } else {
+      addTargetItem(req.itemId)
+      targetRate.value = req.rate
+    }
   }
 
   function setTier(baseId: string, value: 'v1' | 'v2') {
@@ -778,6 +810,7 @@ export const usePlannerStore = defineStore('planner', () => {
     clearHover: detailStore.clearHover,
 
     // Core Planner State & Computed
+    notice,
     tier,
     overrides,
     recipeOverrides,
