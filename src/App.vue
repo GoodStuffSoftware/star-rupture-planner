@@ -155,14 +155,16 @@ watch(
 
     <AppFooter />
 
-    <!-- Non-blocking notice (dismiss on click or after a few seconds) -->
+    <!-- Non-blocking notice (dismiss on click or after a few seconds). The fixed positioning
+         lives on the wrapper: .chamfer sets position: relative and would override it. -->
     <div
       v-if="store.notice"
-      role="status"
-      class="chamfer fixed bottom-4 left-1/2 -translate-x-1/2 z-50 max-w-[90vw] px-4 py-2 text-sm text-[var(--text)] cursor-pointer"
+      class="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 max-w-[90vw]"
       @click="store.notice = null"
     >
-      {{ store.notice }}
+      <div role="status" class="chamfer px-4 py-2 text-sm text-[var(--text)] cursor-pointer">
+        {{ store.notice }}
+      </div>
     </div>
 
     <!-- v6: single app-level detail drawer + hover card -->

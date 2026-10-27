@@ -437,11 +437,13 @@ export const usePlannerStore = defineStore('planner', () => {
       notice.value = `Couldn't add "${req.itemId}": it isn't in this game version. Your plan is unchanged.`
       return
     }
+    if (!hadPlan) {
+      setTarget(req.itemId, req.rate)
+      return
+    }
     const existing = targets.value.find((t) => t.targetItemId === req.itemId)
     if (existing) {
       setActiveTarget(existing.tid)
-    } else if (!hadPlan) {
-      setTarget(req.itemId, req.rate)
     } else {
       addTargetItem(req.itemId)
       targetRate.value = req.rate

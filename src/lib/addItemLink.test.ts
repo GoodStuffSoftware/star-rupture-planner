@@ -12,6 +12,7 @@ describe('readAddItemRequest', () => {
       '?add=aerogel&r=',
       '?add=aerogel&r=abc',
       '?add=aerogel&r=-5',
+      '?add=aerogel&r=1e308',
     ]) {
       expect(readAddItemRequest(q)).toEqual({ itemId: 'aerogel', rate: DEFAULT_ADD_RATE })
     }

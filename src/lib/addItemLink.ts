@@ -6,6 +6,7 @@
 export const ADD_PARAM = 'add'
 export const ADD_RATE_PARAM = 'r'
 export const DEFAULT_ADD_RATE = 60
+const MAX_ADD_RATE = 1_000_000
 
 export interface AddItemRequest {
   itemId: string
@@ -21,7 +22,7 @@ export function readAddItemRequest(search: string): AddItemRequest | null {
   const rate = Number(params.get(ADD_RATE_PARAM))
   return {
     itemId,
-    rate: Number.isFinite(rate) && rate > 0 ? rate : DEFAULT_ADD_RATE,
+    rate: Number.isFinite(rate) && rate > 0 && rate <= MAX_ADD_RATE ? rate : DEFAULT_ADD_RATE,
   }
 }
 

@@ -44,12 +44,18 @@ function savedPlan(): PlanState {
     targetRate: 12,
     overages: {},
     targets: [
-      { targetItemId: 'aerogel', targetRate: 30, overages: {}, expandLevel: 3 },
+      {
+        targetItemId: 'aerogel',
+        targetRate: 30,
+        overages: { 'aerogel>liquid_helium': 5 },
+        expandLevel: 3,
+        expanded: { 'aerogel>liquid_helium': false },
+      },
       { targetItemId: 'airlock', targetRate: 12, overages: {}, expandLevel: 2 },
     ],
     activeTargetIndex: 1,
-    tier: {},
-    overrides: {},
+    tier: { fabricator: 'v2' },
+    overrides: { aerogel: 'compounder' },
     recipeOverrides: { aerogel: 'some-recipe-key' },
   }
 }
@@ -92,6 +98,10 @@ describe('?add= link', () => {
     expect(s.targets.map((t) => t.targetRate)).toEqual([30, 12, 20])
     expect(s.targets[0].expandLevel).toBe(3)
     expect(s.recipeOverrides).toEqual({ aerogel: 'some-recipe-key' })
+    expect(s.overrides).toEqual({ aerogel: 'compounder' })
+    expect(s.tier.fabricator).toBe('v2')
+    expect(s.targets[0].overages).toEqual({ 'aerogel>liquid_helium': 5 })
+    expect(s.targets[0].expanded).toEqual({ 'aerogel>liquid_helium': false })
     expect(s.targetItemId).toBe('accumulator') // new tab is focused
     const persisted = loadSaved()?.plan
     expect(persisted?.targets?.map((t) => t.targetItemId)).toEqual([
@@ -100,6 +110,35 @@ describe('?add= link', () => {
       'accumulator',
     ])
     expect(persisted?.recipeOverrides).toEqual({ aerogel: 'some-recipe-key' })
+    expect(persisted?.overrides).toEqual({ aerogel: 'compounder' })
+    expect(persisted?.tier?.fabricator).toBe('v2')
+    expect(persisted?.targets?.[0].overages).toEqual({ 'aerogel>liquid_helium': 5 })
+  })
+
+  it('keeps every target when the plan was in the all-totals view', async () => {
+    save({ ...savedPlan(), activeTargetIndex: -1 }, prefs)
+    const s = await open('?add=accumulator')
+    expect(itemIds(s)).toEqual(['aerogel', 'airlock', 'accumulator'])
+    expect(s.targets.map((t) => t.targetRate)).toEqual([30, 12, 60])
+  })
+
+  it('on an empty plan, honours the rate even for the placeholder default item', async () => {
+    const s = await open('?add=accumulator&r=45')
+    expect(itemIds(s)).toEqual(['accumulator'])
+    expect(s.targets[0].targetRate).toBe(45)
+  })
+
+  it('leaves saved state untouched when the game data cannot be fetched', async () => {
+    save(savedPlan(), prefs)
+    const before = localStorage.getItem(LS_KEY)
+    vi.stubGlobal('fetch', async () => ({
+      ok: false,
+      status: 500,
+      statusText: 'x',
+      json: async () => null,
+    }))
+    await open('?add=accumulator')
+    expect(localStorage.getItem(LS_KEY)).toBe(before)
   })
 
   it('focuses an item that is already a target instead of duplicating it', async () => {
