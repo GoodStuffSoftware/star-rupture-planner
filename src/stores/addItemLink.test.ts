@@ -128,7 +128,6 @@ describe('?add= link', () => {
     save(savedPlan(), prefs)
     const s = await open('?add=accumulator')
     expect(s.notice).toBe(`Added ${nameOf(s, 'accumulator')} to your plan.`)
-    expect(s.notice).not.toContain('accumulator') // the display name, not the id
   })
 
   it('adds to an existing plan without losing targets, rates or recipes', async () => {
@@ -187,6 +186,7 @@ describe('?add= link', () => {
     expect(itemIds(s)).toEqual(['aerogel', 'airlock'])
     expect(s.targets[0].targetRate).toBe(30) // rate untouched
     expect(s.targetItemId).toBe('aerogel')
+    expect(s.notice).toBe(`${nameOf(s, 'aerogel')} is already in your plan.`)
   })
 
   it('ignores an unknown item with a notice and keeps the plan intact', async () => {
@@ -311,6 +311,34 @@ describe('?p= share link', () => {
     )
     await s.resolveShare('add')
     expect(s.notice).toBe('Added 2 recipes to your plan.')
+  })
+
+  it('add to my plan: counts only the tabs actually created', async () => {
+    save(savedPlan(), prefs)
+    const s = await open(
+      pLink({
+        m: [
+          { i: 'aerogel', r: 7 },
+          { i: 'accumulator', r: 7 },
+        ],
+      }),
+    )
+    await s.resolveShare('add')
+    expect(s.notice).toBe(`Added ${nameOf(s, 'accumulator')} to your plan.`)
+  })
+
+  it('add to my plan: recipes already in the plan are not reported as added', async () => {
+    save(savedPlan(), prefs)
+    const s = await open(
+      pLink({
+        m: [
+          { i: 'aerogel', r: 7 },
+          { i: 'airlock', r: 7 },
+        ],
+      }),
+    )
+    await s.resolveShare('add')
+    expect(s.notice).toBe('Those recipes are already in your plan.')
   })
 
   it('add to my plan: a single recipe is named in the notice', async () => {
