@@ -286,19 +286,50 @@ describe('?p= share link', () => {
     expect(location.search).toBe('')
   })
 
-  it('with a saved plan equal to the shared one, applies without a prompt', async () => {
+  it('with a saved plan equal to the shared one, no prompt and its view state survives', async () => {
     const equal = {
       ...savedPlan(),
       tier: {},
       overrides: {},
       recipeOverrides: {},
-      targets: [{ targetItemId: 'accumulator', targetRate: 6, overages: {}, expandLevel: 4 }],
+      targets: [
+        {
+          targetItemId: 'accumulator',
+          targetRate: 6,
+          overages: {},
+          expandLevel: 4,
+          expanded: { 'accumulator>aerogel': true },
+        },
+      ],
       activeTargetIndex: 0,
     }
     save(equal, prefs)
     const s = await open(pLink(shared)) // differs only in view state (expand level) and all-v1 tiers
     expect(s.pendingShare).toBeNull()
+    expect(s.targets[0].expandLevel).toBe(4)
+    expect(s.targets[0].expanded).toEqual({ 'accumulator>aerogel': true })
+    expect(loadSaved()?.plan?.targets?.[0].expandLevel).toBe(4)
     expect(location.search).toBe('')
+  })
+
+  it('prompts when the saved plan differs by rate or by an extra tab', async () => {
+    const one = (rate: number) => [{ targetItemId: 'accumulator', targetRate: rate, overages: {} }]
+    for (const targets of [
+      one(7),
+      [...one(6), { targetItemId: 'aerogel', targetRate: 30, overages: {} }],
+    ]) {
+      save({ ...savedPlan(), tier: {}, overrides: {}, recipeOverrides: {}, targets }, prefs)
+      const s = await open(pLink(shared))
+      expect(s.pendingShare).not.toBeNull()
+    }
+  })
+
+  it('does not crash on a link whose targets list holds junk entries', async () => {
+    save(savedPlan(), prefs)
+    const junk = { version: DEFAULT_VERSION, targetItemId: null, targetRate: 1, targets: [null] }
+    const s = await open(pLink(junk))
+    expect(itemIds(s)).toEqual(['aerogel', 'airlock'])
+    expect(s.pendingShare).not.toBeNull()
   })
 
   it('treats the legacy ?plan= param the same way', async () => {

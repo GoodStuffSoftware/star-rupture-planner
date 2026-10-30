@@ -168,7 +168,8 @@ export function loadSaved(): { plan?: PlanState; prefs?: ViewPrefs } | null {
 
 /** A plan's recipe tabs; a legacy single-target plan counts as one tab. */
 export function planTargetList(plan: PlanState): PlanTargetState[] {
-  return plan.targets?.length ? plan.targets : [plan]
+  const tabs = plan.targets?.filter((t) => t && typeof t === 'object')
+  return tabs?.length ? tabs : [plan]
 }
 
 const sortedEntries = (o: Record<string, unknown> | undefined) =>
@@ -286,7 +287,9 @@ export function decodePlanFromUrl(): PlanState | null {
           ? o.overrides
           : {}) as VersionOverrides,
         overages: (typeof o.overages === 'object' && o.overages ? o.overages : {}) as Overages,
-        targets: Array.isArray(o.targets) ? (o.targets as PlanTargetState[]) : undefined,
+        targets: Array.isArray(o.targets)
+          ? (o.targets.filter((t) => t && typeof t === 'object') as PlanTargetState[])
+          : undefined,
         activeTargetIndex:
           typeof o.activeTargetIndex === 'number' ? o.activeTargetIndex : undefined,
       }

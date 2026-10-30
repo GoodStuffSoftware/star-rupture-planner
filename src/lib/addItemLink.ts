@@ -33,7 +33,7 @@ export function readAddItemRequest(search: string): AddItemRequest | null {
  * Drop the link params we act on from the address bar once they are handled
  * (applied, kept or declined), so a reload or back-navigation doesn't run them
  * again: the share-plan params (`p`, legacy `plan`) and `add` with its `r`
- * (`r` alone is not ours). Other params (`support`, �) and the hash stay.
+ * (`r` alone is not ours). Other params (`support`, etc.) and the hash stay.
  */
 export function stripHandledParams(): void {
   try {
@@ -47,6 +47,6 @@ export function stripHandledParams(): void {
     }
     history.replaceState(history.state, '', url.pathname + url.search + url.hash)
   } catch {
-    // History API unavailable � leave the URL as is.
+    // History API unavailable, leave the URL as is.
   }
 }

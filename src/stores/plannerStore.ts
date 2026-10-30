@@ -443,7 +443,10 @@ export const usePlannerStore = defineStore('planner', () => {
     const addRequest = readAddItemRequest(location.search)
     const saved = loadSaved()?.plan ?? null
     const needsChoice = shared !== null && saved !== null && !isSamePlan(shared, saved)
-    const plan = needsChoice ? saved : (shared ?? saved)
+    // A saved plan always wins: when the link differs it waits for a choice, and
+    // when it is equal there is nothing to apply (re-applying it would reset the
+    // view state `isSamePlan` ignores: expand levels, caret toggles, active tab).
+    const plan = saved ?? shared
 
     if (needsChoice) {
       // Same guard as cross-tab adoption: we're showing what's already in
