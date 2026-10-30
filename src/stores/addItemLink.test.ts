@@ -520,6 +520,21 @@ describe('?add= hand-off to an open planner tab', () => {
     expect(storedIds()).toEqual(withAccumulator)
   })
 
+  it('a sibling save right after the hand-off cannot drop the item', async () => {
+    save(savedPlan(), prefs)
+    const receiver = await tab()
+    await settle()
+    vi.spyOn(window, 'close').mockImplementation(() => {})
+
+    await tab('?add=accumulator&r=20')
+    // The asking tab has closed; a third tab saves before the receiver's debounce would fire.
+    expect(storedIds()).toEqual(withAccumulator)
+    await syncOtherTabs()
+    expect(itemIds(receiver)).toEqual(withAccumulator)
+    await settle()
+    expect(storedIds()).toEqual(withAccumulator)
+  })
+
   it('no open tab: adds the item locally after the timeout and strips the param', async () => {
     save(savedPlan(), prefs)
     const close = vi.spyOn(window, 'close').mockImplementation(() => {})

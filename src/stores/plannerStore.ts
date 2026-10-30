@@ -486,7 +486,24 @@ export const usePlannerStore = defineStore('planner', () => {
     }
     detailStore.loadNavHistoryFromStorage()
     _stopServingHandOff()
-    _stopServingHandOff = serveHandOff(_canTakeHandOff, (req) => _applyAddItemRequest(req, true))
+    _stopServingHandOff = serveHandOff(_canTakeHandOff, (req) => {
+      // Persist before the asking tab is told it is done (and closes): a sibling
+      // save landing inside the debounce would otherwise replace the plan and
+      // drop the item for good. The hold keeps the watchers from queueing a
+      // second, identical save for the same change.
+      _adoptDepth++
+      _adopting = true
+      try {
+        _applyAddItemRequest(req, true)
+        if (_saveTimer !== null) clearTimeout(_saveTimer)
+        _saveTimer = null
+        save(_planState(), prefsStore.getPrefs())
+      } finally {
+        void nextTick().then(() => {
+          if (--_adoptDepth === 0) _adopting = false
+        })
+      }
+    })
   }
 
   /**
