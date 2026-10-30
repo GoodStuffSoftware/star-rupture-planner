@@ -415,6 +415,12 @@ New module `src/lib/persistState.ts`:
 - Add-item link `?add=<itemId>[&r=<perMinute>]` (`src/lib/addItemLink.ts`): non-destructive, unlike
   `?p=`. After the plan is restored, `init()` appends the item as a new tab (focuses it if already a
   target, leaves its rate alone), shows a notice for an unknown id, and strips `add`/`r` from the URL.
+  Single-instance hand-off: the game opens each link as a new tab, so before loading anything that tab
+  asks other open planner tabs over a `BroadcastChannel` (`srp:add-item-handoff`, 800 ms timeout) to
+  take the item. The first ready tab to answer adds it once and confirms; the new tab then closes
+  itself (or shows "Added to your open planner tab", if the browser refuses) and never writes
+  localStorage. A tab still loading, showing a share prompt, or without `BroadcastChannel` stays out;
+  with no confirmation in time the new tab adds the item locally.
 - Share links (`?p=` / legacy `?plan=`) never overwrite a saved plan unasked. With no saved plan, or a
   saved plan that `isSamePlan` calls equal, the link applies directly. Otherwise the saved plan stays
   loaded, nothing is written, and a prompt offers "Add to my plan" (append the link's tabs via the

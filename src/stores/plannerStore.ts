@@ -37,6 +37,9 @@ import {
   readAddItemRequest,
   sanitizeAddRate,
   stripHandledParams,
+  hasHandOffSupport,
+  requestHandOff,
+  serveHandOff,
   type AddItemRequest,
 } from '../lib/addItemLink'
 import { useDataStore } from './dataStore'
@@ -83,6 +86,15 @@ export const usePlannerStore = defineStore('planner', () => {
    */
   const pendingShare = ref<PlanState | null>(null)
   let _deferredAdd: AddItemRequest | null = null
+
+  /**
+   * Set while this tab, opened by an `?add=` link, is handing the item to an
+   * already-open planner tab: 'asking' until one answers, 'done' once it has
+   * added it (this tab is then only waiting to be closed). While set the tab
+   * loads nothing, never saves and ignores sibling saves; the app shows a
+   * placeholder instead of the planner.
+   */
+  const handOff = ref<'asking' | 'done' | null>(null)
 
   // Multi-target tabs
   const targets = ref<PlanTarget[]>([
@@ -433,7 +445,8 @@ export const usePlannerStore = defineStore('planner', () => {
    *    is saved or the saved plan is the same (`isSamePlan`). Otherwise the saved
    *    plan stays loaded, saves are held while it loads, and the link waits in
    *    `pendingShare` for `resolveShare`.
-   *  - `?add=` (additive, never destructive): applied once the plan is settled.
+   *  - `?add=` (additive, never destructive): first offered to an already-open
+   *    planner tab (`_handOffAdd`); otherwise applied once the plan is settled.
    * Handled params are then stripped from the address bar so a refresh can't
    * run them again; a pending link is stripped when the user chooses.
    */
@@ -441,6 +454,9 @@ export const usePlannerStore = defineStore('planner', () => {
     prefsStore.initPrefs()
     const shared = decodePlanFromUrl()
     const addRequest = readAddItemRequest(location.search)
+    // A lone `?add=` goes to an open planner tab when there is one. A share link
+    // keeps its own prompt, so it is never handed off.
+    if (addRequest && !shared && (await _handOffAdd(addRequest))) return
     const saved = loadSaved()?.plan ?? null
     const needsChoice = shared !== null && saved !== null && !isSamePlan(shared, saved)
     // A saved plan always wins: when the link differs it waits for a choice, and
@@ -469,7 +485,36 @@ export const usePlannerStore = defineStore('planner', () => {
       stripHandledParams()
     }
     detailStore.loadNavHistoryFromStorage()
+    _stopServingHandOff()
+    _stopServingHandOff = serveHandOff(_canTakeHandOff, (req) => _applyAddItemRequest(req, true))
   }
+
+  /**
+   * Offer a lone `?add=` to the other open planner tabs. True when one of them
+   * confirmed the add: this tab then loads and saves nothing and closes itself,
+   * or, if the browser refuses, stays as the "you can close this one" message.
+   * False (no BroadcastChannel, no answer in time) leaves the add to the local path.
+   */
+  async function _handOffAdd(req: AddItemRequest): Promise<boolean> {
+    if (!hasHandOffSupport()) return false
+    handOff.value = 'asking'
+    if (!(await requestHandOff(req))) {
+      handOff.value = null
+      return false
+    }
+    stripHandledParams()
+    handOff.value = 'done'
+    window.close()
+    return true
+  }
+
+  // Which tabs may take a hand-off. One with a share prompt open must not: its
+  // "Use shared plan" would replace the plan and silently drop the item the
+  // other tab was told had been added. It stays quiet and the asking tab adds
+  // the item itself, which this tab then adopts through the storage sync.
+  let _stopServingHandOff = () => {}
+  const _canTakeHandOff = () =>
+    !handOff.value && !pendingShare.value && !_adopting && !dataStore.loading && !dataStore.error
 
   /**
    * Settle a pending share link: 'use' replaces the plan with the shared one,
@@ -709,6 +754,9 @@ export const usePlannerStore = defineStore('planner', () => {
     // we touch. Saving then would write our copy straight back out and bounce
     // the change to the other tab — so stay quiet until adoption settles.
     if (_adopting) return
+    // A tab handing its item to another one holds no plan of its own: saving
+    // would race the receiver's save with an empty default.
+    if (handOff.value) return
     if (_saveTimer !== null) clearTimeout(_saveTimer)
     _saveTimer = setTimeout(() => {
       _saveTimer = null
@@ -730,6 +778,8 @@ export const usePlannerStore = defineStore('planner', () => {
   async function _adoptFromStorage(raw: string | null) {
     // Cleared storage, or an echo of what we already took — nothing to do.
     if (!raw || raw === _lastAdoptedRaw) return
+    // A handing-off tab has no game data loaded to adopt into.
+    if (handOff.value) return
     _lastAdoptedRaw = raw
 
     const incoming = loadSaved()
@@ -886,6 +936,7 @@ export const usePlannerStore = defineStore('planner', () => {
     // Core Planner State & Computed
     notice,
     pendingShare,
+    handOff,
     tier,
     overrides,
     recipeOverrides,

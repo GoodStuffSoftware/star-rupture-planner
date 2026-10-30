@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, watch } from 'vue'
+import { onMounted, onUnmounted, watch } from 'vue'
 import { usePlannerStore } from './stores/plannerStore'
 import { planTargetList } from './lib/persistState'
 import VersionSelector from './components/VersionSelector.vue'
@@ -19,17 +19,42 @@ onMounted(() => {
   store.init()
 })
 
-// Transient notices (e.g. an unknown ?add= item) clear themselves.
-watch(
-  () => store.notice,
-  (msg) => {
-    if (msg) setTimeout(() => (store.notice = null), 8000)
-  },
-)
+// Transient notices (e.g. an unknown ?add= item) clear themselves, but only
+// after a few seconds on screen: a notice raised while the tab is in the
+// background (an item handed over from the game) waits until it is shown.
+const NOTICE_MS = 8000
+let noticeTimer: ReturnType<typeof setTimeout> | undefined
+function armNotice() {
+  clearTimeout(noticeTimer)
+  if (store.notice && document.visibilityState !== 'hidden') {
+    noticeTimer = setTimeout(() => (store.notice = null), NOTICE_MS)
+  }
+}
+watch(() => store.notice, armNotice)
+document.addEventListener('visibilitychange', armNotice)
+onUnmounted(() => {
+  document.removeEventListener('visibilitychange', armNotice)
+  clearTimeout(noticeTimer)
+})
 </script>
 
 <template>
+  <!-- An `?add=` tab that is handing its item to an open planner tab shows only this. -->
   <div
+    v-if="store.handOff"
+    role="status"
+    class="min-h-screen bg-[var(--bg)] text-[var(--text)] flex items-center justify-center p-4"
+  >
+    <p class="chamfer px-4 py-3 text-sm text-center">
+      {{
+        store.handOff === 'done'
+          ? 'Added to your open planner tab — you can close this one.'
+          : 'Checking for an open planner tab…'
+      }}
+    </p>
+  </div>
+  <div
+    v-else
     class="min-h-screen bg-[var(--bg)] text-[var(--text)] flex flex-col"
     :style="store.treeFontScale !== 1 ? { zoom: store.treeFontScale } : undefined"
   >
