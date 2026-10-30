@@ -27,10 +27,21 @@ import {
   loadSaved,
   encodePlan,
   decodePlanFromUrl,
+  isSamePlan,
+  planTargetList,
   LS_KEY,
   type PlanState,
   type PlanTargetState,
 } from '../lib/persistState'
+import {
+  readAddItemRequest,
+  sanitizeAddRate,
+  stripHandledParams,
+  hasHandOffSupport,
+  requestHandOff,
+  serveHandOff,
+  type AddItemRequest,
+} from '../lib/addItemLink'
 import { useDataStore } from './dataStore'
 import { useDetailStore } from './detailStore'
 import { usePrefsStore } from './prefsStore'
@@ -64,6 +75,26 @@ export const usePlannerStore = defineStore('planner', () => {
   const tier = ref<TierSelection>({})
   const overrides = ref<VersionOverrides>({})
   const recipeOverrides = ref<RecipeOverrides>({})
+
+  /** Transient, non-blocking message for the UI (e.g. an unknown `?add=` item). */
+  const notice = ref<string | null>(null)
+
+  /**
+   * A full-plan link (`?p=`) that differs from the saved plan, parked until the
+   * user picks what to do with it (see `resolveShare`). While set, the saved
+   * plan is what's on screen and nothing has been written.
+   */
+  const pendingShare = ref<PlanState | null>(null)
+  let _deferredAdd: AddItemRequest | null = null
+
+  /**
+   * Set while this tab, opened by an `?add=` link, is handing the item to an
+   * already-open planner tab: 'asking' until one answers, 'done' once it has
+   * added it (this tab is then only waiting to be closed). While set the tab
+   * loads nothing, never saves and ignores sibling saves; the app shows a
+   * placeholder instead of the planner.
+   */
+  const handOff = ref<'asking' | 'done' | null>(null)
 
   // Multi-target tabs
   const targets = ref<PlanTarget[]>([
@@ -407,13 +438,185 @@ export const usePlannerStore = defineStore('planner', () => {
     }
   }
 
+  /**
+   * The single place URL parameters are handled at startup. No parameter may
+   * change stored state without the user's say-so:
+   *  - `?p=` / `?plan=` (replaces the plan): applied directly only when nothing
+   *    is saved or the saved plan is the same (`isSamePlan`). Otherwise the saved
+   *    plan stays loaded, saves are held while it loads, and the link waits in
+   *    `pendingShare` for `resolveShare`.
+   *  - `?add=` (additive, never destructive): first offered to an already-open
+   *    planner tab (`_handOffAdd`); otherwise applied once the plan is settled.
+   * Handled params are then stripped from the address bar so a refresh can't
+   * run them again; a pending link is stripped when the user chooses.
+   */
   async function init() {
     prefsStore.initPrefs()
-    const urlPlan = decodePlanFromUrl()
-    const saved = loadSaved()
-    const plan = urlPlan ?? saved?.plan ?? null
-    await load(plan?.version ?? DEFAULT_VERSION, plan)
+    const shared = decodePlanFromUrl()
+    const addRequest = readAddItemRequest(location.search)
+    // A lone `?add=` goes to an open planner tab when there is one. A share link
+    // keeps its own prompt, so it is never handed off.
+    if (addRequest && !shared && (await _handOffAdd(addRequest))) return
+    const saved = loadSaved()?.plan ?? null
+    const needsChoice = shared !== null && saved !== null && !isSamePlan(shared, saved)
+    // A saved plan always wins: when the link differs it waits for a choice, and
+    // when it is equal there is nothing to apply (re-applying it would reset the
+    // view state `isSamePlan` ignores: expand levels, caret toggles, active tab).
+    const plan = saved ?? shared
+
+    if (needsChoice) {
+      // Same guard as cross-tab adoption: we're showing what's already in
+      // storage, so the watchers must not write it back.
+      _adoptDepth++
+      _adopting = true
+    }
+    try {
+      await load(plan?.version ?? DEFAULT_VERSION, plan)
+      if (needsChoice) await nextTick()
+    } finally {
+      if (needsChoice && --_adoptDepth === 0) _adopting = false
+    }
+
+    if (needsChoice) {
+      pendingShare.value = shared
+      _deferredAdd = addRequest
+    } else {
+      if (addRequest) _applyAddItemRequest(addRequest, plan !== null)
+      stripHandledParams()
+    }
     detailStore.loadNavHistoryFromStorage()
+    _stopServingHandOff()
+    _stopServingHandOff = serveHandOff(_canTakeHandOff, (req) => {
+      // Persist before the asking tab is told it is done (and closes): a sibling
+      // save landing inside the debounce would otherwise replace the plan and
+      // drop the item for good. The hold keeps the watchers from queueing a
+      // second, identical save for the same change.
+      _adoptDepth++
+      _adopting = true
+      try {
+        _applyAddItemRequest(req, true)
+        if (_saveTimer !== null) clearTimeout(_saveTimer)
+        _saveTimer = null
+        save(_planState(), prefsStore.getPrefs())
+      } finally {
+        void nextTick().then(() => {
+          if (--_adoptDepth === 0) _adopting = false
+        })
+      }
+    })
+  }
+
+  /**
+   * Offer a lone `?add=` to the other open planner tabs. True when one of them
+   * confirmed the add: this tab then loads and saves nothing and closes itself,
+   * or, if the browser refuses, stays as the "you can close this one" message.
+   * False (no BroadcastChannel, no answer in time) leaves the add to the local path.
+   */
+  async function _handOffAdd(req: AddItemRequest): Promise<boolean> {
+    if (!hasHandOffSupport()) return false
+    handOff.value = 'asking'
+    if (!(await requestHandOff(req))) {
+      handOff.value = null
+      return false
+    }
+    stripHandledParams()
+    handOff.value = 'done'
+    window.close()
+    return true
+  }
+
+  // Which tabs may take a hand-off. One with a share prompt open must not: its
+  // "Use shared plan" would replace the plan and silently drop the item the
+  // other tab was told had been added. It stays quiet and the asking tab adds
+  // the item itself, which this tab then adopts through the storage sync.
+  let _stopServingHandOff = () => {}
+  const _canTakeHandOff = () =>
+    !handOff.value && !pendingShare.value && !_adopting && !dataStore.loading && !dataStore.error
+
+  /**
+   * Settle a pending share link: 'use' replaces the plan with the shared one,
+   * 'add' appends the shared tabs to the current plan (what an old single-item
+   * game link means), 'keep' leaves the plan alone. A deferred `?add=` then
+   * applies on top of the outcome.
+   */
+  async function resolveShare(choice: 'use' | 'add' | 'keep') {
+    const shared = pendingShare.value
+    if (!shared) return
+    pendingShare.value = null
+    const add = _deferredAdd
+    _deferredAdd = null
+
+    if (choice === 'use') {
+      await load(shared.version, shared)
+      _scheduleSave()
+    }
+    // One notice for the whole settle, not a flicker per recipe. An unknown
+    // item's error notice (set inside the apply) wins over the summary.
+    const results: AddResult[] = []
+    let failed = false
+    const apply = (r: AddItemRequest) => {
+      const res = _applyAddItemRequest(r, true, false)
+      if (res) results.push(res)
+      else failed = true
+    }
+    if (choice === 'add') {
+      for (const t of planTargetList(shared)) {
+        if (!t.targetItemId) continue
+        apply({ itemId: t.targetItemId, rate: sanitizeAddRate(t.targetRate) })
+      }
+    }
+    if (add) apply(add)
+    if (!failed && results.length) notice.value = _addedNotice(results)
+    stripHandledParams()
+  }
+
+  type AddResult = { name: string; created: boolean }
+
+  /**
+   * Merge an `?add=` link into the plan that was just restored. Never removes
+   * or rewrites anything: an item that is already a target is just focused
+   * (its rate is left alone), an unknown id only raises a notice, and any
+   * other item becomes a new tab. `hadPlan` is false only when nothing was
+   * saved, where the lone default tab is a placeholder and is filled instead.
+   */
+  function _applyAddItemRequest(
+    req: AddItemRequest,
+    hadPlan: boolean,
+    announce = true,
+  ): AddResult | null {
+    const item = dataStore.itemsById.get(req.itemId)
+    if (!item) {
+      notice.value = `Couldn't add "${req.itemId}": it isn't in this game version. Your plan is unchanged.`
+      return null
+    }
+    const existing = hadPlan ? targets.value.find((t) => t.targetItemId === req.itemId) : undefined
+    if (!hadPlan) {
+      setTarget(req.itemId, req.rate)
+    } else if (existing) {
+      setActiveTarget(existing.tid)
+    } else {
+      addTargetItem(req.itemId)
+      targetRate.value = req.rate
+    }
+    const result = { name: item.name, created: !existing }
+    if (announce) notice.value = _addedNotice([result])
+    return result
+  }
+
+  /**
+   * Confirmation for successful adds: the name for one item, a count of the
+   * tabs actually created for several. Items already in the plan are only
+   * focused, and are reported as such rather than as added.
+   */
+  function _addedNotice(results: AddResult[]): string {
+    const created = results.filter((r) => r.created)
+    if (results.length === 1) {
+      const { name } = results[0]
+      return created.length ? `Added ${name} to your plan.` : `${name} is already in your plan.`
+    }
+    if (created.length === 0) return 'Those recipes are already in your plan.'
+    if (created.length === 1) return `Added ${created[0].name} to your plan.`
+    return `Added ${created.length} recipes to your plan.`
   }
 
   function setTier(baseId: string, value: 'v1' | 'v2') {
@@ -603,6 +806,9 @@ export const usePlannerStore = defineStore('planner', () => {
     // we touch. Saving then would write our copy straight back out and bounce
     // the change to the other tab — so stay quiet until adoption settles.
     if (_adopting) return
+    // A tab handing its item to another one holds no plan of its own: saving
+    // would race the receiver's save with an empty default.
+    if (handOff.value) return
     if (_saveTimer !== null) clearTimeout(_saveTimer)
     _saveTimer = setTimeout(() => {
       _saveTimer = null
@@ -624,6 +830,8 @@ export const usePlannerStore = defineStore('planner', () => {
   async function _adoptFromStorage(raw: string | null) {
     // Cleared storage, or an echo of what we already took — nothing to do.
     if (!raw || raw === _lastAdoptedRaw) return
+    // A handing-off tab has no game data loaded to adopt into.
+    if (handOff.value) return
     _lastAdoptedRaw = raw
 
     const incoming = loadSaved()
@@ -778,6 +986,9 @@ export const usePlannerStore = defineStore('planner', () => {
     clearHover: detailStore.clearHover,
 
     // Core Planner State & Computed
+    notice,
+    pendingShare,
+    handOff,
     tier,
     overrides,
     recipeOverrides,
@@ -799,6 +1010,7 @@ export const usePlannerStore = defineStore('planner', () => {
 
     // Planner Actions
     init,
+    resolveShare,
     load,
     setTier,
     setVersion,

@@ -164,7 +164,41 @@ export function loadSaved(): { plan?: PlanState; prefs?: ViewPrefs } | null {
   }
 }
 
+// ─── Plan comparison ──────────────────────────────────────────────────────────
+
+/** A plan's recipe tabs; a legacy single-target plan counts as one tab. */
+export function planTargetList(plan: PlanState): PlanTargetState[] {
+  const tabs = plan.targets?.filter((t) => t && typeof t === 'object')
+  return tabs?.length ? tabs : [plan]
+}
+
+const sortedEntries = (o: Record<string, unknown> | undefined) =>
+  Object.entries(o ?? {}).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+
+/**
+ * Do two plans mean the same thing? Used to decide whether a share link needs
+ * the user's say-so. Compared: game version, the ordered tabs (item, rate,
+ * overages), tier upgrades, building overrides and recipe overrides. Ignored,
+ * because a share link doesn't reliably carry them or they are only view state:
+ * which tab is active, expand levels and caret toggles, the all-v1 tier entries
+ * (a link lists only v2 upgrades), and empty maps vs absent ones.
+ */
+export function isSamePlan(a: PlanState, b: PlanState): boolean {
+  const key = (p: PlanState) =>
+    JSON.stringify([
+      p.version,
+      planTargetList(p).map((t) => [t.targetItemId, t.targetRate, sortedEntries(t.overages)]),
+      sortedEntries(p.tier).filter(([, v]) => v === 'v2'),
+      sortedEntries(p.overrides),
+      sortedEntries(p.recipeOverrides),
+    ])
+  return key(a) === key(b)
+}
+
 // ─── URL encode / decode ──────────────────────────────────────────────────────
+
+/** Query params that carry a whole plan: current name first, legacy `plan` second. */
+export const SHARE_PARAMS = ['p', 'plan'] as const
 
 /** Unicode-safe base64url encode. + / = → - _ (stripped). */
 function toBase64Url(str: string): string {
@@ -229,7 +263,7 @@ export function encodePlan(plan: PlanState): string {
 export function decodePlanFromUrl(): PlanState | null {
   try {
     const params = new URLSearchParams(location.search)
-    const encoded = params.get('p') ?? params.get('plan')
+    const encoded = params.get(SHARE_PARAMS[0]) ?? params.get(SHARE_PARAMS[1])
     if (!encoded) return null
 
     const json = fromBase64Url(encoded)
@@ -253,7 +287,9 @@ export function decodePlanFromUrl(): PlanState | null {
           ? o.overrides
           : {}) as VersionOverrides,
         overages: (typeof o.overages === 'object' && o.overages ? o.overages : {}) as Overages,
-        targets: Array.isArray(o.targets) ? (o.targets as PlanTargetState[]) : undefined,
+        targets: Array.isArray(o.targets)
+          ? (o.targets.filter((t) => t && typeof t === 'object') as PlanTargetState[])
+          : undefined,
         activeTargetIndex:
           typeof o.activeTargetIndex === 'number' ? o.activeTargetIndex : undefined,
       }
