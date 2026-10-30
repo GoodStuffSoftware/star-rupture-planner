@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { readAddItemRequest, stripAddItemParams, DEFAULT_ADD_RATE } from './addItemLink'
+import { readAddItemRequest, stripHandledParams, DEFAULT_ADD_RATE } from './addItemLink'
 
 describe('readAddItemRequest', () => {
   it('reads the item and rate', () => {
@@ -26,18 +26,24 @@ describe('readAddItemRequest', () => {
   })
 })
 
-describe('stripAddItemParams', () => {
+describe('stripHandledParams', () => {
   beforeEach(() => history.replaceState(null, '', '/'))
 
   it('removes add and r but keeps other params and the hash', () => {
-    history.replaceState(null, '', '/planner?add=aerogel&r=30&p=abc#x')
-    stripAddItemParams()
-    expect(location.pathname + location.search + location.hash).toBe('/planner?p=abc#x')
+    history.replaceState(null, '', '/planner?add=aerogel&r=30&support=1#x')
+    stripHandledParams()
+    expect(location.pathname + location.search + location.hash).toBe('/planner?support=1#x')
+  })
+
+  it('removes the share-plan params p and plan too', () => {
+    history.replaceState(null, '', '/?p=abc&plan=def&support=1')
+    stripHandledParams()
+    expect(location.search).toBe('?support=1')
   })
 
   it('leaves a URL without add untouched, including an unrelated r', () => {
     history.replaceState(null, '', '/?r=5')
-    stripAddItemParams()
+    stripHandledParams()
     expect(location.search).toBe('?r=5')
   })
 })

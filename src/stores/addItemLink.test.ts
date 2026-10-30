@@ -70,6 +70,9 @@ async function open(search: string) {
   return store
 }
 
+/** A `?p=` link in the compact format the game and the share button produce. */
+const pLink = (plan: object) => `?p=${encodeURIComponent(btoa(JSON.stringify(plan)))}`
+
 const itemIds = (s: ReturnType<typeof usePlannerStore>) => s.targets.map((t) => t.targetItemId)
 
 describe('?add= link', () => {
@@ -172,12 +175,14 @@ describe('?add= link', () => {
     expect(location.search).toBe('')
   })
 
-  it('merges on top of a ?p= plan without changing ?p= semantics', async () => {
+  it('applies a deferred ?add= on top of the ?p= plan the user chose', async () => {
     save(savedPlan(), prefs)
-    const p = btoa(JSON.stringify({ i: 'airlock', r: 6 }))
-    const s = await open(`?p=${p}&add=aerogel`)
+    const s = await open(`${pLink({ i: 'airlock', r: 6 })}&add=aerogel`)
+    expect(itemIds(s)).toEqual(['aerogel', 'airlock']) // saved plan on screen, add not applied yet
+    await s.resolveShare('use')
+    vi.advanceTimersByTime(400)
     expect(itemIds(s)).toEqual(['airlock', 'aerogel'])
-    expect(location.search).toBe(`?p=${p}`)
+    expect(location.search).toBe('')
   })
 
   it('leaves saved state alone when there is no add param', async () => {
@@ -185,5 +190,122 @@ describe('?add= link', () => {
     const s = await open('')
     expect(itemIds(s)).toEqual(['aerogel', 'airlock'])
     expect(JSON.parse(localStorage.getItem(LS_KEY)!).plan.targets).toHaveLength(2)
+  })
+})
+
+describe('?p= share link', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    vi.useFakeTimers()
+    stubFetch()
+  })
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  const shared = { i: 'accumulator', r: 6 }
+
+  it('with a differing saved plan, writes nothing and changes nothing until a choice', async () => {
+    save(savedPlan(), prefs)
+    const before = localStorage.getItem(LS_KEY)
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+    const s = await open(pLink(shared))
+    vi.advanceTimersByTime(5000)
+    expect(setItem).not.toHaveBeenCalled()
+    expect(localStorage.getItem(LS_KEY)).toBe(before)
+    expect(s.pendingShare?.targetItemId).toBe('accumulator')
+    expect(itemIds(s)).toEqual(['aerogel', 'airlock']) // the saved plan is what's on screen
+    expect(location.search).toContain('p=') // not stripped until handled
+  })
+
+  it('keep mine: saved plan byte-identical, param removed, prompt gone', async () => {
+    save(savedPlan(), prefs)
+    const before = localStorage.getItem(LS_KEY)
+    const s = await open(`${pLink(shared)}&support=1#top`)
+    await s.resolveShare('keep')
+    vi.advanceTimersByTime(5000)
+    expect(localStorage.getItem(LS_KEY)).toBe(before)
+    expect(s.pendingShare).toBeNull()
+    expect(location.search).toBe('?support=1') // unrelated params and the hash survive
+    expect(location.hash).toBe('#top')
+  })
+
+  it('use shared: replaces the plan, persists it, removes the param', async () => {
+    save(savedPlan(), prefs)
+    const s = await open(pLink(shared))
+    await s.resolveShare('use')
+    vi.advanceTimersByTime(400)
+    expect(itemIds(s)).toEqual(['accumulator'])
+    expect(s.targets[0].targetRate).toBe(6)
+    expect(loadSaved()?.plan?.targets?.map((t) => t.targetItemId)).toEqual(['accumulator'])
+    expect(s.pendingShare).toBeNull()
+    expect(location.search).toBe('')
+  })
+
+  it('add to my plan: a single-item link adds exactly one tab, nothing else changes', async () => {
+    save(savedPlan(), prefs)
+    const s = await open(pLink(shared))
+    const before = loadSaved()!.plan!
+    await s.resolveShare('add')
+    vi.advanceTimersByTime(400)
+    const after = loadSaved()!.plan!
+    expect(after.targets).toHaveLength(3)
+    expect(after.targets!.slice(0, 2)).toMatchObject(before.targets!) // overages, expanded, rates intact
+    expect(after.targets![2]).toMatchObject({ targetItemId: 'accumulator', targetRate: 6 })
+    expect(after.version).toBe(before.version)
+    for (const k of ['tier', 'overrides', 'recipeOverrides'] as const) {
+      expect(after[k]).toMatchObject(before[k]!) // re-save only fills in default tiers
+    }
+    expect(s.pendingShare).toBeNull()
+    expect(location.search).toBe('')
+  })
+
+  it('add to my plan: unknown items are skipped with the ?add= notice', async () => {
+    save(savedPlan(), prefs)
+    const s = await open(
+      pLink({
+        m: [
+          { i: 'not-a-real-item', r: 5 },
+          { i: 'accumulator', r: 7 },
+        ],
+      }),
+    )
+    await s.resolveShare('add')
+    expect(itemIds(s)).toEqual(['aerogel', 'airlock', 'accumulator'])
+    expect(s.notice).toContain('not-a-real-item')
+  })
+
+  it('with no saved plan, applies directly without a prompt and strips the param', async () => {
+    const s = await open(pLink(shared))
+    expect(s.pendingShare).toBeNull()
+    expect(itemIds(s)).toEqual(['accumulator'])
+    expect(s.targets[0].targetRate).toBe(6)
+    expect(loadSaved()?.plan?.targets?.map((t) => t.targetItemId)).toEqual(['accumulator'])
+    expect(location.search).toBe('')
+  })
+
+  it('with a saved plan equal to the shared one, applies without a prompt', async () => {
+    const equal = {
+      ...savedPlan(),
+      tier: {},
+      overrides: {},
+      recipeOverrides: {},
+      targets: [{ targetItemId: 'accumulator', targetRate: 6, overages: {}, expandLevel: 4 }],
+      activeTargetIndex: 0,
+    }
+    save(equal, prefs)
+    const s = await open(pLink(shared)) // differs only in view state (expand level) and all-v1 tiers
+    expect(s.pendingShare).toBeNull()
+    expect(location.search).toBe('')
+  })
+
+  it('treats the legacy ?plan= param the same way', async () => {
+    save(savedPlan(), prefs)
+    const s = await open(pLink(shared).replace('?p=', '?plan='))
+    expect(s.pendingShare).not.toBeNull()
+    await s.resolveShare('keep')
+    expect(location.search).toBe('')
   })
 })

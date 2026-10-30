@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, watch } from 'vue'
 import { usePlannerStore } from './stores/plannerStore'
+import { planTargetList } from './lib/persistState'
 import VersionSelector from './components/VersionSelector.vue'
 import TargetSelector from './components/TargetSelector.vue'
 import RecipeTabs from './components/RecipeTabs.vue'
@@ -162,8 +163,47 @@ watch(
       class="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 max-w-[90vw]"
       @click="store.notice = null"
     >
-      <div role="status" class="chamfer px-4 py-2 text-sm text-[var(--text)] cursor-pointer">
+      <div
+        role="status"
+        class="chamfer px-4 py-2 text-sm text-[var(--text)] break-words cursor-pointer"
+      >
         {{ store.notice }}
+      </div>
+    </div>
+
+    <!-- A shared-plan link that differs from the saved plan waits here for a choice;
+         nothing has been changed or saved yet. -->
+    <div
+      v-if="store.pendingShare"
+      role="alertdialog"
+      class="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[28rem] max-w-[90vw]"
+    >
+      <div class="chamfer p-3 text-sm">
+        <p class="text-[var(--text)]">
+          This link carries a shared plan ({{ planTargetList(store.pendingShare).length }}
+          {{ planTargetList(store.pendingShare).length === 1 ? 'recipe' : 'recipes' }}) that differs
+          from your saved plan. Nothing has been changed yet.
+        </p>
+        <div class="mt-3 flex flex-wrap gap-2">
+          <button
+            class="chamfer-sm [--cf-fill:var(--accent)] hover:[--cf-fill:var(--accent-hover)] px-3 py-1.5 text-xs font-semibold text-[var(--accent-on)] transition-colors"
+            @click="store.resolveShare('add')"
+          >
+            Add to my plan
+          </button>
+          <button
+            class="chamfer-sm [--cf-fill:var(--panel-2)] hover:[--cf-fill:var(--border)] px-3 py-1.5 text-xs text-[var(--muted)] hover:text-[var(--text)] transition-colors"
+            @click="store.resolveShare('keep')"
+          >
+            Keep mine
+          </button>
+          <button
+            class="chamfer-sm [--cf-fill:var(--panel-2)] hover:[--cf-fill:var(--border)] px-3 py-1.5 text-xs text-[var(--muted)] hover:text-red-300 transition-colors"
+            @click="store.resolveShare('use')"
+          >
+            Use shared plan (replaces mine)
+          </button>
+        </div>
       </div>
     </div>
 

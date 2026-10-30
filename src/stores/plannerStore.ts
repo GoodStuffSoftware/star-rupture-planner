@@ -27,11 +27,18 @@ import {
   loadSaved,
   encodePlan,
   decodePlanFromUrl,
+  isSamePlan,
+  planTargetList,
   LS_KEY,
   type PlanState,
   type PlanTargetState,
 } from '../lib/persistState'
-import { readAddItemRequest, stripAddItemParams, type AddItemRequest } from '../lib/addItemLink'
+import {
+  readAddItemRequest,
+  sanitizeAddRate,
+  stripHandledParams,
+  type AddItemRequest,
+} from '../lib/addItemLink'
 import { useDataStore } from './dataStore'
 import { useDetailStore } from './detailStore'
 import { usePrefsStore } from './prefsStore'
@@ -68,6 +75,14 @@ export const usePlannerStore = defineStore('planner', () => {
 
   /** Transient, non-blocking message for the UI (e.g. an unknown `?add=` item). */
   const notice = ref<string | null>(null)
+
+  /**
+   * A full-plan link (`?p=`) that differs from the saved plan, parked until the
+   * user picks what to do with it (see `resolveShare`). While set, the saved
+   * plan is what's on screen and nothing has been written.
+   */
+  const pendingShare = ref<PlanState | null>(null)
+  let _deferredAdd: AddItemRequest | null = null
 
   // Multi-target tabs
   const targets = ref<PlanTarget[]>([
@@ -411,18 +426,72 @@ export const usePlannerStore = defineStore('planner', () => {
     }
   }
 
+  /**
+   * The single place URL parameters are handled at startup. No parameter may
+   * change stored state without the user's say-so:
+   *  - `?p=` / `?plan=` (replaces the plan): applied directly only when nothing
+   *    is saved or the saved plan is the same (`isSamePlan`). Otherwise the saved
+   *    plan stays loaded, saves are held while it loads, and the link waits in
+   *    `pendingShare` for `resolveShare`.
+   *  - `?add=` (additive, never destructive): applied once the plan is settled.
+   * Handled params are then stripped from the address bar so a refresh can't
+   * run them again; a pending link is stripped when the user chooses.
+   */
   async function init() {
     prefsStore.initPrefs()
-    const urlPlan = decodePlanFromUrl()
+    const shared = decodePlanFromUrl()
     const addRequest = readAddItemRequest(location.search)
-    const saved = loadSaved()
-    const plan = urlPlan ?? saved?.plan ?? null
-    await load(plan?.version ?? DEFAULT_VERSION, plan)
-    if (addRequest) {
-      _applyAddItemRequest(addRequest, plan !== null)
-      stripAddItemParams()
+    const saved = loadSaved()?.plan ?? null
+    const needsChoice = shared !== null && saved !== null && !isSamePlan(shared, saved)
+    const plan = needsChoice ? saved : (shared ?? saved)
+
+    if (needsChoice) {
+      // Same guard as cross-tab adoption: we're showing what's already in
+      // storage, so the watchers must not write it back.
+      _adoptDepth++
+      _adopting = true
+    }
+    try {
+      await load(plan?.version ?? DEFAULT_VERSION, plan)
+      if (needsChoice) await nextTick()
+    } finally {
+      if (needsChoice && --_adoptDepth === 0) _adopting = false
+    }
+
+    if (needsChoice) {
+      pendingShare.value = shared
+      _deferredAdd = addRequest
+    } else {
+      if (addRequest) _applyAddItemRequest(addRequest, plan !== null)
+      stripHandledParams()
     }
     detailStore.loadNavHistoryFromStorage()
+  }
+
+  /**
+   * Settle a pending share link: 'use' replaces the plan with the shared one,
+   * 'add' appends the shared tabs to the current plan (what an old single-item
+   * game link means), 'keep' leaves the plan alone. A deferred `?add=` then
+   * applies on top of the outcome.
+   */
+  async function resolveShare(choice: 'use' | 'add' | 'keep') {
+    const shared = pendingShare.value
+    if (!shared) return
+    pendingShare.value = null
+    const add = _deferredAdd
+    _deferredAdd = null
+
+    if (choice === 'use') {
+      await load(shared.version, shared)
+      _scheduleSave()
+    } else if (choice === 'add') {
+      for (const t of planTargetList(shared)) {
+        if (!t.targetItemId) continue
+        _applyAddItemRequest({ itemId: t.targetItemId, rate: sanitizeAddRate(t.targetRate) }, true)
+      }
+    }
+    if (add) _applyAddItemRequest(add, true)
+    stripHandledParams()
   }
 
   /**
@@ -813,6 +882,7 @@ export const usePlannerStore = defineStore('planner', () => {
 
     // Core Planner State & Computed
     notice,
+    pendingShare,
     tier,
     overrides,
     recipeOverrides,
@@ -834,6 +904,7 @@ export const usePlannerStore = defineStore('planner', () => {
 
     // Planner Actions
     init,
+    resolveShare,
     load,
     setTier,
     setVersion,
