@@ -74,6 +74,9 @@ async function open(search: string) {
 /** A `?p=` link in the compact format the game and the share button produce. */
 const pLink = (plan: object) => `?p=${encodeURIComponent(btoa(JSON.stringify(plan)))}`
 
+const nameOf = (s: ReturnType<typeof usePlannerStore>, id: string) =>
+  s.items.find((i) => i.id === id)!.name
+
 const itemIds = (s: ReturnType<typeof usePlannerStore>) => s.targets.map((t) => t.targetItemId)
 
 /** Mount the real App on a fresh pinia (a page load at `search`). */
@@ -118,7 +121,14 @@ describe('?add= link', () => {
     expect(itemIds(s)).toEqual(['aerogel'])
     expect(s.targets[0].targetRate).toBe(45)
     expect(loadSaved()?.plan?.targets?.map((t) => t.targetItemId)).toEqual(['aerogel'])
-    expect(s.notice).toBeNull()
+    expect(s.notice).toBe(`Added ${nameOf(s, 'aerogel')} to your plan.`)
+  })
+
+  it('on an existing plan, confirms the added item by its display name', async () => {
+    save(savedPlan(), prefs)
+    const s = await open('?add=accumulator')
+    expect(s.notice).toBe(`Added ${nameOf(s, 'accumulator')} to your plan.`)
+    expect(s.notice).not.toContain('accumulator') // the display name, not the id
   })
 
   it('adds to an existing plan without losing targets, rates or recipes', async () => {
@@ -287,6 +297,27 @@ describe('?p= share link', () => {
     }
     expect(s.pendingShare).toBeNull()
     expect(location.search).toBe('')
+  })
+
+  it('add to my plan: several recipes raise one summary notice', async () => {
+    save(savedPlan(), prefs)
+    const s = await open(
+      pLink({
+        m: [
+          { i: 'accumulator', r: 7 },
+          { i: 'battery', r: 7 },
+        ],
+      }),
+    )
+    await s.resolveShare('add')
+    expect(s.notice).toBe('Added 2 recipes to your plan.')
+  })
+
+  it('add to my plan: a single recipe is named in the notice', async () => {
+    save(savedPlan(), prefs)
+    const s = await open(pLink(shared))
+    await s.resolveShare('add')
+    expect(s.notice).toBe(`Added ${nameOf(s, 'accumulator')} to your plan.`)
   })
 
   it('add to my plan: unknown items are skipped with the ?add= notice', async () => {
@@ -535,6 +566,18 @@ describe('?add= hand-off to an open planner tab', () => {
     expect(storedIds()).toEqual(withAccumulator)
   })
 
+  it('the receiving tab confirms the item it took', async () => {
+    save(savedPlan(), prefs)
+    const receiver = await tab()
+    await settle()
+    vi.spyOn(window, 'close').mockImplementation(() => {})
+
+    await tab('?add=accumulator&r=20')
+    await settle()
+
+    expect(receiver.notice).toBe(`Added ${nameOf(receiver, 'accumulator')} to your plan.`)
+  })
+
   it('no open tab: adds the item locally after the timeout and strips the param', async () => {
     save(savedPlan(), prefs)
     const close = vi.spyOn(window, 'close').mockImplementation(() => {})
@@ -546,6 +589,7 @@ describe('?add= hand-off to an open planner tab', () => {
     expect(close).not.toHaveBeenCalled()
     expect(itemIds(asker)).toEqual(withAccumulator)
     expect(storedIds()).toEqual(withAccumulator)
+    expect(asker.notice).toBe(`Added ${nameOf(asker, 'accumulator')} to your plan.`)
     expect(location.search).toBe('')
   })
 

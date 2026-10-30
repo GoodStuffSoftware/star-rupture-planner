@@ -549,13 +549,24 @@ export const usePlannerStore = defineStore('planner', () => {
     if (choice === 'use') {
       await load(shared.version, shared)
       _scheduleSave()
-    } else if (choice === 'add') {
+    }
+    // One notice for the whole settle, not a flicker per recipe. An unknown
+    // item's error notice (set inside the apply) wins over the summary.
+    const added: string[] = []
+    let failed = false
+    const apply = (r: AddItemRequest) => {
+      const name = _applyAddItemRequest(r, true, false)
+      if (name) added.push(name)
+      else failed = true
+    }
+    if (choice === 'add') {
       for (const t of planTargetList(shared)) {
         if (!t.targetItemId) continue
-        _applyAddItemRequest({ itemId: t.targetItemId, rate: sanitizeAddRate(t.targetRate) }, true)
+        apply({ itemId: t.targetItemId, rate: sanitizeAddRate(t.targetRate) })
       }
     }
-    if (add) _applyAddItemRequest(add, true)
+    if (add) apply(add)
+    if (!failed && added.length) notice.value = _addedNotice(added)
     stripHandledParams()
   }
 
@@ -566,22 +577,34 @@ export const usePlannerStore = defineStore('planner', () => {
    * other item becomes a new tab. `hadPlan` is false only when nothing was
    * saved, where the lone default tab is a placeholder and is filled instead.
    */
-  function _applyAddItemRequest(req: AddItemRequest, hadPlan: boolean) {
-    if (!dataStore.itemsById.has(req.itemId)) {
+  function _applyAddItemRequest(
+    req: AddItemRequest,
+    hadPlan: boolean,
+    announce = true,
+  ): string | null {
+    const item = dataStore.itemsById.get(req.itemId)
+    if (!item) {
       notice.value = `Couldn't add "${req.itemId}": it isn't in this game version. Your plan is unchanged.`
-      return
+      return null
     }
+    const existing = hadPlan ? targets.value.find((t) => t.targetItemId === req.itemId) : undefined
     if (!hadPlan) {
       setTarget(req.itemId, req.rate)
-      return
-    }
-    const existing = targets.value.find((t) => t.targetItemId === req.itemId)
-    if (existing) {
+    } else if (existing) {
       setActiveTarget(existing.tid)
     } else {
       addTargetItem(req.itemId)
       targetRate.value = req.rate
     }
+    if (announce) notice.value = _addedNotice([item.name])
+    return item.name
+  }
+
+  /** Confirmation for a successful add: the name for one item, a count for several. */
+  function _addedNotice(names: string[]): string {
+    return names.length === 1
+      ? `Added ${names[0]} to your plan.`
+      : `Added ${names.length} recipes to your plan.`
   }
 
   function setTier(baseId: string, value: 'v1' | 'v2') {
