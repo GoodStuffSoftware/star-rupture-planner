@@ -50,6 +50,9 @@ const dtMax = computed(() =>
 )
 const dtInput = ref(String(dtValue.value))
 const dtEditing = ref(false)
+// True once the user has typed since the last commit: a focus + blur alone must never
+// re-save the displayed (possibly stale) value over a sibling tab's change.
+let dtTyped = false
 let dtTimer: ReturnType<typeof setTimeout> | null = null
 
 watch(dtValue, (v) => {
@@ -71,7 +74,8 @@ function saveDt(n: number) {
 function commitDt() {
   if (dtTimer !== null) clearTimeout(dtTimer)
   dtTimer = null
-  const n = parseWholeRate(dtInput.value)
+  const n = dtTyped ? parseWholeRate(dtInput.value) : null
+  dtTyped = false
   if (n !== null) saveDt(n)
   // Show what was kept (rounded, clamped), or put the old value back when it was unusable.
   dtInput.value = String(dtValue.value)
@@ -79,10 +83,14 @@ function commitDt() {
 
 function onDtInput() {
   dtEditing.value = true
+  dtTyped = true
   if (dtTimer !== null) clearTimeout(dtTimer)
   dtTimer = setTimeout(() => {
     const n = parseWholeRate(dtInput.value)
-    if (n !== null) saveDt(n)
+    if (n !== null) {
+      dtTyped = false
+      saveDt(n)
+    }
   }, RATE_DEBOUNCE_MS)
 }
 
@@ -94,6 +102,7 @@ function onDtBlur() {
 function stepDt(dir: number) {
   if (dtTimer !== null) clearTimeout(dtTimer)
   dtTimer = null
+  dtTyped = false
   saveDt(Math.min(dtMax.value, Math.max(1, dtValue.value + dir)))
   dtInput.value = String(dtValue.value)
 }

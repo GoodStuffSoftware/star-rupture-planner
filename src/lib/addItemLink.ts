@@ -27,9 +27,13 @@ export function parseAddRate(rate: number): number | null {
     : null
 }
 
-/** Like parseAddRate, but an unusable rate becomes DEFAULT_ADD_RATE (share links carry their own). */
+/**
+ * A shared plan's rate for "add to my plan": kept as it is (a fractional machine multiple
+ * like 22.5 must survive; the store rounds anything that is not one), or DEFAULT_ADD_RATE
+ * when unusable.
+ */
 export function sanitizeAddRate(rate: number): number {
-  return parseAddRate(rate) ?? DEFAULT_ADD_RATE
+  return Number.isFinite(rate) && rate > 0 && rate <= MAX_ADD_RATE ? rate : DEFAULT_ADD_RATE
 }
 
 /** Parse `?add=` / `&r=` from a query string. Returns null when no usable `add` is present. */

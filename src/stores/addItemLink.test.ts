@@ -1152,4 +1152,48 @@ describe('default rate for new targets', () => {
     vi.advanceTimersByTime(400)
     expect(setItem).toHaveBeenCalledTimes(1)
   })
+
+  it('add to my plan keeps a shared fractional machine multiple (22.5), rounding anything else', async () => {
+    withSetting(perMin(45))
+    const s = await open(pLink({ i: 'laser_emitter', r: 22.5 }))
+    await s.resolveShare('add')
+    expect(rates(s)).toEqual([30, 12, 22.5])
+    localStorage.clear()
+    withSetting(perMin(45))
+    const t = await open(pLink({ i: 'laser_emitter', r: 20.4 }))
+    await t.resolveShare('add')
+    expect(rates(t)).toEqual([30, 12, 20])
+  })
+
+  it('the Options field only saves what was typed: focus and blur cannot undo a sibling tab', async () => {
+    withSetting(machines(3))
+    const { store, host, unmount } = await mountApp('')
+    const input = async () => {
+      for (let i = 0; i < 50 && !host.querySelector('[data-testid="default-target-input"]'); i++) {
+        await vi.advanceTimersByTimeAsync(50)
+      }
+      return host.querySelector<HTMLInputElement>('[data-testid="default-target-input"]')!
+    }
+    const field = await input()
+    expect(field.value).toBe('3')
+    // Focus, then a sibling tab changes the setting while the field is still showing 3.
+    field.dispatchEvent(new FocusEvent('focus'))
+    save(savedPlan(), withDefault(machines(5)))
+    window.dispatchEvent(
+      new StorageEvent('storage', { key: LS_KEY, newValue: localStorage.getItem(LS_KEY) }),
+    )
+    await vi.advanceTimersByTimeAsync(50)
+    field.dispatchEvent(new FocusEvent('blur'))
+    await vi.advanceTimersByTimeAsync(500)
+    expect(store.defaultTarget.machines).toBe(5)
+    expect(loadSaved()?.prefs?.defaultTarget.machines).toBe(5)
+    expect(field.value).toBe('5')
+    // Typing does save, after the pause.
+    field.value = '7'
+    field.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(500)
+    expect(store.defaultTarget.machines).toBe(7)
+    expect(loadSaved()?.prefs?.defaultTarget.machines).toBe(7)
+    unmount()
+  })
 })

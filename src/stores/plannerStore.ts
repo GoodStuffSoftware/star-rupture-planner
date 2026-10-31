@@ -623,7 +623,7 @@ export const usePlannerStore = defineStore('planner', () => {
     // setting keeps the long-standing 60/min a bare link always got.
     const start =
       req.rate !== null
-        ? { rate: req.rate, exact: false }
+        ? { rate: req.rate, exact: isMachineMultiple(req.rate, defaultRateForItem(req.itemId)) }
         : isDefaultTargetUntouched(prefsStore.defaultTarget)
           ? { rate: DEFAULT_ADD_RATE, exact: false }
           : newTarget(req.itemId)
