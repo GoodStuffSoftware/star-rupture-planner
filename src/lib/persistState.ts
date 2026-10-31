@@ -1,7 +1,7 @@
 import type { TierSelection } from './recipeIndex'
 import type { VersionOverrides, RecipeOverrides, Overages, NodeExpansion } from '../types/game'
 import { DEFAULT_VERSION } from '../data/versions'
-import { normalizeTargetRate } from './format'
+import { normalizeTargetRate, sanitizeDefaultTarget, type DefaultTargetPref } from './format'
 
 // ─── Shared state types ───────────────────────────────────────────────────────
 
@@ -40,6 +40,7 @@ export interface ViewPrefs {
   treeFontScale: number // tree zoom factor (1 = 100%)
   totalsPlacement: 'side' | 'bottom'
   totalsCollapsed: Record<string, boolean> // collapsed state per Totals subsection
+  defaultTarget: DefaultTargetPref // what a target added without a rate starts at
 }
 
 // ─── LocalStorage key ─────────────────────────────────────────────────────────
@@ -122,6 +123,7 @@ export function loadSaved(): { plan?: PlanState; prefs?: ViewPrefs } | null {
           typeof p.totalsCollapsed === 'object' && p.totalsCollapsed !== null
             ? (p.totalsCollapsed as Record<string, boolean>)
             : {},
+        defaultTarget: sanitizeDefaultTarget(p.defaultTarget),
       }
     }
 

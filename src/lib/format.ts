@@ -93,3 +93,70 @@ export function stepTargetRateBy(current: number, machineRate: number, dir: numb
   next = Math.round(next * 1000) / 1000
   return next > 0 ? next : null
 }
+
+// ─── Default rate for new targets (Options) ──────────────────────────────────
+
+export type DefaultTargetMode = 'machines' | 'perMin'
+
+/** What a target added without an explicit rate starts at. */
+export interface DefaultTargetPref {
+  mode: DefaultTargetMode
+  /** Machines mode: how many whole machines' output (>= 1). */
+  machines: number
+  /** Items-per-minute mode: a whole rate (>= 1). */
+  perMin: number
+}
+
+/** The shipped setting: one machine, which is what new targets always started at. */
+export const DEFAULT_TARGET_PREF: Readonly<DefaultTargetPref> = {
+  mode: 'machines',
+  machines: 1,
+  perMin: 60,
+}
+
+export const MAX_DEFAULT_MACHINES = 1000
+export const MAX_DEFAULT_PER_MIN = 1_000_000
+
+/** The rate for an item nothing produces (a raw resource): what new targets always got. */
+export const DEFAULT_TARGET_FALLBACK_RATE = 60
+
+/** A whole number clamped to 1..max; anything that is not a finite number gives `fallback`. */
+function clampWhole(v: unknown, max: number, fallback: number): number {
+  if (typeof v !== 'number' || !Number.isFinite(v)) return fallback
+  return Math.min(max, Math.max(1, Math.round(v)))
+}
+
+/** Validate a stored or edited setting: a bad mode gives Machines, counts are whole and in range. */
+export function sanitizeDefaultTarget(raw: unknown): DefaultTargetPref {
+  const o = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
+  return {
+    mode: o.mode === 'perMin' ? 'perMin' : 'machines',
+    machines: clampWhole(o.machines, MAX_DEFAULT_MACHINES, DEFAULT_TARGET_PREF.machines),
+    perMin: clampWhole(o.perMin, MAX_DEFAULT_PER_MIN, DEFAULT_TARGET_PREF.perMin),
+  }
+}
+
+/** True for the shipped setting (Machines, 1), under which every add path behaves as it always did. */
+export function isDefaultTargetUntouched(p: DefaultTargetPref): boolean {
+  return p.mode === 'machines' && p.machines === DEFAULT_TARGET_PREF.machines
+}
+
+/**
+ * The rate a target added without an explicit rate starts at, given the setting and one
+ * machine's output for the item (undefined when nothing produces it).
+ * - Items/min: that whole rate.
+ * - Machines, 1: one machine's output as a whole number (the original behaviour: 7.5 gives 8).
+ * - Machines, N >= 2: N x one machine's output, an exact multiple even when fractional (22.5).
+ * - No producer: 60, as before.
+ * `exact` says the value is a machine multiple, for normalizeTargetRate.
+ */
+export function newTargetRate(
+  p: DefaultTargetPref,
+  machineRate: number | undefined,
+): { rate: number; exact: boolean } {
+  if (p.mode === 'perMin') return { rate: normalizeTargetRate(p.perMin), exact: false }
+  const m = machineRate && machineRate > 0 ? machineRate : undefined
+  if (m === undefined) return { rate: DEFAULT_TARGET_FALLBACK_RATE, exact: false }
+  if (p.machines <= 1) return { rate: normalizeTargetRate(m), exact: false }
+  return { rate: normalizeTargetRate(p.machines * m, true), exact: true }
+}

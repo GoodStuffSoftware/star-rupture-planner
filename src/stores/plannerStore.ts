@@ -22,7 +22,13 @@ import {
 } from '../lib/recipeIndex'
 import { resolveTree, aggregateTotals } from '../lib/resolver'
 import { DEFAULT_VERSION } from '../data/versions'
-import { normalizeTargetRate, isMachineMultiple, stepTargetRateBy } from '../lib/format'
+import {
+  normalizeTargetRate,
+  isMachineMultiple,
+  stepTargetRateBy,
+  newTargetRate,
+  isDefaultTargetUntouched,
+} from '../lib/format'
 import {
   save,
   loadSaved,
@@ -36,6 +42,7 @@ import {
 } from '../lib/persistState'
 import {
   readAddItemRequest,
+  DEFAULT_ADD_RATE,
   sanitizeAddRate,
   stripHandledParams,
   hasHandOffSupport,
@@ -280,9 +287,20 @@ export const usePlannerStore = defineStore('planner', () => {
     return out && out > 0 ? out : 60
   }
 
-  /** The rate a freshly picked target starts at: one machine's output, as a whole number. */
+  /**
+   * What a new target of `itemId` starts at under the "default for new targets" setting
+   * (see newTargetRate), using the same producer one machine is measured by.
+   */
+  function newTarget(itemId: string): { rate: number; exact: boolean } {
+    return newTargetRate(
+      prefsStore.defaultTarget,
+      effectiveProducerFor(itemId)?.recipe.output.amount_per_minute,
+    )
+  }
+
+  /** The rate a freshly picked or added target starts at. */
   function defaultTargetRate(itemId: string): number {
-    return normalizeTargetRate(defaultRateForItem(itemId))
+    return newTarget(itemId).rate
   }
 
   /**
@@ -601,13 +619,21 @@ export const usePlannerStore = defineStore('planner', () => {
       return null
     }
     const existing = hadPlan ? targets.value.find((t) => t.targetItemId === req.itemId) : undefined
+    // An explicit `r` wins. Without one the setting decides, except that the shipped
+    // setting keeps the long-standing 60/min a bare link always got.
+    const start =
+      req.rate !== null
+        ? { rate: req.rate, exact: false }
+        : isDefaultTargetUntouched(prefsStore.defaultTarget)
+          ? { rate: DEFAULT_ADD_RATE, exact: false }
+          : newTarget(req.itemId)
     if (!hadPlan) {
-      setTarget(req.itemId, req.rate)
+      setTarget(req.itemId, start.rate, start.exact)
     } else if (existing) {
       setActiveTarget(existing.tid)
     } else {
       addTargetItem(req.itemId)
-      targetRate.value = req.rate
+      setTarget(req.itemId, start.rate, start.exact)
     }
     const result = { name: item.name, created: !existing }
     if (announce) notice.value = _addedNotice([result])
@@ -964,6 +990,7 @@ export const usePlannerStore = defineStore('planner', () => {
       set: (v) => prefsStore.setTotalsPlacement(v),
     }),
     totalsCollapsed: computed(() => prefsStore.totalsCollapsed),
+    defaultTarget: computed(() => prefsStore.defaultTarget),
     theme: computed({
       get: () => prefsStore.theme,
       set: (v) => prefsStore.setTheme(v),
@@ -973,6 +1000,7 @@ export const usePlannerStore = defineStore('planner', () => {
     setShowIcons: prefsStore.setShowIcons,
     setShowRowDividers: prefsStore.setShowRowDividers,
     setShowOverages: prefsStore.setShowOverages,
+    setDefaultTarget: prefsStore.setDefaultTarget,
     toggleOptions: prefsStore.toggleOptions,
     setTreeFontScale: prefsStore.setTreeFontScale,
     setTotalsPlacement: prefsStore.setTotalsPlacement,

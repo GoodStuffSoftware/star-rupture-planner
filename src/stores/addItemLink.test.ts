@@ -35,6 +35,7 @@ const prefs = {
   treeFontScale: 1,
   totalsPlacement: 'side' as const,
   totalsCollapsed: {},
+  defaultTarget: { mode: 'machines' as const, machines: 1, perMin: 60 },
 }
 
 /** Two targets and a recipe override: the things a stray reset would lose. */
