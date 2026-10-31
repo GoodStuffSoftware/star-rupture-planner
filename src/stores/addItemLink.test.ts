@@ -772,3 +772,140 @@ describe('App notice', () => {
     unmount()
   })
 })
+
+// The target (top item) rate is always a whole number, whatever the source. Rates
+// below it keep their decimals. The one exception is an exact multiple of a
+// fractional machine output (laser_emitter: 7.5), which stepping produces.
+describe('whole-number target rate', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    vi.useFakeTimers()
+    stubFetch()
+  })
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  const rates = (s: ReturnType<typeof usePlannerStore>) => s.targets.map((t) => t.targetRate)
+
+  it('rounds decimals in a persisted plan on load, keeping the tabs and their tree', async () => {
+    const plan = savedPlan()
+    plan.targets![0].targetRate = 12.345
+    plan.targets![1].targetRate = 30.6
+    plan.targetRate = 30.6
+    save(plan, prefs)
+    const s = await open('')
+    expect(itemIds(s)).toEqual(['aerogel', 'airlock'])
+    expect(rates(s)).toEqual([12, 31])
+    expect(s.targets[0].overages).toEqual({ 'aerogel>liquid_helium': 5 })
+    expect(s.tree?.ratePerMin).toBe(31) // the active tab (airlock) resolves from the whole rate
+    expect(s.tree?.children.length).toBeGreaterThan(0)
+  })
+
+  it('sub-1 and exact-machine-multiple saved rates', async () => {
+    const plan = savedPlan()
+    plan.targets = [
+      { targetItemId: 'aerogel', targetRate: 0.3, overages: {} },
+      { targetItemId: 'laser_emitter', targetRate: 22.5, overages: {} }, // 3 machines of 7.5
+      { targetItemId: 'laser_emitter', targetRate: 12.5, overages: {} }, // not a multiple
+    ]
+    save(plan, prefs)
+    const s = await open('')
+    expect(s.defaultRateForItem('laser_emitter')).toBe(7.5)
+    expect(rates(s)).toEqual([1, 22.5, 13])
+  })
+
+  it('rounds a decimal in a ?p= link (compact and legacy formats) instead of dropping it', async () => {
+    let s = await open(pLink({ i: 'accumulator', r: 12.5 }))
+    expect(itemIds(s)).toEqual(['accumulator'])
+    expect(rates(s)).toEqual([13])
+    localStorage.clear()
+    s = await open(
+      pLink({
+        version: DEFAULT_VERSION,
+        targetItemId: 'accumulator',
+        targetRate: 12.345,
+        tier: {},
+        overrides: {},
+      }),
+    )
+    expect(rates(s)).toEqual([12])
+    localStorage.clear()
+    s = await open(
+      pLink({
+        m: [
+          { i: 'aerogel', r: 9.5 },
+          { i: 'airlock', r: 4.4 },
+        ],
+      }),
+    )
+    expect(rates(s)).toEqual([10, 4])
+  })
+
+  it('a link holding 12.6 matches a saved 13: no share prompt', async () => {
+    const plan = savedPlan()
+    plan.targets = [{ targetItemId: 'airlock', targetRate: 13, overages: {} }]
+    plan.targetItemId = 'airlock'
+    plan.targetRate = 13
+    plan.tier = {}
+    plan.overrides = {}
+    plan.recipeOverrides = {}
+    save(plan, prefs)
+    const s = await open(pLink({ i: 'airlock', r: 12.6 }))
+    expect(s.pendingShare).toBeNull()
+    expect(rates(s)).toEqual([13])
+  })
+
+  it('?add= with a decimal r adds a whole-number target', async () => {
+    let s = await open('?add=aerogel&r=12.5')
+    expect(rates(s)).toEqual([13])
+    localStorage.clear()
+    s = await open('?add=aerogel&r=0.4')
+    expect(rates(s)).toEqual([1])
+    save(savedPlan(), prefs)
+    s = await open('?add=accumulator&r=20.4')
+    expect(rates(s)).toEqual([30, 12, 20])
+  })
+
+  it('a newly picked or added target starts at one machine, as a whole number', async () => {
+    const s = await open('?add=aerogel&r=45')
+    s.selectTargetItem('laser_emitter')
+    expect(s.targetRate).toBe(8) // 7.5 rounded
+    s.addTargetItem('laser_emitter')
+    expect(s.targetRate).toBe(8)
+    s.targetRate = 12.7
+    expect(s.targetRate).toBe(13)
+  })
+
+  it('a sibling save holding decimals is adopted rounded, without writing back or echoing', async () => {
+    save(savedPlan(), prefs)
+    const s = await open('')
+    const plan = savedPlan()
+    plan.targets![0].targetRate = 30.4
+    plan.targets![1].targetRate = 12.5
+    save(plan, prefs)
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+    const ev = () =>
+      window.dispatchEvent(
+        new StorageEvent('storage', { key: LS_KEY, newValue: localStorage.getItem(LS_KEY) }),
+      )
+    ev()
+    await nextTick()
+    await nextTick()
+    vi.advanceTimersByTime(5000)
+    expect(rates(s)).toEqual([30, 13])
+    ev() // the same raw value again: ignored
+    await nextTick()
+    vi.advanceTimersByTime(5000)
+    expect(rates(s)).toEqual([30, 13])
+    expect(setItem).not.toHaveBeenCalled()
+    // The adoption guard is back down: a local edit saves once, with whole rates.
+    s.setTarget('airlock', 14)
+    await nextTick()
+    vi.advanceTimersByTime(400)
+    expect(setItem).toHaveBeenCalledTimes(1)
+    expect(loadSaved()?.plan?.targets?.map((t) => t.targetRate)).toEqual([30, 14])
+  })
+})

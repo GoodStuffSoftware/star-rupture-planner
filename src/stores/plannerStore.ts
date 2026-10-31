@@ -22,6 +22,7 @@ import {
 } from '../lib/recipeIndex'
 import { resolveTree, aggregateTotals } from '../lib/resolver'
 import { DEFAULT_VERSION } from '../data/versions'
+import { normalizeTargetRate, isMachineMultiple, stepTargetRateBy } from '../lib/format'
 import {
   save,
   loadSaved,
@@ -123,7 +124,7 @@ export const usePlannerStore = defineStore('planner', () => {
   const targetRate = computed<number>({
     get: () => activeTarget.value?.targetRate ?? 60,
     set: (v) => {
-      if (activeTarget.value) activeTarget.value.targetRate = v
+      if (activeTarget.value) activeTarget.value.targetRate = normalizeTargetRate(v)
     },
   })
   const overages = computed<Overages>({
@@ -279,6 +280,11 @@ export const usePlannerStore = defineStore('planner', () => {
     return out && out > 0 ? out : 60
   }
 
+  /** The rate a freshly picked target starts at: one machine's output, as a whole number. */
+  function defaultTargetRate(itemId: string): number {
+    return normalizeTargetRate(defaultRateForItem(itemId))
+  }
+
   /**
    * Apply a plan — or fall back to defaults — against an ALREADY-loaded
    * game-data set. Split out of `load` so cross-tab sync can re-hydrate from a
@@ -375,9 +381,14 @@ export const usePlannerStore = defineStore('planner', () => {
           s.targetItemId && freshItemsById.has(s.targetItemId) ? s.targetItemId : fallbackItem
         const rate =
           typeof s.targetRate === 'number' && isFinite(s.targetRate) && s.targetRate > 0
-            ? s.targetRate
+            ? // Old saves and links may hold decimals: round them, but keep an exact multiple of the
+              // item's machine output (what stepping produces), so it survives a reload or a sibling tab.
+              normalizeTargetRate(
+                s.targetRate,
+                !!validItem && isMachineMultiple(s.targetRate, defaultRateForItem(validItem)),
+              )
             : validItem
-              ? defaultRateForItem(validItem)
+              ? defaultTargetRate(validItem)
               : 60
         const exp =
           typeof s.expandLevel === 'number' && s.expandLevel >= 0
@@ -396,7 +407,7 @@ export const usePlannerStore = defineStore('planner', () => {
         restoredTargets.push({
           tid: _newTid(),
           targetItemId: fallbackItem,
-          targetRate: fallbackItem ? defaultRateForItem(fallbackItem) : 60,
+          targetRate: fallbackItem ? defaultTargetRate(fallbackItem) : 60,
           expandLevel: prefsStore.defaultExpandLevel,
           overages: {},
           expanded: {},
@@ -419,7 +430,7 @@ export const usePlannerStore = defineStore('planner', () => {
         {
           tid: _newTid(),
           targetItemId: newTarget,
-          targetRate: newTarget ? defaultRateForItem(newTarget) : 60,
+          targetRate: newTarget ? defaultTargetRate(newTarget) : 60,
           overages: {},
           expandLevel: prefsStore.defaultExpandLevel,
           expanded: {},
@@ -627,22 +638,25 @@ export const usePlannerStore = defineStore('planner', () => {
     load(v)
   }
 
-  function setTarget(itemId: string, rate: number) {
+  /** `exactMachineMultiple`: only the steppers pass it (see normalizeTargetRate). */
+  function setTarget(itemId: string, rate: number, exactMachineMultiple = false) {
     const t = activeTarget.value
     if (!t) return
     if (t.targetItemId !== itemId) t.expanded = {}
     t.targetItemId = itemId
-    t.targetRate = rate
+    t.targetRate = normalizeTargetRate(rate, exactMachineMultiple)
   }
 
-  /** Step the active target's rate by one producing machine's output (header and root row). */
+  /**
+   * Step the active target's rate by one producing machine's output (header and root row).
+   * A fractional machine output keeps the result an exact machine multiple (see
+   * stepTargetRateBy); a step that would reach 0 or below does nothing.
+   */
   function stepTargetRate(dir: number) {
     const id = targetItemId.value
     if (!id) return
-    const step = defaultRateForItem(id) || 1
-    const next = Math.max(0, (Number(targetRate.value) || 0) + dir * step)
-    // Round to avoid floating-point drift from repeated steps.
-    setTarget(id, Math.round(next * 1000) / 1000)
+    const next = stepTargetRateBy(targetRate.value, defaultRateForItem(id), dir)
+    if (next !== null) setTarget(id, next, true)
   }
 
   function setActiveTarget(tid: string) {
@@ -658,7 +672,7 @@ export const usePlannerStore = defineStore('planner', () => {
     targets.value.push({
       tid,
       targetItemId: itemId,
-      targetRate: itemId ? defaultRateForItem(itemId) : 60,
+      targetRate: itemId ? defaultTargetRate(itemId) : 60,
       overages: {},
       expandLevel: activeTarget.value?.expandLevel ?? prefsStore.defaultExpandLevel,
       expanded: {},
@@ -682,7 +696,7 @@ export const usePlannerStore = defineStore('planner', () => {
       targets.value.push({
         tid: _newTid(),
         targetItemId: newItem,
-        targetRate: newItem ? defaultRateForItem(newItem) : 60,
+        targetRate: newItem ? defaultTargetRate(newItem) : 60,
         overages: {},
         expandLevel: prefsStore.defaultExpandLevel,
         expanded: {},
@@ -711,7 +725,7 @@ export const usePlannerStore = defineStore('planner', () => {
     // A different target means a different tree — the old paths no longer apply.
     if (t.targetItemId !== itemId) t.expanded = {}
     t.targetItemId = itemId
-    t.targetRate = defaultRateForItem(itemId)
+    t.targetRate = defaultTargetRate(itemId)
   }
 
   function setOverride(itemId: string, buildingId: string) {
@@ -1033,6 +1047,7 @@ export const usePlannerStore = defineStore('planner', () => {
     moveTarget,
     selectTargetItem,
     defaultRateForItem,
+    defaultTargetRate,
     setOverride,
     setRecipeOverride,
     clearOverrides,

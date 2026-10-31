@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
 import type { CraftNode } from '../../types/game'
-import { fmt } from '../../lib/format'
+import { fmt, parseWholeRate, stepTargetRateBy, RATE_DEBOUNCE_MS } from '../../lib/format'
 import { usePlannerStore } from '../../stores/plannerStore'
 import { createWheelStepper } from '../../lib/wheelStep'
 import RateStepButton from './RateStepButton.vue'
@@ -76,28 +76,62 @@ function resetOverage() {
 // Root row: the big rate is an in-place editor for the active target's rate.
 const rootDraft = ref(fmt(props.node.ratePerMin))
 
+// While the field is focused and the user has typed, its draft belongs to the user: a debounced
+// commit of their own typing must not rewrite it under the cursor. A change from elsewhere (the
+// header field, a stepper, another tab) shows up unless they are mid-edit.
+let rootFocused = false
+let rootDirty = false
+let rootFocusRate = 0 // the target's rate when the field got focus: what Escape restores
+let rootTimer: ReturnType<typeof setTimeout> | null = null
+
+function clearRootTimer() {
+  if (rootTimer !== null) clearTimeout(rootTimer)
+  rootTimer = null
+}
+onBeforeUnmount(clearRootTimer)
+
 watch(
   () => props.node.ratePerMin,
   (r) => {
+    if (rootFocused && rootDirty) return
     rootDraft.value = fmt(r)
   },
 )
 
 function revertRoot() {
-  rootDraft.value = fmt(props.node.ratePerMin)
+  rootDraft.value = fmt(store.targetRate)
+}
+
+function onRootFocus(e: FocusEvent) {
+  rootFocused = true
+  rootDirty = false
+  rootFocusRate = store.targetRate
+  ;(e.target as HTMLInputElement).select()
+}
+
+// Typing commits a valid value once the user pauses; an empty or half-typed draft ("", "1.", "abc")
+// commits nothing, and is settled on blur/Enter.
+function onRootInput() {
+  rootDirty = true
+  clearRootTimer()
+  rootTimer = setTimeout(() => {
+    rootTimer = null
+    const rate = parseWholeRate(rootDraft.value)
+    if (rate !== null && store.targetItemId && rate !== store.targetRate) {
+      store.setTarget(store.targetItemId, rate)
+    }
+  }, RATE_DEBOUNCE_MS)
 }
 
 function commitRoot() {
+  clearRootTimer()
+  rootFocused = false
+  rootDirty = false
   // Untouched text (focus then leave, Escape) must not rewrite a rate the field only displays rounded.
-  if (rootDraft.value === fmt(props.node.ratePerMin)) return
-  // Drop thousands commas ("1,200"); a comma with 1-2 digits after it is a decimal comma ("7,5").
-  const text = rootDraft.value
-    .replace(/,(?=\d{3}(?!\d))/g, '')
-    .replace(',', '.')
-    .trim()
-  const v = Number(text)
-  if (text !== '' && isFinite(v) && v > 0 && store.targetItemId) {
-    const rate = Math.round(v * 1000) / 1000
+  if (rootDraft.value === fmt(store.targetRate)) return
+  // The target is a whole number of items/min: round the typed value; one that rounds below 1 reverts.
+  const rate = parseWholeRate(rootDraft.value)
+  if (rate !== null && store.targetItemId) {
     store.setTarget(store.targetItemId, rate)
     rootDraft.value = fmt(rate)
   } else {
@@ -105,15 +139,29 @@ function commitRoot() {
   }
 }
 
+// Escape: back to the rate the field had on focus, undoing debounced commits made during this edit.
+function escapeRoot() {
+  clearRootTimer()
+  rootDirty = false
+  if (store.targetItemId && store.targetRate !== rootFocusRate) {
+    store.setTarget(store.targetItemId, rootFocusRate, true) // a value the store already held
+  }
+  rootDraft.value = fmt(rootFocusRate)
+}
+
 // One producing machine's output for the target: what the root -/+ and arrows step by (as in the header).
 const rootStep = computed(() =>
   store.targetItemId ? store.defaultRateForItem(store.targetItemId) : 0,
 )
 // Never step the target to zero or below: a step down that would is a no-op (the minus disables).
-const canStepRootDown = computed(() => store.targetRate - rootStep.value > 1e-9)
+const canStepRootDown = computed(
+  () => stepTargetRateBy(store.targetRate, rootStep.value, -1) !== null,
+)
 
 function stepRoot(dir: 1 | -1) {
   if (dir < 0 && !canStepRootDown.value) return
+  clearRootTimer()
+  rootDirty = false
   store.stepTargetRate(dir)
   rootDraft.value = fmt(store.targetRate)
 }
@@ -130,7 +178,7 @@ function onRootKey(e: KeyboardEvent) {
     el.blur() // blur commits
   } else if (e.key === 'Escape') {
     e.stopPropagation() // don't also close the detail drawer
-    revertRoot()
+    escapeRoot()
     el.blur()
   } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
     e.preventDefault()
@@ -232,14 +280,15 @@ const rootStepTitle = computed(() =>
         <input
           v-model="rootDraft"
           type="text"
-          inputmode="decimal"
+          inputmode="numeric"
           autocomplete="off"
           spellcheck="false"
           aria-label="Target output per minute"
           title="Target output — click to edit"
           :style="{ width: `${Math.max(rootDraft.length, 1)}ch` }"
           class="m-0 px-1 border-0 rounded-sm bg-[var(--panel-2)] text-xl font-bold font-mono text-[var(--accent)] text-right cursor-text outline-none hover:bg-[var(--border)]/50 focus:bg-[var(--border)] transition-colors box-content"
-          @focus="($event.target as HTMLInputElement).select()"
+          @focus="onRootFocus"
+          @input="onRootInput"
           @keydown="onRootKey"
           @wheel="onRootWheel"
           @blur="commitRoot"
