@@ -135,11 +135,7 @@ function onEsc() {
 
 // --- Per-machine rate stepper ---
 function stepRate(dir: number) {
-  if (!store.targetItemId) return
-  const step = machineStep.value || 1
-  const next = Math.max(0, (Number(store.targetRate) || 0) + dir * step)
-  // Round to avoid floating-point drift from repeated steps.
-  store.setTarget(store.targetItemId, Math.round(next * 1000) / 1000)
+  store.stepTargetRate(dir)
 }
 
 onMounted(() => {

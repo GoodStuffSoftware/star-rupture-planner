@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import type { CraftNode } from '../../types/game'
 import { fmt } from '../../lib/format'
 import { usePlannerStore } from '../../stores/plannerStore'
@@ -67,6 +67,46 @@ function onOutputChange() {
 
 function resetOverage() {
   store.setOverage(props.node.path, 0)
+}
+
+// Root row: the big rate is an in-place editor for the active target's rate.
+const rootDraft = ref(fmt(props.node.ratePerMin))
+
+watch(
+  () => props.node.ratePerMin,
+  (r) => {
+    rootDraft.value = fmt(r)
+  },
+)
+
+function revertRoot() {
+  rootDraft.value = fmt(props.node.ratePerMin)
+}
+
+function commitRoot() {
+  const text = rootDraft.value.replace(/,/g, '').trim()
+  const v = Number(text)
+  if (text !== '' && isFinite(v) && v > 0 && store.targetItemId) {
+    store.setTarget(store.targetItemId, Math.round(v * 1000) / 1000)
+  }
+  // Re-sync the text either way (a rejected or unchanged value shows the live rate).
+  revertRoot()
+}
+
+function onRootKey(e: KeyboardEvent) {
+  const el = e.target as HTMLInputElement
+  if (e.key === 'Enter') {
+    commitRoot()
+    el.blur()
+  } else if (e.key === 'Escape') {
+    revertRoot()
+    el.blur()
+  } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+    e.preventDefault()
+    store.stepTargetRate(e.key === 'ArrowUp' ? 1 : -1)
+    revertRoot()
+    nextTick(() => el.select())
+  }
 }
 
 const stepTitle = computed(() =>
@@ -159,7 +199,21 @@ const stepTitle = computed(() =>
     </template>
     <!-- depth=0 root: large orange rate (replaces old header) -->
     <span v-else-if="depth === 0" class="text-xl font-bold font-mono text-[var(--accent)]"
-      >{{ fmt(node.ratePerMin) }}/min</span
+      ><input
+        v-model="rootDraft"
+        type="text"
+        inputmode="decimal"
+        autocomplete="off"
+        spellcheck="false"
+        aria-label="Target output per minute"
+        title="Target output — click to edit"
+        :style="{ width: `${Math.max(rootDraft.length, 1)}ch` }"
+        class="m-0 p-0 border-0 rounded-sm bg-transparent text-inherit font-[inherit] leading-[inherit] text-right align-baseline cursor-text outline-none hover:bg-[var(--panel-2)] focus:bg-[var(--panel-2)] transition-colors"
+        @focus="($event.target as HTMLInputElement).select()"
+        @keydown="onRootKey"
+        @blur="commitRoot"
+        @click.stop
+      />/min</span
     >
     <!-- depth>0 non-overage nodes -->
     <span v-else class="text-base font-mono text-slate-400">{{ fmt(node.ratePerMin) }}/min</span>

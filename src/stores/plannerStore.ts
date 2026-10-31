@@ -635,6 +635,16 @@ export const usePlannerStore = defineStore('planner', () => {
     t.targetRate = rate
   }
 
+  /** Step the active target's rate by one producing machine's output (header and root row). */
+  function stepTargetRate(dir: number) {
+    const id = targetItemId.value
+    if (!id) return
+    const step = defaultRateForItem(id) || 1
+    const next = Math.max(0, (Number(targetRate.value) || 0) + dir * step)
+    // Round to avoid floating-point drift from repeated steps.
+    setTarget(id, Math.round(next * 1000) / 1000)
+  }
+
   function setActiveTarget(tid: string) {
     if (targets.value.some((t) => t.tid === tid)) activeTargetId.value = tid
   }
@@ -1026,6 +1036,7 @@ export const usePlannerStore = defineStore('planner', () => {
     setOverride,
     setRecipeOverride,
     clearOverrides,
+    stepTargetRate,
     setOverage,
     clearOverages,
     setExpandLevel,
