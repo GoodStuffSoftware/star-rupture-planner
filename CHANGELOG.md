@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Fixed
+- **Stale tab no longer overwrites a newer plan**: Each tab remembers which saved plan it last read and, before writing, checks that storage still holds it. A tab that missed a sibling's save (its `storage` event still queued, or never delivered) now takes the newer plan instead of replacing it, and an `?add=` item is written at once and added on top of any plan saved while the page was loading, so the in-game "Launch planner" item can no longer be lost to an older open tab.
+
+---
+
 ## [1.5.0] - 2026-09-16
 
 ### Added

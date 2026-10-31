@@ -46,6 +46,29 @@ export interface ViewPrefs {
 /** Exported so the planner store can match it against `storage` events. */
 export const LS_KEY = 'srp:state:v1'
 
+// ─── Revision tracking ────────────────────────────────────────────────────────
+// Every tab of the app writes the same blob, so a tab that missed a sibling's
+// save (its `storage` event is still queued, or it never fires) would write its
+// older copy over the newer one. The blob text itself is the revision: this
+// tab remembers the text it last read or wrote, and `hasNewerSave` says whether
+// storage has moved on since.
+
+/** Blob text this tab last synced with; `undefined` until it has read storage. */
+let syncedRaw: string | null | undefined
+
+function readRaw(): string | null {
+  try {
+    return localStorage.getItem(LS_KEY)
+  } catch {
+    return null
+  }
+}
+
+/** True when storage holds a save this tab has not read or written itself. */
+export function hasNewerSave(): boolean {
+  return syncedRaw !== undefined && readRaw() !== syncedRaw
+}
+
 // ─── save / loadSaved ─────────────────────────────────────────────────────────
 
 /** Persist plan + prefs to localStorage. Converts Infinity → 'all'. Never throws. */
@@ -58,7 +81,9 @@ export function save(plan: PlanState, prefs: ViewPrefs): void {
         expandLevel: prefs.expandLevel === Infinity ? 'all' : prefs.expandLevel,
       },
     }
-    localStorage.setItem(LS_KEY, JSON.stringify(raw))
+    const text = JSON.stringify(raw)
+    localStorage.setItem(LS_KEY, text)
+    syncedRaw = text
   } catch {
     // Quota exceeded or private-browsing restriction — ignore silently.
   }
@@ -66,6 +91,9 @@ export function save(plan: PlanState, prefs: ViewPrefs): void {
 
 export function savePrefs(prefs: ViewPrefs): void {
   try {
+    // The stored plan is kept as is, so this write must not mark a newer plan
+    // as read: only an in-sync tab stays in sync.
+    const inSync = !hasNewerSave()
     const saved = loadSaved()
     const raw = {
       plan: saved?.plan,
@@ -74,10 +102,21 @@ export function savePrefs(prefs: ViewPrefs): void {
         expandLevel: prefs.expandLevel === Infinity ? 'all' : prefs.expandLevel,
       },
     }
-    localStorage.setItem(LS_KEY, JSON.stringify(raw))
+    const text = JSON.stringify(raw)
+    localStorage.setItem(LS_KEY, text)
+    if (inSync) syncedRaw = text
   } catch {
     // ignore
   }
+}
+
+/**
+ * `loadSaved`, for a tab that is about to show the result: also records the
+ * text it read as the revision this tab is in sync with.
+ */
+export function loadSavedForSync(): { plan?: PlanState; prefs?: ViewPrefs } | null {
+  syncedRaw = readRaw()
+  return parseSaved(syncedRaw)
 }
 
 /**
@@ -86,8 +125,11 @@ export function savePrefs(prefs: ViewPrefs): void {
  * Never throws.
  */
 export function loadSaved(): { plan?: PlanState; prefs?: ViewPrefs } | null {
+  return parseSaved(readRaw())
+}
+
+function parseSaved(raw: string | null): { plan?: PlanState; prefs?: ViewPrefs } | null {
   try {
-    const raw = localStorage.getItem(LS_KEY)
     if (!raw) return null
     const parsed = JSON.parse(raw) as Record<string, unknown>
 

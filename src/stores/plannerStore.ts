@@ -30,6 +30,8 @@ import {
   isSamePlan,
   planTargetList,
   LS_KEY,
+  hasNewerSave,
+  loadSavedForSync,
   type PlanState,
   type PlanTargetState,
 } from '../lib/persistState'
@@ -457,7 +459,7 @@ export const usePlannerStore = defineStore('planner', () => {
     // A lone `?add=` goes to an open planner tab when there is one. A share link
     // keeps its own prompt, so it is never handed off.
     if (addRequest && !shared && (await _handOffAdd(addRequest))) return
-    const saved = loadSaved()?.plan ?? null
+    const saved = loadSavedForSync()?.plan ?? null
     const needsChoice = shared !== null && saved !== null && !isSamePlan(shared, saved)
     // A saved plan always wins: when the link differs it waits for a choice, and
     // when it is equal there is nothing to apply (re-applying it would reset the
@@ -477,33 +479,47 @@ export const usePlannerStore = defineStore('planner', () => {
       if (needsChoice && --_adoptDepth === 0) _adopting = false
     }
 
+    // A sibling may have saved while the game data was loading.
+    const caughtUp = !needsChoice && _catchUp()
+
     if (needsChoice) {
       pendingShare.value = shared
       _deferredAdd = addRequest
     } else {
-      if (addRequest) _applyAddItemRequest(addRequest, plan !== null)
+      if (addRequest) _addAndPersist(addRequest, plan !== null || caughtUp)
       stripHandledParams()
     }
     detailStore.loadNavHistoryFromStorage()
     _stopServingHandOff()
     _stopServingHandOff = serveHandOff(_canTakeHandOff, (req) => {
-      // Persist before the asking tab is told it is done (and closes): a sibling
+      // Saved before the asking tab is told it is done (and closes): a sibling
       // save landing inside the debounce would otherwise replace the plan and
-      // drop the item for good. The hold keeps the watchers from queueing a
-      // second, identical save for the same change.
-      _adoptDepth++
-      _adopting = true
-      try {
-        _applyAddItemRequest(req, true)
-        if (_saveTimer !== null) clearTimeout(_saveTimer)
-        _saveTimer = null
-        save(_planState(), prefsStore.getPrefs())
-      } finally {
-        void nextTick().then(() => {
-          if (--_adoptDepth === 0) _adopting = false
-        })
-      }
+      // drop the item for good.
+      _addAndPersist(req, true)
     })
+  }
+
+  /**
+   * Add an `?add=` item and write it out at once rather than on the debounce,
+   * so no sibling save can land in between and replace it. A sibling may also
+   * have saved since this tab read storage, with its `storage` event still
+   * queued: its plan is taken first and the item goes on top of it. The hold
+   * keeps the watchers from queueing a second, identical save.
+   */
+  function _addAndPersist(req: AddItemRequest, hadPlan: boolean) {
+    _adoptDepth++
+    _adopting = true
+    try {
+      const caughtUp = _catchUp()
+      if (!_applyAddItemRequest(req, hadPlan || caughtUp)) return
+      if (_saveTimer !== null) clearTimeout(_saveTimer)
+      _saveTimer = null
+      save(_planState(), prefsStore.getPrefs())
+    } finally {
+      void nextTick().then(() => {
+        if (--_adoptDepth === 0) _adopting = false
+      })
+    }
   }
 
   /**
@@ -530,8 +546,15 @@ export const usePlannerStore = defineStore('planner', () => {
   // other tab was told had been added. It stays quiet and the asking tab adds
   // the item itself, which this tab then adopts through the storage sync.
   let _stopServingHandOff = () => {}
+  // Nor one that has not yet read a sibling's newer save: it would add the item
+  // to an older plan and write that back. The asking tab then adds it itself.
   const _canTakeHandOff = () =>
-    !handOff.value && !pendingShare.value && !_adopting && !dataStore.loading && !dataStore.error
+    !handOff.value &&
+    !pendingShare.value &&
+    !_adopting &&
+    !dataStore.loading &&
+    !dataStore.error &&
+    !hasNewerSave()
 
   /**
    * Settle a pending share link: 'use' replaces the plan with the shared one,
@@ -812,6 +835,11 @@ export const usePlannerStore = defineStore('planner', () => {
     if (_saveTimer !== null) clearTimeout(_saveTimer)
     _saveTimer = setTimeout(() => {
       _saveTimer = null
+      // A sibling saved since this tab last read storage and its `storage`
+      // event has not been handled yet: writing now would replace its newer
+      // plan with this older one. Take the newer one instead; an edit made in
+      // the last moments before is dropped, theirs never is.
+      if (hasNewerSave() && _adoptNewerSave()) return
       save(_planState(), prefsStore.getPrefs())
     }, 300)
   }
@@ -827,14 +855,46 @@ export const usePlannerStore = defineStore('planner', () => {
   let _adoptSeq = 0
   let _lastAdoptedRaw: string | null = null
 
+  /**
+   * Take a newer sibling save into this tab right now, in the same tick, for
+   * when a change is about to be made on top of it. True when one was taken.
+   * Only possible against the game data already loaded (same version).
+   */
+  function _catchUp(): boolean {
+    if (!hasNewerSave()) return false
+    const plan = loadSavedForSync()?.plan
+    if (!plan || plan.version !== dataStore.version) return false
+    _lastAdoptedRaw = null
+    _applyPlan(dataStore.version, plan, {
+      items: dataStore.items,
+      buildings: dataStore.buildings,
+      chains: dataStore.chains,
+    })
+    return true
+  }
+
+  /**
+   * Take the plan a sibling saved behind this tab's back. False when storage
+   * holds no plan to take (cleared, or prefs only): this tab's own copy may
+   * then be written.
+   */
+  function _adoptNewerSave(): boolean {
+    const raw = localStorage.getItem(LS_KEY)
+    if (!raw || !loadSaved()?.plan) return false
+    _lastAdoptedRaw = null // not an echo: storage moved past what was last taken
+    void _adoptFromStorage(raw)
+    return true
+  }
+
   async function _adoptFromStorage(raw: string | null) {
     // Cleared storage, or an echo of what we already took — nothing to do.
     if (!raw || raw === _lastAdoptedRaw) return
-    // A handing-off tab has no game data loaded to adopt into.
-    if (handOff.value) return
+    // A handing-off tab, or one still on its first load, has no game data to
+    // adopt into. The latter catches up once its load is done (`init`).
+    if (handOff.value || !dataStore.items.length) return
     _lastAdoptedRaw = raw
 
-    const incoming = loadSaved()
+    const incoming = loadSavedForSync()
     if (!incoming?.plan) return
 
     // Depth-counted so overlapping events can't release the guard early.
