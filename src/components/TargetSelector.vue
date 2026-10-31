@@ -2,6 +2,7 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { usePlannerStore } from '../stores/plannerStore'
 import { itemTypeChipClass } from '../lib/itemTypeChip'
+import { parseWholeRate, RATE_DEBOUNCE_MS } from '../lib/format'
 import type { Item } from '../types/game'
 
 const store = usePlannerStore()
@@ -28,9 +29,23 @@ watch(
   { immediate: true },
 )
 
+// While this field is focused and the user has typed, its draft is theirs: a debounced commit of
+// their own typing must not rewrite it under the cursor. Changes from elsewhere (the root number,
+// a stepper, another tab) show up unless they are mid-edit.
+let rateFocused = false
+let rateDirty = false
+let rateFocusRate = 0 // the rate when the field got focus: what Escape restores
+let rateTimer: ReturnType<typeof setTimeout> | null = null
+
+function clearRateTimer() {
+  if (rateTimer !== null) clearTimeout(rateTimer)
+  rateTimer = null
+}
+
 watch(
   () => store.targetRate,
   (newRate) => {
+    if (rateFocused && rateDirty) return
     rateInput.value = newRate
   },
 )
@@ -135,11 +150,9 @@ function onEsc() {
 
 // --- Per-machine rate stepper ---
 function stepRate(dir: number) {
-  if (!store.targetItemId) return
-  const step = machineStep.value || 1
-  const next = Math.max(0, (Number(store.targetRate) || 0) + dir * step)
-  // Round to avoid floating-point drift from repeated steps.
-  store.setTarget(store.targetItemId, Math.round(next * 1000) / 1000)
+  clearRateTimer()
+  rateDirty = false
+  store.stepTargetRate(dir)
 }
 
 onMounted(() => {
@@ -148,15 +161,70 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  clearRateTimer()
   window.removeEventListener('scroll', updateDropdownPos, true)
   window.removeEventListener('resize', updateDropdownPos)
 })
 
+function onRateFocus() {
+  rateFocused = true
+  rateDirty = false
+  rateFocusRate = store.targetRate
+}
+
+// Typing commits a valid value once the user pauses; an empty or half-typed draft commits nothing
+// (it is settled on blur/Enter).
+function onRateInput() {
+  rateDirty = true
+  clearRateTimer()
+  rateTimer = setTimeout(() => {
+    rateTimer = null
+    const rate = parseWholeRate(rateInput.value)
+    if (rate !== null && store.targetItemId && rate !== store.targetRate) {
+      store.setTarget(store.targetItemId, rate)
+    }
+  }, RATE_DEBOUNCE_MS)
+}
+
+// The target is a whole number of items/min: round the typed value; empty, non-numeric or
+// rounding below 1 puts the current rate back. Fires on Enter and blur, after typing.
 function onRateChange() {
-  const rate = Number(rateInput.value)
-  if (rate >= 0 && store.targetItemId) {
+  clearRateTimer()
+  if (!rateDirty) return
+  rateDirty = false
+  const rate = parseWholeRate(rateInput.value)
+  if (rate !== null && store.targetItemId) {
     store.setTarget(store.targetItemId, rate)
+    rateInput.value = rate
+  } else {
+    rateInput.value = store.targetRate
   }
+}
+
+function onRateBlur() {
+  clearRateTimer()
+  // `change` already settled a typed draft; this settles one that never fired it (and reverts
+  // an empty or invalid draft).
+  onRateChange()
+  rateFocused = false
+  rateDirty = false
+  rateInput.value = store.targetRate
+}
+
+// Escape: back to the rate the field had on focus, undoing debounced commits made during this edit.
+function onRateEscape(e: KeyboardEvent) {
+  e.stopPropagation() // don't also close the detail drawer
+  clearRateTimer()
+  rateDirty = false
+  if (store.targetItemId && store.targetRate !== rateFocusRate) {
+    store.setTarget(store.targetItemId, rateFocusRate, true) // a value the store already held
+  }
+  rateInput.value = rateFocusRate
+  ;(e.target as HTMLInputElement).blur()
+}
+
+function onRateEnter(e: KeyboardEvent) {
+  ;(e.target as HTMLInputElement).blur()
 }
 </script>
 
@@ -267,10 +335,16 @@ function onRateChange() {
         <input
           v-model.number="rateInput"
           type="number"
-          min="0"
+          inputmode="numeric"
+          min="1"
           step="1"
           class="bg-[var(--panel-2)] text-[var(--text)] text-xs sm:text-sm px-0.5 sm:px-1 py-1 sm:py-1.5 w-10 sm:w-12 focus:outline-none transition-colors text-right"
+          @focus="onRateFocus"
+          @input="onRateInput"
           @change="onRateChange"
+          @blur="onRateBlur"
+          @keydown.enter="onRateEnter"
+          @keydown.esc="onRateEscape"
         />
         <button
           type="button"

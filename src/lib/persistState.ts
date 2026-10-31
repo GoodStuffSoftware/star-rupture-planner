@@ -1,6 +1,7 @@
 import type { TierSelection } from './recipeIndex'
 import type { VersionOverrides, RecipeOverrides, Overages, NodeExpansion } from '../types/game'
 import { DEFAULT_VERSION } from '../data/versions'
+import { normalizeTargetRate } from './format'
 
 // ─── Shared state types ───────────────────────────────────────────────────────
 
@@ -229,7 +230,12 @@ export function isSamePlan(a: PlanState, b: PlanState): boolean {
   const key = (p: PlanState) =>
     JSON.stringify([
       p.version,
-      planTargetList(p).map((t) => [t.targetItemId, t.targetRate, sortedEntries(t.overages)]),
+      // Rates compare as the whole numbers they load as, so a link holding 12.5 matches a save of 13.
+      planTargetList(p).map((t) => [
+        t.targetItemId,
+        typeof t.targetRate === 'number' ? normalizeTargetRate(t.targetRate) : t.targetRate,
+        sortedEntries(t.overages),
+      ]),
       sortedEntries(p.tier).filter(([, v]) => v === 'v2'),
       sortedEntries(p.overrides),
       sortedEntries(p.recipeOverrides),

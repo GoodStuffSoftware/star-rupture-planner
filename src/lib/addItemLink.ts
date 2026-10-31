@@ -4,6 +4,7 @@
 // "I want this item" and must never overwrite what the user has saved.
 
 import { SHARE_PARAMS } from './persistState'
+import { normalizeTargetRate } from './format'
 
 export const ADD_PARAM = 'add'
 export const ADD_RATE_PARAM = 'r'
@@ -12,13 +13,18 @@ const MAX_ADD_RATE = 1_000_000
 
 export interface AddItemRequest {
   itemId: string
-  /** Items per minute; falls back to DEFAULT_ADD_RATE when missing or invalid. */
+  /** Whole items per minute; falls back to DEFAULT_ADD_RATE when missing or invalid. */
   rate: number
 }
 
-/** A usable items-per-minute rate, or the default when it is missing, non-numeric or absurd. */
+/**
+ * A usable whole items-per-minute rate (rounded, at least 1), or the default when it is
+ * missing, non-numeric or absurd.
+ */
 export function sanitizeAddRate(rate: number): number {
-  return Number.isFinite(rate) && rate > 0 && rate <= MAX_ADD_RATE ? rate : DEFAULT_ADD_RATE
+  return Number.isFinite(rate) && rate > 0 && rate <= MAX_ADD_RATE
+    ? normalizeTargetRate(rate)
+    : DEFAULT_ADD_RATE
 }
 
 /** Parse `?add=` / `&r=` from a query string. Returns null when no usable `add` is present. */
