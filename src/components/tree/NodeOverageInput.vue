@@ -84,27 +84,35 @@ function revertRoot() {
 }
 
 function commitRoot() {
-  const text = rootDraft.value.replace(/,/g, '').trim()
+  // Untouched text (focus then leave, Escape) must not rewrite a rate the field only displays rounded.
+  if (rootDraft.value === fmt(props.node.ratePerMin)) return
+  // Drop thousands commas ("1,200"); a comma with 1-2 digits after it is a decimal comma ("7,5").
+  const text = rootDraft.value
+    .replace(/,(?=\d{3}(?!\d))/g, '')
+    .replace(',', '.')
+    .trim()
   const v = Number(text)
   if (text !== '' && isFinite(v) && v > 0 && store.targetItemId) {
-    store.setTarget(store.targetItemId, Math.round(v * 1000) / 1000)
+    const rate = Math.round(v * 1000) / 1000
+    store.setTarget(store.targetItemId, rate)
+    rootDraft.value = fmt(rate)
+  } else {
+    revertRoot()
   }
-  // Re-sync the text either way (a rejected or unchanged value shows the live rate).
-  revertRoot()
 }
 
 function onRootKey(e: KeyboardEvent) {
   const el = e.target as HTMLInputElement
   if (e.key === 'Enter') {
-    commitRoot()
-    el.blur()
+    el.blur() // blur commits
   } else if (e.key === 'Escape') {
+    e.stopPropagation() // don't also close the detail drawer
     revertRoot()
     el.blur()
   } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
     e.preventDefault()
     store.stepTargetRate(e.key === 'ArrowUp' ? 1 : -1)
-    revertRoot()
+    rootDraft.value = fmt(store.targetRate)
     nextTick(() => el.select())
   }
 }
@@ -208,7 +216,7 @@ const stepTitle = computed(() =>
         aria-label="Target output per minute"
         title="Target output — click to edit"
         :style="{ width: `${Math.max(rootDraft.length, 1)}ch` }"
-        class="m-0 p-0 border-0 rounded-sm bg-transparent text-inherit font-[inherit] leading-[inherit] text-right align-baseline cursor-text outline-none hover:bg-[var(--panel-2)] focus:bg-[var(--panel-2)] transition-colors"
+        class="m-0 p-0 border-0 rounded-sm bg-transparent text-inherit text-right align-baseline cursor-text outline-none hover:bg-[var(--border)]/50 focus:bg-[var(--border)] transition-colors"
         @focus="($event.target as HTMLInputElement).select()"
         @keydown="onRootKey"
         @blur="commitRoot"

@@ -38,6 +38,7 @@ async function setup() {
   const input = host.querySelector<HTMLInputElement>(
     'input[aria-label="Target output per minute"]',
   )!
+  input.focus() // blur-driven commits need a real focus
   const key = (k: string) => {
     input.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }))
     return nextTick()
@@ -84,6 +85,26 @@ describe('root rate inline edit', () => {
     await t.key('Enter')
     expect(t.store.targetRate).toBe(120)
     expect(t.store.activeTarget?.targetRate).toBe(120)
+  })
+
+  it('does not rewrite a finer rate when focused and left untouched', async () => {
+    const t = await setup()
+    cleanup = t.unmount
+    t.store.setTarget(t.store.targetItemId!, 33.333)
+    await nextTick()
+    await t.blur()
+    expect(t.store.targetRate).toBe(33.333)
+  })
+
+  it('reads a decimal comma and thousands commas', async () => {
+    const t = await setup()
+    cleanup = t.unmount
+    await t.type('7,5')
+    await t.blur()
+    expect(t.store.targetRate).toBe(7.5)
+    await t.type('1,200')
+    await t.blur()
+    expect(t.store.targetRate).toBe(1200)
   })
 
   it('commits on blur', async () => {
