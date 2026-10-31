@@ -136,7 +136,7 @@ export function sanitizeDefaultTarget(raw: unknown): DefaultTargetPref {
   }
 }
 
-/** True for the shipped setting (Machines, 1), under which every add path behaves as it always did. */
+/** True for the shipped setting (Machines, 1): the Options summary shows no chip for it. */
 export function isDefaultTargetUntouched(p: DefaultTargetPref): boolean {
   return p.mode === 'machines' && p.machines === DEFAULT_TARGET_PREF.machines
 }
@@ -145,8 +145,8 @@ export function isDefaultTargetUntouched(p: DefaultTargetPref): boolean {
  * The rate a target added without an explicit rate starts at, given the setting and one
  * machine's output for the item (undefined when nothing produces it).
  * - Items/min: that whole rate.
- * - Machines, 1: one machine's output as a whole number (the original behaviour: 7.5 gives 8).
- * - Machines, N >= 2: N x one machine's output, an exact multiple even when fractional (22.5).
+ * - Machines, N (default 1): N x one machine's output, an exact multiple even when
+ *   fractional (1 x 7.5 = 7.5, 3 x 7.5 = 22.5).
  * - No producer: 60, as before.
  * `exact` says the value is a machine multiple, for normalizeTargetRate.
  */
@@ -157,6 +157,5 @@ export function newTargetRate(
   if (p.mode === 'perMin') return { rate: normalizeTargetRate(p.perMin), exact: false }
   const m = machineRate && machineRate > 0 ? machineRate : undefined
   if (m === undefined) return { rate: DEFAULT_TARGET_FALLBACK_RATE, exact: false }
-  if (p.machines <= 1) return { rate: normalizeTargetRate(m), exact: false }
   return { rate: normalizeTargetRate(p.machines * m, true), exact: true }
 }

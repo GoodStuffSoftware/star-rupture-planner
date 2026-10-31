@@ -27,7 +27,6 @@ import {
   isMachineMultiple,
   stepTargetRateBy,
   newTargetRate,
-  isDefaultTargetUntouched,
 } from '../lib/format'
 import {
   save,
@@ -42,7 +41,6 @@ import {
 } from '../lib/persistState'
 import {
   readAddItemRequest,
-  DEFAULT_ADD_RATE,
   sanitizeAddRate,
   stripHandledParams,
   hasHandOffSupport,
@@ -619,14 +617,11 @@ export const usePlannerStore = defineStore('planner', () => {
       return null
     }
     const existing = hadPlan ? targets.value.find((t) => t.targetItemId === req.itemId) : undefined
-    // An explicit `r` wins. Without one the setting decides, except that the shipped
-    // setting keeps the long-standing 60/min a bare link always got.
+    // An explicit `r` wins; without one the "default for new targets" setting decides.
     const start =
       req.rate !== null
         ? { rate: req.rate, exact: isMachineMultiple(req.rate, defaultRateForItem(req.itemId)) }
-        : isDefaultTargetUntouched(prefsStore.defaultTarget)
-          ? { rate: DEFAULT_ADD_RATE, exact: false }
-          : newTarget(req.itemId)
+        : newTarget(req.itemId)
     if (!hadPlan) {
       setTarget(req.itemId, start.rate, start.exact)
     } else if (existing) {

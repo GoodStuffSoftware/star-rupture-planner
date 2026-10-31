@@ -160,7 +160,11 @@ describe('?add= link', () => {
     save({ ...savedPlan(), activeTargetIndex: -1 }, prefs)
     const s = await open('?add=accumulator')
     expect(itemIds(s)).toEqual(['aerogel', 'airlock', 'accumulator'])
-    expect(s.targets.map((t) => t.targetRate)).toEqual([30, 12, 60])
+    expect(s.targets.map((t) => t.targetRate)).toEqual([
+      30,
+      12,
+      s.defaultRateForItem('accumulator'),
+    ])
   })
 
   it('on an empty plan, honours the rate even for the placeholder default item', async () => {
@@ -886,12 +890,12 @@ describe('whole-number target rate', () => {
     expect(rates(s)).toEqual([30, 12, 20])
   })
 
-  it('a newly picked or added target starts at one machine, as a whole number', async () => {
+  it('a newly picked or added target starts at one machine, exactly', async () => {
     const s = await open('?add=aerogel&r=45')
     s.selectTargetItem('laser_emitter')
-    expect(s.targetRate).toBe(8) // 7.5 rounded
+    expect(s.targetRate).toBe(7.5)
     s.addTargetItem('laser_emitter')
-    expect(s.targetRate).toBe(8)
+    expect(s.targetRate).toBe(7.5)
     s.targetRate = 12.7
     expect(s.targetRate).toBe(13)
   })
@@ -960,7 +964,7 @@ describe('default rate for new targets', () => {
     const s = await open('')
     expect(s.defaultTarget).toEqual({ mode: 'machines', machines: 1, perMin: 60 })
     s.addTargetItem('laser_emitter')
-    expect(s.targetRate).toBe(8) // one machine (7.5), whole as ever
+    expect(s.targetRate).toBe(7.5) // one machine, exactly
     expect(s.defaultTargetRate('aerogel')).toBe(s.defaultRateForItem('aerogel'))
   })
 
@@ -1094,10 +1098,17 @@ describe('default rate for new targets', () => {
     expect(rates(s)).toEqual([30, 12, 13])
   })
 
-  it('the untouched setting keeps a bare ?add= at 60/min, as before', async () => {
+  it('the shipped setting (1 machine) gives a bare ?add= one machine, 7.5 for laser_emitter', async () => {
     save(savedPlan(), prefs)
-    const s = await open('?add=laser_emitter')
-    expect(rates(s)).toEqual([30, 12, 60])
+    let s = await open('?add=laser_emitter')
+    expect(rates(s)).toEqual([30, 12, 7.5])
+    localStorage.clear()
+    s = await open('?add=accumulator')
+    expect(rates(s)).toEqual([s.defaultRateForItem('accumulator')])
+    localStorage.clear()
+    save(savedPlan(), prefs)
+    s = await open('?add=laser_emitter&r=45')
+    expect(rates(s)).toEqual([30, 12, 45])
   })
 
   it('a share link keeps its own rates whatever the setting', async () => {

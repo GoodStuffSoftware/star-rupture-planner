@@ -266,16 +266,16 @@ describe('root rate inline edit', () => {
       return t
     }
 
-    it('starts whole, then steps by exact machine multiples', async () => {
+    it('starts at one exact machine, then steps by exact machine multiples', async () => {
       const t = await laser()
       cleanup = t.unmount
-      expect(t.store.targetRate).toBe(8) // one machine's 7.5, as a whole number
+      expect(t.store.targetRate).toBe(7.5) // one machine, exactly
       const seen: number[] = []
       for (let i = 0; i < 4; i++) {
         await t.key('ArrowUp')
         seen.push(t.store.targetRate)
       }
-      expect(seen).toEqual([15, 22.5, 30, 37.5]) // snapped from 8, then one machine at a time
+      expect(seen).toEqual([15, 22.5, 30, 37.5]) // one machine at a time
       expect(t.input.value).toBe('37.5')
       for (let i = 0; i < 4; i++) await t.key('ArrowDown')
       expect(t.store.targetRate).toBe(7.5)
