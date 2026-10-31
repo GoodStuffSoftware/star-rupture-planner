@@ -6,8 +6,9 @@ import { createApp, nextTick } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import { usePlannerStore } from './plannerStore'
 import App from '../App.vue'
-import { save, loadSaved, LS_KEY, type PlanState } from '../lib/persistState'
+import { save, loadSaved, LS_KEY, type PlanState, type ViewPrefs } from '../lib/persistState'
 import { DEFAULT_VERSION } from '../data/versions'
+import { newTargetRate } from '../lib/format'
 
 // Serve the bundled game data straight from public/ in place of the HTTP fetch.
 function stubFetch() {
@@ -35,6 +36,7 @@ const prefs = {
   treeFontScale: 1,
   totalsPlacement: 'side' as const,
   totalsCollapsed: {},
+  defaultTarget: { mode: 'machines' as const, machines: 1, perMin: 60 },
 }
 
 /** Two targets and a recipe override: the things a stray reset would lose. */
@@ -606,6 +608,21 @@ describe('?add= hand-off to an open planner tab', () => {
     expect(receiver.notice).toBe(`Added ${nameOf(receiver, 'accumulator')} to your plan.`)
   })
 
+  it('the hand-off with no r starts the item at the receiving tab setting; with r, at r', async () => {
+    save(savedPlan(), { ...prefs, defaultTarget: { mode: 'machines', machines: 3, perMin: 60 } })
+    const receiver = await tab()
+    await settle()
+    vi.spyOn(window, 'close').mockImplementation(() => {})
+
+    await tab('?add=laser_emitter')
+    await settle()
+    expect(receiver.targets.map((t) => t.targetRate)).toEqual([30, 12, 22.5])
+
+    await tab('?add=accumulator&r=45')
+    await settle()
+    expect(receiver.targets.map((t) => t.targetRate)).toEqual([30, 12, 22.5, 45])
+  })
+
   it('no open tab: adds the item locally after the timeout and strips the param', async () => {
     save(savedPlan(), prefs)
     const close = vi.spyOn(window, 'close').mockImplementation(() => {})
@@ -907,5 +924,232 @@ describe('whole-number target rate', () => {
     vi.advanceTimersByTime(400)
     expect(setItem).toHaveBeenCalledTimes(1)
     expect(loadSaved()?.plan?.targets?.map((t) => t.targetRate)).toEqual([30, 14])
+  })
+})
+
+describe('default rate for new targets', () => {
+  type Store = ReturnType<typeof usePlannerStore>
+  const withDefault = (defaultTarget: ViewPrefs['defaultTarget']): ViewPrefs => ({
+    ...prefs,
+    defaultTarget,
+  })
+  const machines = (n: number) => ({ mode: 'machines' as const, machines: n, perMin: 60 })
+  const perMin = (x: number) => ({ mode: 'perMin' as const, machines: 1, perMin: x })
+
+  const rates = (s: Store) => s.targets.map((t) => t.targetRate)
+  /** A saved plan holding only `aerogel` at 30, with the given setting. */
+  const withSetting = (d: ViewPrefs['defaultTarget']) => save(savedPlan(), withDefault(d))
+
+  beforeEach(() => {
+    localStorage.clear()
+    vi.useFakeTimers()
+    stubFetch()
+  })
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  it('old saved state without the setting loads as 1 machine, behaving as before', async () => {
+    localStorage.setItem(
+      LS_KEY,
+      JSON.stringify({ plan: savedPlan(), prefs: { ...prefs, defaultTarget: undefined } }),
+    )
+    expect(loadSaved()?.prefs?.defaultTarget).toEqual({ mode: 'machines', machines: 1, perMin: 60 })
+    const s = await open('')
+    expect(s.defaultTarget).toEqual({ mode: 'machines', machines: 1, perMin: 60 })
+    s.addTargetItem('laser_emitter')
+    expect(s.targetRate).toBe(8) // one machine (7.5), whole as ever
+    expect(s.defaultTargetRate('aerogel')).toBe(s.defaultRateForItem('aerogel'))
+  })
+
+  it('validates the stored setting on load', () => {
+    const load = (d: unknown) => {
+      localStorage.setItem(
+        LS_KEY,
+        JSON.stringify({ plan: savedPlan(), prefs: { ...prefs, defaultTarget: d } }),
+      )
+      return loadSaved()?.prefs?.defaultTarget
+    }
+    expect(load({ mode: 'bogus', machines: 3, perMin: 45 })).toEqual({
+      mode: 'machines',
+      machines: 3,
+      perMin: 45,
+    })
+    expect(load({ mode: 'perMin', machines: 0, perMin: 0.2 })).toEqual({
+      mode: 'perMin',
+      machines: 1,
+      perMin: 1,
+    })
+    expect(load({ mode: 'machines', machines: 2.6, perMin: 12.4 })).toEqual({
+      mode: 'machines',
+      machines: 3,
+      perMin: 12,
+    })
+    expect(load({ machines: -4, perMin: 'x' })).toEqual({
+      mode: 'machines',
+      machines: 1,
+      perMin: 60,
+    })
+    expect(load({ machines: 1e9, perMin: 1e12 })).toEqual({
+      mode: 'machines',
+      machines: 1000,
+      perMin: 1_000_000,
+    })
+    expect(load('junk')).toEqual({ mode: 'machines', machines: 1, perMin: 60 })
+    expect(load(null)).toEqual({ mode: 'machines', machines: 1, perMin: 60 })
+    expect(load({ machines: NaN, perMin: Infinity })).toEqual({
+      mode: 'machines',
+      machines: 1,
+      perMin: 60,
+    })
+  })
+
+  it('Machines mode: N times one machine, picked with the selector or added with +', async () => {
+    withSetting(machines(3))
+    const s = await open('')
+    const one = s.defaultRateForItem('aerogel')
+    s.selectTargetItem('aerogel')
+    expect(s.targetRate).toBe(3 * one)
+    s.addTargetItem('aerogel')
+    expect(s.targetRate).toBe(3 * one)
+  })
+
+  it('Machines mode keeps a fractional machine multiple exactly', async () => {
+    withSetting(machines(3))
+    const s = await open('')
+    expect(s.defaultRateForItem('laser_emitter')).toBe(7.5)
+    s.addTargetItem('laser_emitter')
+    expect(s.targetRate).toBe(22.5)
+    s.selectTargetItem('laser_emitter')
+    expect(s.targetRate).toBe(22.5)
+    expect(rates(s)).toContain(22.5)
+    await nextTick()
+    vi.advanceTimersByTime(400)
+    // It survives a reload (saved, then rehydrated as a machine multiple).
+    const again = await open('')
+    expect(again.targets.map((t) => t.targetRate)).toContain(22.5)
+  })
+
+  it('Machines mode uses the producer the plan actually has (a building override)', async () => {
+    withSetting(machines(2))
+    const s = await open('')
+    const alt = s.fullProducerIndex.get('aerogel')
+    const first = alt?.[0]
+    expect(first).toBeTruthy()
+    s.setOverride('aerogel', first!.building.id)
+    s.addTargetItem('aerogel')
+    expect(s.targetRate).toBe(2 * s.defaultRateForItem('aerogel'))
+  })
+
+  it('Items/min mode: that whole rate, whatever the item', async () => {
+    withSetting(perMin(60))
+    const s = await open('')
+    s.addTargetItem('laser_emitter')
+    expect(s.targetRate).toBe(60)
+    s.selectTargetItem('aerogel')
+    expect(s.targetRate).toBe(60)
+  })
+
+  it('a raw resource counts its extractor as the machine; with no producer, 60 in Machines mode', async () => {
+    withSetting(machines(3))
+    const s = await open('')
+    expect(s.defaultRateForItem('goethiteore')).toBe(15) // one laser drill
+    s.addTargetItem('goethiteore')
+    expect(s.targetRate).toBe(45)
+    // Every item in the game data has a producer, so the no-producer fallback is checked directly.
+    expect(newTargetRate(machines(3), undefined)).toEqual({ rate: 60, exact: false })
+    expect(newTargetRate(perMin(25), undefined)).toEqual({ rate: 25, exact: false })
+  })
+
+  it('?add= without r uses the setting in each mode', async () => {
+    withSetting(machines(3))
+    let s = await open('?add=laser_emitter')
+    expect(rates(s)).toEqual([30, 12, 22.5])
+    localStorage.clear()
+    withSetting(perMin(45))
+    s = await open('?add=laser_emitter')
+    expect(rates(s)).toEqual([30, 12, 45])
+    // On an empty plan the added item is the only target, at the setting.
+    localStorage.clear()
+    localStorage.setItem(LS_KEY, JSON.stringify({ prefs: withDefault(perMin(45)) }))
+    s = await open('?add=aerogel')
+    expect(rates(s)).toEqual([45])
+  })
+
+  it('?add= with an unusable r counts as no r', async () => {
+    withSetting(perMin(45))
+    const s = await open('?add=laser_emitter&r=abc')
+    expect(rates(s)).toEqual([30, 12, 45])
+  })
+
+  it('an explicit r overrides the setting, rounded as before', async () => {
+    withSetting(machines(3))
+    let s = await open('?add=laser_emitter&r=45')
+    expect(rates(s)).toEqual([30, 12, 45])
+    localStorage.clear()
+    withSetting(perMin(45))
+    s = await open('?add=laser_emitter&r=12.5')
+    expect(rates(s)).toEqual([30, 12, 13])
+  })
+
+  it('the untouched setting keeps a bare ?add= at 60/min, as before', async () => {
+    save(savedPlan(), prefs)
+    const s = await open('?add=laser_emitter')
+    expect(rates(s)).toEqual([30, 12, 60])
+  })
+
+  it('a share link keeps its own rates whatever the setting', async () => {
+    withSetting(perMin(45))
+    const s = await open(pLink({ i: 'accumulator', r: 20 }))
+    expect(s.pendingShare).not.toBeNull()
+    await s.resolveShare('add')
+    expect(rates(s)).toEqual([30, 12, 20])
+    localStorage.clear()
+    const fresh = await open(pLink({ i: 'accumulator', r: 20 }))
+    expect(rates(fresh)).toEqual([20])
+  })
+
+  it('changing the setting never changes existing targets, and saves with the options', async () => {
+    save(savedPlan(), prefs)
+    const s = await open('')
+    s.setDefaultTarget({ mode: 'perMin', perMin: 99 })
+    s.setDefaultTarget({ mode: 'machines', machines: 5 })
+    await nextTick()
+    vi.advanceTimersByTime(400)
+    expect(rates(s)).toEqual([30, 12])
+    expect(loadSaved()?.plan?.targets?.map((t) => t.targetRate)).toEqual([30, 12])
+    expect(loadSaved()?.prefs?.defaultTarget).toEqual({ mode: 'machines', machines: 5, perMin: 99 })
+    s.setDefaultTarget({ machines: 0 })
+    expect(s.defaultTarget.machines).toBe(1)
+  })
+
+  it('a sibling tab changing the setting is adopted without echoing or touching targets', async () => {
+    save(savedPlan(), prefs)
+    const s = await open('')
+    expect(s.defaultTarget.mode).toBe('machines')
+    save(savedPlan(), withDefault(perMin(75)))
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+    const ev = () =>
+      window.dispatchEvent(
+        new StorageEvent('storage', { key: LS_KEY, newValue: localStorage.getItem(LS_KEY) }),
+      )
+    ev()
+    await nextTick()
+    await nextTick()
+    vi.advanceTimersByTime(5000)
+    expect(s.defaultTarget).toEqual({ mode: 'perMin', machines: 1, perMin: 75 })
+    expect(rates(s)).toEqual([30, 12])
+    ev() // the same raw value again: ignored
+    await nextTick()
+    vi.advanceTimersByTime(5000)
+    expect(setItem).not.toHaveBeenCalled()
+    // Adoption is over: new targets use the adopted setting and a local edit saves once.
+    s.addTargetItem('aerogel')
+    expect(s.targetRate).toBe(75)
+    await nextTick()
+    vi.advanceTimersByTime(400)
+    expect(setItem).toHaveBeenCalledTimes(1)
   })
 })
