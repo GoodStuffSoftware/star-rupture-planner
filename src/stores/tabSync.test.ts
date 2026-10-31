@@ -12,6 +12,7 @@ import {
   hasNewerSave,
   LS_KEY,
   type PlanState,
+  type ViewPrefs,
 } from '../lib/persistState'
 import { DEFAULT_VERSION } from '../data/versions'
 
@@ -64,10 +65,13 @@ const storedIds = () => loadSaved()?.plan?.targets?.map((t) => t.targetItemId)
 const itemIds = (s: ReturnType<typeof usePlannerStore>) => s.targets.map((t) => t.targetItemId)
 
 /** Another browser tab saving the plan: a write, and the `storage` event this tab would get. */
-function siblingSaves(plan: PlanState, { notify }: { notify: boolean }) {
+function siblingSaves(
+  plan: PlanState,
+  { notify, withPrefs = prefs }: { notify: boolean; withPrefs?: ViewPrefs },
+) {
   // Written to storage directly: the module that tracks this tab's revision
   // must not mistake a sibling's write for its own.
-  localStorage.setItem(LS_KEY, JSON.stringify({ plan, prefs }))
+  localStorage.setItem(LS_KEY, JSON.stringify({ plan, prefs: withPrefs }))
   if (notify) {
     window.dispatchEvent(
       new StorageEvent('storage', { key: LS_KEY, newValue: localStorage.getItem(LS_KEY) }),
@@ -171,6 +175,69 @@ describe('cross-tab sync', () => {
 
     expect(storedIds()).toEqual(['aerogel', 'airlock', 'accumulator', 'rotor'])
     expect(itemIds(tab)).toEqual(['aerogel', 'airlock', 'accumulator', 'rotor'])
+  })
+
+  /** Start a page load whose game data is held back until `release()`. */
+  async function loadingTab(search: string) {
+    let release!: () => void
+    gate = new Promise((r) => (release = r))
+    history.replaceState(null, '', `/${search}`)
+    setActivePinia(createPinia())
+    const tab = usePlannerStore()
+    const init = tab.init()
+    await vi.advanceTimersByTimeAsync(0) // the plan is read; the data is still loading
+    return {
+      tab,
+      finish: async () => {
+        release()
+        await init
+        await nextTick()
+        vi.advanceTimersByTime(400)
+        await vi.advanceTimersByTimeAsync(0)
+      },
+    }
+  }
+
+  it('an ?add= tab keeps a sibling’s prefs change that landed during its load', async () => {
+    save(planOf('aerogel', 'airlock'), prefs)
+    const { tab, finish } = await loadingTab('?add=rotor')
+    siblingSaves(planOf('aerogel', 'airlock', 'accumulator'), {
+      notify: false,
+      withPrefs: { ...prefs, theme: 'spaceage' },
+    })
+    await finish()
+
+    expect(itemIds(tab)).toEqual(['aerogel', 'airlock', 'accumulator', 'rotor'])
+    expect(loadSaved()?.prefs?.theme).toBe('spaceage')
+  })
+
+  it('an ?add= tab never writes over a sibling’s switch to another game version', async () => {
+    save(planOf('aerogel', 'airlock'), prefs)
+    const { tab, finish } = await loadingTab('?add=rotor')
+    siblingSaves(
+      { ...planOf('aerogel', 'airlock', 'accumulator'), version: 'update1' },
+      { notify: false },
+    )
+    await finish()
+
+    expect(loadSaved()?.plan?.version).toBe('update1')
+    expect(storedIds()).toEqual(['aerogel', 'airlock', 'accumulator'])
+    expect(tab.notice).toContain('Open it again')
+  })
+
+  it('a share-link prompt tab that missed a sibling save keeps the choice made on top of it', async () => {
+    save(planOf('aerogel', 'airlock'), prefs)
+    const link = `?p=${encodeURIComponent(btoa(JSON.stringify({ i: 'rotor', r: 6 })))}`
+    const { tab, finish } = await loadingTab(link)
+    siblingSaves(planOf('aerogel', 'airlock', 'accumulator'), { notify: false })
+    await finish()
+    expect(tab.pendingShare).not.toBeNull()
+
+    await tab.resolveShare('add')
+    await nextTick()
+    vi.advanceTimersByTime(400)
+
+    expect(storedIds()).toEqual(['aerogel', 'airlock', 'accumulator', 'rotor'])
   })
 })
 

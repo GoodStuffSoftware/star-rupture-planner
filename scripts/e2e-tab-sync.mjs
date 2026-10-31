@@ -108,7 +108,7 @@ async function scenario(name, { beforeB, beforeA, deaf = false }) {
   const a = await openPlanner(origin, beforeA)
   await sees(a, 'Airlock')
   // Let A finish its own first save, so it has nothing pending when B writes.
-  await a.waitForFunction((key) => localStorage.getItem(key)?.includes('fabricator'), POLL, KEY)
+  await a.waitForFunction((key) => localStorage.getItem(key)?.includes('"prefs"'), POLL, KEY)
   // A marker that survives only while A is never reloaded.
   await a.evaluate(() => (window.__noReload = true))
 
