@@ -3,6 +3,8 @@ import { ref, computed, watch, nextTick } from 'vue'
 import type { CraftNode } from '../../types/game'
 import { fmt } from '../../lib/format'
 import { usePlannerStore } from '../../stores/plannerStore'
+import { createWheelStepper } from '../../lib/wheelStep'
+import RateStepButton from './RateStepButton.vue'
 
 const props = defineProps<{
   node: CraftNode
@@ -59,6 +61,8 @@ function stepOutput(dir: number) {
   setOutput(target)
 }
 
+const onOutputWheel = createWheelStepper(stepOutput)
+
 function onOutputChange() {
   const v = Number(outputInput.value)
   if (isFinite(v)) setOutput(v)
@@ -101,6 +105,25 @@ function commitRoot() {
   }
 }
 
+// One producing machine's output for the target: what the root -/+ and arrows step by (as in the header).
+const rootStep = computed(() =>
+  store.targetItemId ? store.defaultRateForItem(store.targetItemId) : 0,
+)
+// Never step the target to zero or below: a step down that would is a no-op (the minus disables).
+const canStepRootDown = computed(() => store.targetRate - rootStep.value > 1e-9)
+
+function stepRoot(dir: 1 | -1) {
+  if (dir < 0 && !canStepRootDown.value) return
+  store.stepTargetRate(dir)
+  rootDraft.value = fmt(store.targetRate)
+}
+
+const onRootWheel = createWheelStepper((dir) => {
+  stepRoot(dir)
+  const el = document.activeElement
+  if (el instanceof HTMLInputElement) nextTick(() => el.select())
+})
+
 function onRootKey(e: KeyboardEvent) {
   const el = e.target as HTMLInputElement
   if (e.key === 'Enter') {
@@ -111,14 +134,16 @@ function onRootKey(e: KeyboardEvent) {
     el.blur()
   } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
     e.preventDefault()
-    store.stepTargetRate(e.key === 'ArrowUp' ? 1 : -1)
-    rootDraft.value = fmt(store.targetRate)
+    stepRoot(e.key === 'ArrowUp' ? 1 : -1)
     nextTick(() => el.select())
   }
 }
 
 const stepTitle = computed(() =>
   machineStep.value ? `${machineStep.value}/min (one machine)` : '1/min',
+)
+const rootStepTitle = computed(() =>
+  rootStep.value ? `${rootStep.value}/min (one machine)` : '1/min',
 )
 </script>
 
@@ -171,14 +196,7 @@ const stepTitle = computed(() =>
         class="chamfer-sm [--cf-fill:var(--panel-2)] flex items-center p-px gap-px overflow-hidden"
         @click.stop
       >
-        <button
-          type="button"
-          :title="`−${stepTitle}`"
-          class="px-1 py-0.5 bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)] transition-colors text-sm leading-none"
-          @click.stop="stepOutput(-1)"
-        >
-          &minus;
-        </button>
+        <RateStepButton :dir="-1" :label="`−${stepTitle}`" @click.stop="stepOutput(-1)" />
         <input
           v-model.number="outputInput"
           type="number"
@@ -187,16 +205,10 @@ const stepTitle = computed(() =>
           :title="'Output items/min — raise above demand to overproduce, lower below it for a deficit'"
           class="amount-input bg-[var(--panel-2)] text-[var(--text)] text-sm px-1 py-0.5 w-9 text-right font-mono focus:outline-none"
           @change="onOutputChange"
+          @wheel="onOutputWheel"
           @click.stop
         />
-        <button
-          type="button"
-          :title="`+${stepTitle}`"
-          class="px-1 py-0.5 bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)] transition-colors text-sm leading-none"
-          @click.stop="stepOutput(1)"
-        >
-          +
-        </button>
+        <RateStepButton :dir="1" :label="`+${stepTitle}`" @click.stop="stepOutput(1)" />
       </div>
       <span
         class="text-sm font-mono"
@@ -205,24 +217,38 @@ const stepTitle = computed(() =>
         >/min</span
       >
     </template>
-    <!-- depth=0 root: large orange rate (replaces old header) -->
-    <span v-else-if="depth === 0" class="text-xl font-bold font-mono text-[var(--accent)]"
-      ><input
-        v-model="rootDraft"
-        type="text"
-        inputmode="decimal"
-        autocomplete="off"
-        spellcheck="false"
-        aria-label="Target output per minute"
-        title="Target output — click to edit"
-        :style="{ width: `${Math.max(rootDraft.length, 1)}ch` }"
-        class="m-0 p-0 border-0 rounded-sm bg-transparent text-inherit text-right align-baseline cursor-text outline-none hover:bg-[var(--border)]/50 focus:bg-[var(--border)] transition-colors"
-        @focus="($event.target as HTMLInputElement).select()"
-        @keydown="onRootKey"
-        @blur="commitRoot"
+    <!-- depth=0 root: large orange rate (replaces old header), same -/+ stepper as the child rows -->
+    <template v-else-if="depth === 0">
+      <div
+        class="chamfer-sm [--cf-fill:var(--panel-2)] flex items-center p-px gap-px overflow-hidden"
         @click.stop
-      />/min</span
-    >
+      >
+        <RateStepButton
+          :dir="-1"
+          :label="`−${rootStepTitle}`"
+          :disabled="!canStepRootDown"
+          @click.stop="stepRoot(-1)"
+        />
+        <input
+          v-model="rootDraft"
+          type="text"
+          inputmode="decimal"
+          autocomplete="off"
+          spellcheck="false"
+          aria-label="Target output per minute"
+          title="Target output — click to edit"
+          :style="{ width: `${Math.max(rootDraft.length, 1)}ch` }"
+          class="m-0 px-1 border-0 rounded-sm bg-[var(--panel-2)] text-xl font-bold font-mono text-[var(--accent)] text-right cursor-text outline-none hover:bg-[var(--border)]/50 focus:bg-[var(--border)] transition-colors box-content"
+          @focus="($event.target as HTMLInputElement).select()"
+          @keydown="onRootKey"
+          @wheel="onRootWheel"
+          @blur="commitRoot"
+          @click.stop
+        />
+        <RateStepButton :dir="1" :label="`+${rootStepTitle}`" @click.stop="stepRoot(1)" />
+      </div>
+      <span class="text-xl font-bold font-mono text-[var(--accent)]">/min</span>
+    </template>
     <!-- depth>0 non-overage nodes -->
     <span v-else class="text-base font-mono text-slate-400">{{ fmt(node.ratePerMin) }}/min</span>
   </div>

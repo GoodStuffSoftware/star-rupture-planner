@@ -48,13 +48,20 @@ async function setup() {
     input.dispatchEvent(new Event('input', { bubbles: true }))
     return nextTick()
   }
+  const wheel = (deltaY: number) => {
+    const e = new WheelEvent('wheel', { deltaY, bubbles: true, cancelable: true })
+    input.dispatchEvent(e)
+    return e
+  }
   const blur = () => {
     input.dispatchEvent(new FocusEvent('blur'))
     return nextTick()
   }
   return {
     store,
+    host,
     input,
+    wheel,
     key,
     type,
     blur,
@@ -140,7 +147,76 @@ describe('root rate inline edit', () => {
     await t.key('ArrowUp')
     expect(t.store.targetRate).toBe(45 + step)
     await t.key('ArrowDown')
+    expect(t.store.targetRate).toBe(45)
+    expect(t.input.value).toBe('45')
+  })
+
+  it('the root +/- buttons step one machine, with matching labels', async () => {
+    const t = await setup()
+    cleanup = t.unmount
+    const step = t.store.defaultRateForItem(t.store.targetItemId!)
+    const plus = t.host.querySelector<HTMLButtonElement>(
+      `button[aria-label="+${step}/min (one machine)"]`,
+    )!
+    const minus = t.host.querySelector<HTMLButtonElement>(
+      `button[aria-label="−${step}/min (one machine)"]`,
+    )!
+    expect(plus).toBeTruthy()
+    expect(minus).toBeTruthy()
+    plus.click()
+    plus.click()
+    await nextTick()
+    expect(t.store.targetRate).toBe(45 + 2 * step)
+    expect(t.input.value).toBe(String(45 + 2 * step))
+    minus.click()
+    await nextTick()
+    expect(t.store.targetRate).toBe(45 + step)
+  })
+
+  it('never steps the target to zero or below', async () => {
+    const t = await setup()
+    cleanup = t.unmount
+    const step = t.store.defaultRateForItem(t.store.targetItemId!)
+    const minus = t.host.querySelector<HTMLButtonElement>('button[aria-label^="−"]')!
+    t.store.setTarget(t.store.targetItemId!, step) // one machine: a step down would reach 0
+    await nextTick()
+    expect(minus.disabled).toBe(true)
+    minus.click()
     await t.key('ArrowDown')
-    expect(t.store.targetRate).toBe(Math.max(0, 45 - step))
+    t.wheel(100)
+    expect(t.store.targetRate).toBe(step)
+    t.store.setTarget(t.store.targetItemId!, step / 2) // below one machine
+    await nextTick()
+    await t.key('ArrowDown')
+    expect(t.store.targetRate).toBe(step / 2)
+    t.store.setTarget(t.store.targetItemId!, 2 * step)
+    await nextTick()
+    expect(minus.disabled).toBe(false)
+    minus.click()
+    await nextTick()
+    expect(t.store.targetRate).toBe(step)
+  })
+
+  it('wheel steps one machine per notch while focused, and leaves the page alone otherwise', async () => {
+    const t = await setup()
+    cleanup = t.unmount
+    const step = t.store.defaultRateForItem(t.store.targetItemId!)
+    expect(t.wheel(-100).defaultPrevented).toBe(true) // wheel up
+    await nextTick()
+    expect(t.store.targetRate).toBe(45 + step)
+    expect(t.wheel(100).defaultPrevented).toBe(true) // wheel down
+    await nextTick()
+    expect(t.store.targetRate).toBe(45)
+    // A trackpad swipe of small deltas accumulates to one step, not many.
+    for (let i = 0; i < 3; i++) t.wheel(-10)
+    expect(t.store.targetRate).toBe(45)
+    t.wheel(-10)
+    t.wheel(-10)
+    await nextTick()
+    expect(t.store.targetRate).toBe(45 + step)
+    // Unfocused: no preventDefault, no step.
+    t.input.blur()
+    expect(t.wheel(-100).defaultPrevented).toBe(false)
+    expect(t.store.targetRate).toBe(45 + step)
   })
 })
