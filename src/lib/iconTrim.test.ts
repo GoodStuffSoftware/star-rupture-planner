@@ -24,14 +24,18 @@ describe('trimTransform', () => {
     )
   })
 
-  it('Goethite Ingot: high and slightly right of centre ends up centred at 80% fill', () => {
+  it('defaults to filling the box', () => {
+    expect(ICON_ART_FILL).toBe(1)
+  })
+
+  it('Goethite Ingot: high and slightly right of centre ends up centred at the default (full) fill', () => {
     // art 198x146 at x 34-232, y 44-190 in 256x256 (top margin 44, bottom 66)
     const t = trimTransform(
       { x0: 34, y0: 44, x1: 232, y1: 190, width: 256, height: 256 },
       ICON_ART_FILL,
     )
-    expect(t).toBe('scale(1.0343) translate(-1.953%, 4.297%)')
-    // in a 30px box the 198px-wide art becomes ~24px
-    expect((198 / 256) * 30 * 1.0343).toBeCloseTo(24, 0)
+    expect(t).toBe('scale(1.2929) translate(-1.953%, 4.297%)')
+    // in a 30px box the 198px-wide art becomes ~30px, filling the box
+    expect((198 / 256) * 30 * 1.2929).toBeCloseTo(30, 0)
   })
 })

@@ -11,7 +11,7 @@ export interface InkBox {
 const ALPHA_THRESHOLD = 16
 
 /** Default share of the box side that the art's larger side fills (tune here). */
-export const ICON_ART_FILL = 0.8
+export const ICON_ART_FILL = 1
 
 /** Longest side of the downscaled canvas the art is measured on. */
 const MEASURE_MAX_SIDE = 128
