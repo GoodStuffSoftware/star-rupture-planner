@@ -28,7 +28,7 @@ public sealed class Extractor
     };
 
     readonly DefaultFileProvider provider;
-    // "/Game/Chimera/Items/I_X" -> provider file key "StarRupture/Content/Chimera/Items/I_X.uasset"
+    // (items also live under Weapons/AmmoTypes) "/Game/Chimera/Items/I_X" -> provider file key "StarRupture/Content/Chimera/Items/I_X.uasset"
     readonly Dictionary<string, string> gameToKey = new(StringComparer.OrdinalIgnoreCase);
     readonly Dictionary<string, JArray> packageCache = new(StringComparer.OrdinalIgnoreCase);
 
@@ -149,7 +149,7 @@ public sealed class Extractor
     public List<ItemRec> Items()
     {
         var list = new List<ItemRec>();
-        foreach (var path in Packages(@"^/Game/Chimera/Items/(.*/)?I_[^/]*$"))
+        foreach (var path in Packages(@"^/Game/Chimera/(Items|Weapons/AmmoTypes)/(.*/)?I_[^/]*$"))
         {
             var pkg = Load(path);
             if (pkg == null) continue;
