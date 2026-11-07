@@ -10,6 +10,8 @@ const FEEDBACK_URL = `${REPO}/issues/new?labels=feedback&template=feedback.md&ti
 
 const store = usePlannerStore()
 
+// Served from public/ (a copy of the company's dark-mode logo mark).
+const LOGO_SRC = '/gss-logo.svg'
 const year = 2026
 const version = __APP_VERSION__
 const commit = __APP_COMMIT__
@@ -23,18 +25,32 @@ const link =
 </script>
 
 <template>
-  <footer class="px-2 pt-6 pb-4 sm:px-4">
+  <footer class="px-2 py-2 sm:px-4">
+    <!-- One spacing unit (p-2.5) on all four sides and around the divider. -->
     <div class="chamfer mx-auto max-w-screen-xl text-xs text-[var(--muted)]">
-      <!-- Top: brand + links (left), build identity (right) -->
-      <div class="flex flex-col gap-4 p-4 sm:flex-row sm:items-start sm:justify-between sm:p-5">
-        <div class="flex min-w-0 flex-col gap-3">
-          <p class="flex items-center gap-2 text-sm font-semibold text-[var(--text-strong)]">
-            <span
-              class="clip-chamfer-sm inline-block h-3 w-3 bg-[var(--accent)]"
-              aria-hidden="true"
-            />
-            Good Stuff Software
-          </p>
+      <!-- Main row: brand + links | coffee (dead centre) | build identity -->
+      <div
+        class="grid grid-cols-1 items-center justify-items-center gap-2.5 p-2.5 lg:grid-cols-[1fr_auto_1fr] lg:justify-items-stretch"
+      >
+        <div class="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 lg:justify-start">
+          <div class="flex items-center gap-2">
+            <a
+              href="https://goodstuffsoftware.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="inline-flex"
+              data-testid="gss-logo"
+            >
+              <img
+                :src="LOGO_SRC"
+                alt="Good Stuff Software"
+                width="20"
+                height="20"
+                class="h-5 w-5"
+              />
+            </a>
+            <span class="text-sm font-semibold text-[var(--text-strong)]">Good Stuff Software</span>
+          </div>
           <nav aria-label="Footer links" class="flex flex-wrap items-center gap-x-4 gap-y-2">
             <a
               href="https://goodstuffsoftware.com"
@@ -47,39 +63,43 @@ const link =
             <a :href="FEEDBACK_URL" target="_blank" rel="noopener noreferrer" :class="link"
               >Feedback</a
             >
-            <SupportButton />
           </nav>
         </div>
 
-        <dl class="flex flex-col gap-1.5 sm:items-end">
-          <div class="flex items-center gap-2">
-            <dt class="sr-only">App version</dt>
-            <dd class="flex items-center gap-2 font-mono">
-              <a
-                :href="CHANGELOG_URL"
-                target="_blank"
-                rel="noopener noreferrer"
-                title="View the changelog"
-                data-testid="app-version"
-                class="chamfer-sm inline-block px-2 py-0.5 text-[var(--accent)] transition-colors [--cf-border:var(--accent-soft-border)] [--cf-fill:var(--panel-2)] hover:text-[var(--accent-hover)] focus-visible:text-[var(--accent-hover)] focus-visible:[--cf-border:var(--accent)]"
-                ><span class="sr-only">Changelog, </span>v{{ version }}</a
-              >
-              <span v-if="commit" data-testid="app-commit"
-                ><span class="sr-only">build </span>{{ commit }}</span
-              >
-            </dd>
-          </div>
-          <div class="flex items-center gap-2">
-            <dt>Game data</dt>
-            <dd class="font-mono text-[var(--text-2)]" data-testid="game-data-version">
-              {{ gameVersionLabel }}
-            </dd>
-          </div>
+        <SupportButton />
+
+        <dl class="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 lg:justify-end">
+          <dt class="sr-only">App version</dt>
+          <dd class="flex items-center gap-3 font-mono">
+            <a
+              :href="CHANGELOG_URL"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="View the changelog"
+              data-testid="app-version"
+              class="chamfer-sm inline-flex h-6 items-center px-2.5 text-[var(--accent)] transition-colors [--cf-border:var(--accent-soft-border)] [--cf-fill:var(--panel-2)] hover:text-[var(--accent-hover)] focus-visible:text-[var(--accent-hover)] focus-visible:[--cf-border:var(--accent)]"
+              ><span class="sr-only">Changelog, </span>v{{ version }}</a
+            >
+            <a
+              v-if="commit"
+              :href="`${REPO}/commit/${commit}`"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="View this build's commit"
+              data-testid="app-commit"
+              :class="link"
+              ><span class="sr-only">build </span>{{ commit }}</a
+            >
+          </dd>
+          <dt>Game data</dt>
+          <dd class="-ml-1.5 font-mono text-[var(--text-2)]" data-testid="game-data-version">
+            {{ gameVersionLabel }}
+          </dd>
         </dl>
       </div>
 
       <!-- Bottom: disclaimer + attribution -->
-      <div class="border-t border-[var(--border)] px-4 py-3 leading-relaxed sm:px-5">
+      <div class="border-t border-[var(--border)] p-2.5 text-center leading-tight lg:text-left">
         <p>
           Unofficial fan tool, not affiliated with or endorsed by Creepy Jar. Free to use; donations
           welcome. Game data &amp; icons from

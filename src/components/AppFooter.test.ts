@@ -33,6 +33,25 @@ describe('AppFooter', () => {
     )
   })
 
+  it('links the build SHA to its GitHub commit', async () => {
+    const root = await mountFooter()
+    const a = root.querySelector<HTMLAnchorElement>('[data-testid="app-commit"]')
+    if (!__APP_COMMIT__) {
+      expect(a).toBeNull()
+      return
+    }
+    expect(a?.getAttribute('href')).toBe(
+      `https://github.com/GoodStuffSoftware/star-rupture-planner/commit/${__APP_COMMIT__}`,
+    )
+  })
+
+  it('shows the Good Stuff Software logo linked to the company site', async () => {
+    const root = await mountFooter()
+    const img = root.querySelector<HTMLImageElement>('img[alt="Good Stuff Software"]')
+    expect(img?.getAttribute('src')).toBe('/gss-logo.svg')
+    expect(img?.closest('a')?.getAttribute('href')).toBe('https://goodstuffsoftware.com')
+  })
+
   it('keeps the brand, repo, attribution links and the non-affiliation note', async () => {
     const root = await mountFooter()
     const hrefs = [...root.querySelectorAll('a')].map((a) => a.getAttribute('href'))
