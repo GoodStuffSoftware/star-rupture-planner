@@ -246,6 +246,22 @@ function onRateEscape(e: KeyboardEvent) {
   ;(e.target as HTMLInputElement).blur()
 }
 
+// ArrowUp / ArrowDown tick the rate by one item (whole numbers, never below 1), the same as the
+// field's own up/down spin buttons; the -/+ buttons beside it step one machine.
+function onRateArrow(e: KeyboardEvent, dir: 1 | -1) {
+  e.preventDefault()
+  const id = store.targetItemId
+  if (!id) return
+  const typed = Number(rateInput.value)
+  const base = rateInput.value !== '' && Number.isFinite(typed) ? typed : store.targetRate
+  // Whole numbers: from 7.5 up is 8 and down is 7, like the native spin buttons.
+  const next = Math.max(1, dir > 0 ? Math.floor(base + 1e-9) + 1 : Math.ceil(base - 1e-9) - 1)
+  clearRateTimer()
+  rateDirty = false
+  store.setTarget(id, next)
+  rateInput.value = store.targetRate
+}
+
 function onRateEnter(e: KeyboardEvent) {
   ;(e.target as HTMLInputElement).blur()
 }
@@ -370,6 +386,8 @@ function onRateEnter(e: KeyboardEvent) {
           @change="onRateChange"
           @blur="onRateBlur"
           @keydown.enter="onRateEnter"
+          @keydown.up="onRateArrow($event, 1)"
+          @keydown.down="onRateArrow($event, -1)"
           @keydown.esc="onRateEscape"
         />
         <button

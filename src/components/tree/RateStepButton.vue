@@ -6,6 +6,8 @@ defineProps<{
   label: string
   /** Root row: a bare, muted glyph that turns accent on hover, with no box behind it. */
   ghost?: boolean
+  /** Ghost at the size of the row text (child rows) rather than the larger root size. */
+  small?: boolean
 }>()
 </script>
 
@@ -16,7 +18,8 @@ defineProps<{
     :aria-label="label"
     :class="
       ghost
-        ? 'px-1 py-0.5 text-lg leading-none text-[var(--muted)] hover:text-[var(--accent)] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-[var(--muted)] transition-colors'
+        ? (small ? 'px-1 py-0.5 text-sm' : 'px-1 py-0.5 text-lg') +
+          ' leading-none text-[var(--muted)] hover:text-[var(--accent)] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-[var(--muted)] transition-colors'
         : 'px-1 py-0.5 bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[var(--panel-2)] disabled:hover:text-[var(--muted)] transition-colors text-sm leading-none'
     "
   >
