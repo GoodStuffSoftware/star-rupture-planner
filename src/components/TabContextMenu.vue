@@ -158,7 +158,11 @@ const onScroll = (e: Event) => {
 }
 // A right-click on the menu itself (a second right-click at the same spot lands here, as the
 // menu opens at the pointer) closes it and leaves the event alone: the browser's menu appears.
-const onMenuContextMenu = () => closeTabMenu()
+// The menu key's own contextmenu event fires on the focused item with no button: keep the menu.
+const onMenuContextMenu = (e: MouseEvent) => {
+  if (e.button === 2 || e.ctrlKey) closeTabMenu()
+  else e.preventDefault()
+}
 const onClose = () => closeTabMenu()
 const onResize = () => closeTabMenu()
 const onDocKey = (e: Event) => {

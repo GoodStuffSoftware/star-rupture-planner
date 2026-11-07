@@ -36,6 +36,10 @@ const nameMaxWidth = computed(() => {
   return 38
 })
 
+// Pinned tabs always show an icon (a glyph when empty); others when there is an item and icons are on.
+const hasIcon = (t: { pinned?: boolean; targetItemId: string | null }) =>
+  !!t.pinned || (!!t.targetItemId && store.showIcons)
+
 // ─── Drag-to-reorder ────────────────────────────────────────────────────────
 const dragTid = ref<string | null>(null)
 const overTid = ref<string | null>(null)
@@ -92,11 +96,17 @@ function onChipClick(tid: string) {
         :title="
           t.targetItemId ? `${labelFor(t.targetItemId)} — ${fmt(t.targetRate)}/min` : 'New tab'
         "
-        class="chamfer-sm group flex items-center gap-1.5 pl-2 pr-1.5 py-1.5 shrink-0 cursor-grab active:cursor-grabbing transition-colors select-none"
+        :aria-label="
+          t.pinned
+            ? `${t.targetItemId ? `${labelFor(t.targetItemId)}, ${fmt(t.targetRate)}/min` : 'New tab'}, pinned`
+            : undefined
+        "
+        class="chamfer-sm group flex items-center gap-1.5 py-1.5 shrink-0 cursor-grab active:cursor-grabbing transition-colors select-none"
         :class="[
           t.tid === store.activeTargetId
             ? '[--cf-fill:var(--accent)] text-[var(--accent-on)]'
             : '[--cf-fill:var(--panel-2)] hover:[--cf-fill:var(--border)] text-[var(--muted)] hover:text-[var(--text)]',
+          t.pinned ? 'px-0' : [hasIcon(t) ? 'pl-0' : 'pl-2', 'pr-2'],
           dragTid === t.tid ? 'opacity-50' : '',
           overTid === t.tid ? 'ring-2 ring-[var(--accent)]' : '',
         ]"
@@ -112,45 +122,75 @@ function onChipClick(tid: string) {
         @drop="onDrop(t.tid)"
         @dragend="onDragEnd"
       >
-        <svg
+        <!-- The icon sizes itself from the chip: it stretches to the chip's full height (the
+             -my cancels the chip's vertical padding, so the text still sets that height), is
+             square, and keeps an even 3px of padding. No px/em size anywhere. -->
+        <span
+          v-if="hasIcon(t)"
+          class="relative self-stretch aspect-square shrink-0 -my-1.5"
+          data-testid="tab-icon"
+        >
+          <span class="absolute inset-[3px]">
+            <GameIcon
+              v-if="t.targetItemId && store.showIcons"
+              :id="t.targetItemId"
+              kind="item"
+              :name="labelFor(t.targetItemId)"
+              fill
+              native-context-menu
+            />
+            <!-- Icons off: the name's first letters stand in -->
+            <span
+              v-else-if="t.targetItemId"
+              class="flex w-full h-full items-center justify-center text-[10px] font-bold"
+              >{{ labelFor(t.targetItemId).slice(0, 2) }}</span
+            >
+            <!-- A pinned tab with nothing in it yet: a generic "new tab" glyph -->
+            <svg
+              v-else
+              class="w-full h-full"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              data-testid="empty-tab-icon"
+              aria-hidden="true"
+            >
+              <rect x="4" y="4" width="16" height="16" rx="2" />
+              <path d="M12 8.5v7M8.5 12h7" />
+            </svg>
+          </span>
+        </span>
+        <!-- Pinned: the icon alone (this zero-width strut keeps the text-driven chip height) -->
+        <span
           v-if="t.pinned"
-          class="w-3 h-3 shrink-0"
-          viewBox="0 0 24 24"
-          fill="currentColor"
-          role="img"
-          aria-label="Pinned"
-          data-testid="pin-indicator"
+          class="w-0 overflow-hidden text-sm"
+          aria-hidden="true"
+          data-testid="pinned-strut"
+          >&#8203;</span
         >
-          <path
-            d="M16 3a1 1 0 0 1 .7 1.7L15 6.4V11l3 3v2h-5v5l-1 1-1-1v-5H6v-2l3-3V6.4L7.3 4.7A1 1 0 0 1 8 3z"
-          />
-        </svg>
-        <GameIcon
-          v-if="t.targetItemId"
-          :id="t.targetItemId"
-          kind="item"
-          :name="labelFor(t.targetItemId)"
-          :size="20"
-          native-context-menu
-        />
-        <!-- Mobile: only the first 3 letters -->
-        <span class="sm:hidden text-sm font-medium whitespace-nowrap">
-          {{ labelFor(t.targetItemId).slice(0, 3) }}
-        </span>
-        <!-- Desktop: truncate, width tightens as the tab count grows -->
-        <span
-          class="hidden sm:inline-block text-sm font-medium truncate align-middle"
-          :style="{ maxWidth: nameMaxWidth + 'px' }"
-        >
-          {{ labelFor(t.targetItemId) }}
-        </span>
-        <span
-          v-if="t.targetItemId"
-          class="text-xs font-mono whitespace-nowrap"
-          :class="t.tid === store.activeTargetId ? 'opacity-80' : 'opacity-60'"
-        >
-          {{ fmt(t.targetRate) }}/min
-        </span>
+        <template v-else>
+          <!-- Mobile: only the first 3 letters -->
+          <span class="sm:hidden text-sm font-medium whitespace-nowrap">
+            {{ labelFor(t.targetItemId).slice(0, 3) }}
+          </span>
+          <!-- Desktop: truncate, width tightens as the tab count grows -->
+          <span
+            class="hidden sm:inline-block text-sm font-medium truncate align-middle"
+            :style="{ maxWidth: nameMaxWidth + 'px' }"
+          >
+            {{ labelFor(t.targetItemId) }}
+          </span>
+          <span
+            v-if="t.targetItemId"
+            class="text-xs font-mono whitespace-nowrap"
+            :class="t.tid === store.activeTargetId ? 'opacity-80' : 'opacity-60'"
+          >
+            {{ fmt(t.targetRate) }}/min
+          </span>
+        </template>
         <!-- Close (only when more than one tab; pinned tabs have none) -->
         <button
           v-if="store.targets.length > 1 && !t.pinned"

@@ -411,6 +411,21 @@ describe('keyboard', () => {
     expect(s.pinnedCount).toBe(0)
   })
 
+  it('the menu key keeps the menu open: its contextmenu event lands on the focused item', async () => {
+    await mountTabs(['aerogel', 'airlock'])
+    vi.advanceTimersByTime(2000)
+    const chip = chips()[0]
+    chip.focus()
+    await key(chip, 'ContextMenu')
+    expect(menu()).not.toBeNull()
+    // What the browser fires after the Menu key: no button, at the focused element
+    const e = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: -1 })
+    menuItems()[0].dispatchEvent(e)
+    await nextTick()
+    expect(e.defaultPrevented).toBe(true)
+    expect(menu()).not.toBeNull()
+  })
+
   it('Escape on the document closes a pointer-opened menu', async () => {
     await mountTabs(['aerogel', 'airlock'])
     vi.advanceTimersByTime(2000)
@@ -481,6 +496,63 @@ describe('touch long-press', () => {
     vi.advanceTimersByTime(LONG_PRESS_MS + 10)
     await nextTick()
     expect(menu()).toBeNull()
+  })
+})
+
+describe('chip layout', () => {
+  it('a pinned chip is the icon alone, with a tooltip and an aria-label that says pinned', async () => {
+    const s = await mountTabs(['aerogel', 'airlock'], 12)
+    vi.advanceTimersByTime(2000)
+    const chip = () => chips()[0]
+    expect(chip().textContent).toMatch(/Aerogel/) // unpinned: the full chip
+    s.togglePin(s.targets[0].tid)
+    await nextTick()
+    const pinned = chip()
+    expect(pinned.textContent?.replace(/\u200b/g, '').trim()).toBe('')
+    expect(pinned.querySelector('img')).not.toBeNull()
+    expect(pinned.querySelector('button')).toBeNull() // no ×
+    expect(pinned.querySelector('[data-testid="pin-indicator"]')).toBeNull() // no badge
+    expect(pinned.getAttribute('title')).toMatch(/Aerogel.*12\/min/)
+    expect(pinned.getAttribute('aria-label')).toMatch(/Aerogel, 12\/min, pinned/)
+    expect(pinned.getAttribute('aria-selected')).toBe('true')
+    // the right-click menu still works and offers Unpin tab
+    await rightClick(pinned)
+    expect(itemLabels()).toContain('Unpin tab')
+    item('Unpin tab').click()
+    await nextTick()
+    // unpinning restores the full chip
+    expect(chips()[0].textContent).toMatch(/Aerogel/)
+    expect(chips()[0].textContent).toMatch(/\/min/)
+    expect(chips()[0].getAttribute('aria-label')).toBeNull()
+  })
+
+  it('a pinned empty tab shows a generic icon', async () => {
+    const s = await mountTabs([null, 'airlock'])
+    vi.advanceTimersByTime(2000)
+    expect(chips()[0].querySelector('[data-testid="empty-tab-icon"]')).toBeNull()
+    s.togglePin(s.targets[0].tid)
+    await nextTick()
+    expect(chips()[0].querySelector('[data-testid="empty-tab-icon"]')).not.toBeNull()
+    expect(chips()[0].getAttribute('aria-label')).toBe('New tab, pinned')
+  })
+
+  it('the icon takes its size from the chip, not from a px or em value', async () => {
+    const s = await mountTabs(['aerogel', 'airlock'])
+    vi.advanceTimersByTime(2000)
+    s.togglePin(s.targets[1].tid)
+    await nextTick()
+    for (const chip of chips()) {
+      const box = chip.querySelector<HTMLElement>('[data-testid="tab-icon"]')!
+      expect(box.className).toMatch(/self-stretch/)
+      expect(box.className).toMatch(/aspect-square/)
+      const img = box.querySelector<HTMLElement>('img')!
+      expect(img.className).toMatch(/object-contain/)
+      expect(img.className).toMatch(/w-full/)
+      expect(img.className).toMatch(/h-full/)
+      expect(img.getAttribute('width')).toBeNull()
+      expect(img.getAttribute('height')).toBeNull()
+      expect((box.firstElementChild as HTMLElement).style.width).toBe('')
+    }
   })
 })
 
