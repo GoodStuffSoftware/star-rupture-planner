@@ -33,23 +33,33 @@ describe('AppFooter', () => {
     )
   })
 
-  it('links the build SHA to its GitHub commit', async () => {
+  it('shows only the version on the right: no commit hash and no game-data label', async () => {
     const root = await mountFooter()
-    const a = root.querySelector<HTMLAnchorElement>('[data-testid="app-commit"]')
-    if (!__APP_COMMIT__) {
-      expect(a).toBeNull()
-      return
-    }
-    expect(a?.getAttribute('href')).toBe(
-      `https://github.com/GoodStuffSoftware/star-rupture-planner/commit/${__APP_COMMIT__}`,
-    )
+    expect(root.querySelector('[data-testid="app-commit"]')).toBeNull()
+    expect(root.querySelector('[data-testid="game-data-version"]')).toBeNull()
+    expect(root.textContent).not.toContain('Game data:')
+    expect(root.textContent).not.toMatch(/(^|[^0-9a-z])[0-9a-f]{7}([^0-9a-z]|$)/)
   })
 
-  it('shows the Good Stuff Software logo linked to the company site', async () => {
+  it('shows the Good Stuff Software logo as a link to the company site', async () => {
     const root = await mountFooter()
-    const img = root.querySelector<HTMLImageElement>('img[alt="Good Stuff Software"]')
-    expect(img?.getAttribute('src')).toBe('/gss-logo.svg')
-    expect(img?.closest('a')?.getAttribute('href')).toBe('https://goodstuffsoftware.com')
+    const a = root.querySelector<HTMLAnchorElement>('[data-testid="gss-logo"]')
+    expect(a?.getAttribute('href')).toBe('https://goodstuffsoftware.com')
+    expect(a?.getAttribute('aria-label')).toBe('Good Stuff Software')
+    const img = a?.querySelector('img')
+    expect(img?.getAttribute('src')).toBe('/gss-lockup.svg')
+    expect(img?.getAttribute('alt')).toBe('Good Stuff Software')
+  })
+
+  it('puts GitHub and Feedback links under the logo and drops the text site link', async () => {
+    const root = await mountFooter()
+    const nav = root.querySelector('nav[aria-label="Footer links"]')
+    expect([...(nav?.querySelectorAll('a') ?? [])].map((a) => a.textContent?.trim())).toEqual([
+      'GitHub',
+      'Feedback',
+    ])
+    const texts = [...root.querySelectorAll('a')].map((a) => a.textContent?.trim())
+    expect(texts).not.toContain('goodstuffsoftware.com')
   })
 
   it('keeps the brand, repo, attribution links and the non-affiliation note', async () => {
@@ -60,5 +70,10 @@ describe('AppFooter', () => {
     expect(hrefs).toContain('https://github.com/flexsurfer/starrupture-planner')
     expect(hrefs).toContain('https://starrupture.wiki.gg')
     expect(root.textContent).toContain('not affiliated with')
+  })
+
+  it('renders a divider rule above the fine print', async () => {
+    const root = await mountFooter()
+    expect(root.querySelector('hr')).not.toBeNull()
   })
 })

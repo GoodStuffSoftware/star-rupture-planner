@@ -433,6 +433,82 @@ describe('root rate inline edit', () => {
       setItem.mockRestore()
     })
   })
+  describe('header single-item ticks', () => {
+    const headerKey = async (t: Awaited<ReturnType<typeof setup>>, k: string) => {
+      const e = new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true })
+      t.header.dispatchEvent(e)
+      await nextTick()
+      return e
+    }
+
+    it('is a native number field with a whole-number step and a minimum of 1', async () => {
+      const t = await setup()
+      cleanup = t.unmount
+      expect(t.header.type).toBe('number')
+      expect(t.header.step).toBe('1')
+      expect(t.header.min).toBe('1')
+    })
+
+    it('ArrowUp / ArrowDown change the rate by exactly 1, and the root number follows', async () => {
+      const t = await setup()
+      cleanup = t.unmount
+      const e = await headerKey(t, 'ArrowUp')
+      expect(e.defaultPrevented).toBe(true)
+      expect(t.store.targetRate).toBe(46)
+      expect(t.header.value).toBe('46')
+      expect(t.input.value).toBe('46')
+      await headerKey(t, 'ArrowDown')
+      await headerKey(t, 'ArrowDown')
+      expect(t.store.targetRate).toBe(44)
+      expect(t.input.value).toBe('44')
+    })
+
+    it('ArrowDown stops at 1', async () => {
+      const t = await setup()
+      cleanup = t.unmount
+      t.store.setTarget(t.store.targetItemId!, 2)
+      await nextTick()
+      await headerKey(t, 'ArrowDown')
+      expect(t.store.targetRate).toBe(1)
+      await headerKey(t, 'ArrowDown')
+      expect(t.store.targetRate).toBe(1)
+      expect(t.header.value).toBe('1')
+    })
+
+    it('the spin buttons step 1 and commit after the debounce', async () => {
+      const t = await setup()
+      cleanup = t.unmount
+      vi.useFakeTimers()
+      t.header.focus()
+      t.header.stepUp() // what a click on the spin arrow does
+      t.header.dispatchEvent(new Event('input', { bubbles: true }))
+      await nextTick()
+      vi.advanceTimersByTime(400)
+      await nextTick()
+      expect(t.store.targetRate).toBe(46)
+      expect(t.input.value).toBe('46')
+      t.header.stepDown()
+      t.header.stepDown()
+      t.header.dispatchEvent(new Event('input', { bubbles: true }))
+      vi.advanceTimersByTime(400)
+      await nextTick()
+      expect(t.store.targetRate).toBe(44)
+    })
+
+    it('the -/+ buttons still step one machine', async () => {
+      const t = await setup()
+      cleanup = t.unmount
+      const step = t.store.defaultRateForItem(t.store.targetItemId!)
+      expect(step).toBeGreaterThan(1)
+      const buttons = [...t.header.parentElement!.querySelectorAll<HTMLButtonElement>('button')]
+      buttons[1].click() // +
+      await nextTick()
+      expect(t.store.targetRate).toBe(45 + step)
+      buttons[0].click() // -
+      await nextTick()
+      expect(t.store.targetRate).toBe(45)
+    })
+  })
 })
 
 describe('child rate field', () => {
@@ -491,8 +567,8 @@ describe('child rate field', () => {
       widths.push(Number(row.ch()))
       cleanup?.()
     }
-    // "5", "45" -> the minimum; "16.88" -> 5; "1234.57" -> 7; "123456.79" -> clamped at 7
-    expect(widths).toEqual([3, 3, 5, 7, 7])
+    // exactly the shown text: "5" -> 1, "45" -> 2, "16.88" -> 5, "1234.57" -> 7; clamped at 7
+    expect(widths).toEqual([1, 2, 5, 7, 7])
   })
 
   it('commits against the full-precision demand, not the shown 2 decimals', async () => {
@@ -503,5 +579,46 @@ describe('child rate field', () => {
     row.input.dispatchEvent(new Event('change', { bubbles: true }))
     expect(setOverage).toHaveBeenCalledTimes(1)
     expect(setOverage.mock.calls[0][1]).toBeCloseTo(20 - 16.875, 10)
+  })
+  it('rests as plain inline text with ghost -/+, no box, background or pill', async () => {
+    const row = await childRow(45)
+    const cls = row.input.className.split(/\s+/).filter((c) => !c.includes(':'))
+    expect(cls).toContain('bg-transparent')
+    expect(cls).toContain('border-0')
+    expect(cls.some((c) => c.startsWith('bg-[') || c.startsWith('ring') || c === 'border')).toBe(
+      false,
+    )
+    // The old dark pill container is gone, and the -/+ are the ghost kind.
+    expect(row.input.closest('.chamfer-sm')).toBeNull()
+    const buttons = row.input.parentElement!.querySelectorAll('button')
+    expect(buttons.length).toBe(2)
+    for (const b of buttons) {
+      expect(b.className).toContain('text-[var(--muted)]')
+      expect(b.className).not.toMatch(/(^|\s)bg-\[/)
+    }
+    // It becomes an editable box only while focused.
+    expect(row.input.className).toContain('focus:bg-[var(--panel-2)]')
+  })
+
+  it('uses no accent (orange) anywhere on a child row, and underlines on hover like the root', async () => {
+    const row = await childRow(45)
+    const group = row.input.parentElement!
+    expect(group.innerHTML).not.toContain('accent')
+    expect(row.input.className).toContain('underline')
+    expect(row.input.className).toContain('decoration-dotted')
+    expect(row.input.className).toContain('hover:decoration-[var(--muted)]')
+  })
+
+  it('sizes the field to its own text, with no minimum padding', async () => {
+    const row = await childRow(5)
+    expect(row.ch()).toBe('1')
+    expect(row.input.className).toContain('px-0')
+  })
+
+  it('keeps the /min suffix right next to the +, in the same group', async () => {
+    const row = await childRow(45)
+    const group = row.input.parentElement!
+    expect(group.lastElementChild!.textContent).toBe('/min')
+    expect(group.children[group.children.length - 2].tagName).toBe('BUTTON')
   })
 })

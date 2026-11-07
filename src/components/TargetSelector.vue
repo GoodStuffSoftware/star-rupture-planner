@@ -70,6 +70,14 @@ watch(
   },
 )
 
+// The rate field fits at least 5 digits (the number spin arrows are hidden: the − / + stepper
+// replaces them, and they ate the last digit) and grows leftwards (it is right-aligned) as the
+// number gets longer, up to 9.
+const rateWidth = computed(() => {
+  const digits = String(rateInput.value).length
+  return `calc(${Math.min(Math.max(digits + 1, 5), 9)}ch + 0.75rem)`
+})
+
 const filteredItems = computed<Item[]>(() => {
   const q = searchText.value.toLowerCase().trim()
   if (!q) return store.items.slice(0, 50)
@@ -246,6 +254,22 @@ function onRateEscape(e: KeyboardEvent) {
   ;(e.target as HTMLInputElement).blur()
 }
 
+// ArrowUp / ArrowDown tick the rate by one item (whole numbers, never below 1), the same as the
+// field's own up/down spin buttons; the -/+ buttons beside it step one machine.
+function onRateArrow(e: KeyboardEvent, dir: 1 | -1) {
+  e.preventDefault()
+  const id = store.targetItemId
+  if (!id) return
+  const typed = Number(rateInput.value)
+  const base = rateInput.value !== '' && Number.isFinite(typed) ? typed : store.targetRate
+  // Whole numbers: from 7.5 up is 8 and down is 7, like the native spin buttons.
+  const next = Math.max(1, dir > 0 ? Math.floor(base + 1e-9) + 1 : Math.ceil(base - 1e-9) - 1)
+  clearRateTimer()
+  rateDirty = false
+  store.setTarget(id, next)
+  rateInput.value = store.targetRate
+}
+
 function onRateEnter(e: KeyboardEvent) {
   ;(e.target as HTMLInputElement).blur()
 }
@@ -364,12 +388,15 @@ function onRateEnter(e: KeyboardEvent) {
           step="1"
           :disabled="!store.targetItemId"
           placeholder="–"
-          class="bg-[var(--panel-2)] text-[var(--text)] text-xs sm:text-sm px-0.5 sm:px-1 py-1 sm:py-1.5 w-10 sm:w-12 focus:outline-none transition-colors text-right disabled:opacity-40 disabled:cursor-not-allowed"
+          :style="{ width: rateWidth }"
+          class="bg-[var(--panel-2)] text-[var(--text)] text-xs sm:text-sm px-0.5 sm:px-1 py-1 sm:py-1.5 min-w-[calc(5ch+0.75rem)] max-w-[calc(9ch+0.75rem)] focus:outline-none transition-colors text-right disabled:opacity-40 disabled:cursor-not-allowed [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
           @focus="onRateFocus"
           @input="onRateInput"
           @change="onRateChange"
           @blur="onRateBlur"
           @keydown.enter="onRateEnter"
+          @keydown.up="onRateArrow($event, 1)"
+          @keydown.down="onRateArrow($event, -1)"
           @keydown.esc="onRateEscape"
         />
         <button
