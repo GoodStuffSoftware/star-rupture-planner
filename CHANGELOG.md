@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Game data straight from the game files**: A new extractor reads the game build itself and a publish workflow turns it into planner data and icons, so a new game version can appear in the version picker without waiting on the upstream data repo. Newest versions are listed first, and the default version is still never a test build.
+
 ### Fixed
 - **Game data updates now go live**: When the scheduled job refreshes the game data, the site is redeployed automatically. Before, the new data sat in the repo until someone pushed. A Discord notice (when a webhook is configured) reports each deploy or failure, and a data refresh that cannot reach upstream now fails loudly instead of silently keeping the old files.
 
