@@ -4,7 +4,7 @@
 // closes on outside click, Escape, scroll, resize, window blur and after any action.
 import { computed, nextTick, ref, watch, onBeforeUnmount } from 'vue'
 import { usePlannerStore } from '../stores/plannerStore'
-import { tabMenu, closeTabMenu } from '../lib/tabMenu'
+import { tabMenu, closeTabMenu, forgetRightClick, isClaimedByTabMenu } from '../lib/tabMenu'
 
 const store = usePlannerStore()
 
@@ -98,6 +98,7 @@ function moveFocus(delta: number) {
 
 function activate(item: MenuItem) {
   if (item.disabled) return
+  forgetRightClick()
   closeTabMenu() // first: the action may remove the chip the menu belongs to
   item.run()
 }
@@ -150,11 +151,14 @@ const onOutsidePointer = (e: Event) => {
 // A right-click elsewhere (one that no chip claimed with preventDefault) shows the browser's menu,
 // so ours goes.
 const onOtherContextMenu = (e: Event) => {
-  if (!e.defaultPrevented && !inMenu(e.target)) closeTabMenu()
+  if (!isClaimedByTabMenu(e) && !inMenu(e.target)) closeTabMenu()
 }
 const onScroll = (e: Event) => {
   if (!inMenu(e.target)) closeTabMenu()
 }
+// A right-click on the menu itself (a second right-click at the same spot lands here, as the
+// menu opens at the pointer) closes it and leaves the event alone: the browser's menu appears.
+const onMenuContextMenu = () => closeTabMenu()
 const onClose = () => closeTabMenu()
 const onResize = () => closeTabMenu()
 const onDocKey = (e: Event) => {
@@ -181,6 +185,7 @@ watch(
     await nextTick()
     clampIntoViewport()
     placed.value = true
+    await nextTick() // the menu is visible now, so it can take focus
     if (tabMenu.viaKeyboard) enabledEls()[0]?.focus({ preventScroll: true })
     else rootEl.value?.focus({ preventScroll: true })
   },
@@ -199,6 +204,7 @@ onBeforeUnmount(() => listen(false))
       class="fixed z-[110] w-max max-w-[calc(100vw-16px)]"
       :class="placed ? undefined : 'invisible'"
       :style="{ left: pos.left + 'px', top: pos.top + 'px' }"
+      @contextmenu="onMenuContextMenu"
     >
       <div
         ref="rootEl"
@@ -208,7 +214,6 @@ onBeforeUnmount(() => listen(false))
         tabindex="-1"
         class="chamfer-sm min-w-44 max-w-[calc(100vw-16px)] text-[var(--text)] outline-none"
         @keydown="onKeydown"
-        @contextmenu.prevent
       >
         <!-- Text size follows Options → Text size, like the rest of the app -->
         <div

@@ -99,6 +99,7 @@ async function rightClick(el: Element, x = 40, y = 30): Promise<boolean> {
   el.dispatchEvent(e)
   await nextTick()
   await nextTick()
+  await nextTick()
   return e.defaultPrevented
 }
 
@@ -106,6 +107,7 @@ async function key(el: Element, k: string, init: KeyboardEventInit = {}) {
   el.dispatchEvent(
     new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true, ...init }),
   )
+  await nextTick()
   await nextTick()
   await nextTick()
 }
@@ -207,6 +209,37 @@ describe('double right-click', () => {
     vi.advanceTimersByTime(DOUBLE_RIGHT_CLICK_MS + 100)
     expect(await rightClick(chips()[0])).toBe(true)
     expect(menu()).not.toBeNull()
+  })
+})
+
+describe('menu surface', () => {
+  it('a right-click on the menu itself (a second click at the same spot) closes it, browser menu kept', async () => {
+    await mountTabs(['aerogel', 'airlock'])
+    vi.advanceTimersByTime(2000)
+    await rightClick(chips()[0])
+    expect(await rightClick(menu()!.firstElementChild!)).toBe(false)
+    expect(menu()).toBeNull()
+  })
+
+  it('a right-click elsewhere closes the menu even if that element prevents the default', async () => {
+    await mountTabs(['aerogel', 'airlock'])
+    vi.advanceTimersByTime(2000)
+    await rightClick(chips()[0])
+    const other = document.createElement('div')
+    other.addEventListener('contextmenu', (e) => e.preventDefault())
+    document.body.appendChild(other)
+    await rightClick(other)
+    other.remove()
+    expect(menu()).toBeNull()
+  })
+
+  it('takes focus once placed (the menu itself after a mouse open)', async () => {
+    await mountTabs(['aerogel', 'airlock'])
+    vi.advanceTimersByTime(2000)
+    await rightClick(chips()[0])
+    await nextTick()
+    await nextTick()
+    expect(document.activeElement).toBe(menu())
   })
 })
 

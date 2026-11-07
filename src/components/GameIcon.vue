@@ -92,7 +92,9 @@ function clearAutoDismissTimer() {
 
 // Suppress the browser menu (long-press image menu on touch) unless a parent asked to keep it
 function guardMenu(e: Event) {
-  if (!props.nativeContextMenu) e.preventDefault()
+  // Only a mouse right-click may reach the browser menu; a touch long-press never does.
+  const mouse = (e as MouseEvent).button === 2 || (e as MouseEvent).ctrlKey
+  if (!(props.nativeContextMenu && mouse)) e.preventDefault()
 }
 
 // Touch / press-and-hold

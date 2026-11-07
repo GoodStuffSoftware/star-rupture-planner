@@ -29,6 +29,14 @@ export const tabMenu = reactive({
 const keyOf = (t: TabMenuTarget) => (t.kind === 'tab' ? `tab:${t.tid}` : t.kind)
 
 let lastRightClick = { key: '', time: 0 }
+// The contextmenu event a chip last claimed, so the document-level listener can tell it from one
+// that landed elsewhere (even when an icon there called preventDefault).
+let claimedEvent: Event | null = null
+export const isClaimedByTabMenu = (e: Event) => e === claimedEvent
+/** Forget the last right-click (after an action ran), so the next one is a fresh first click. */
+export function forgetRightClick(): void {
+  lastRightClick = { key: '', time: 0 }
+}
 
 export function openTabMenu(
   target: TabMenuTarget,
@@ -46,7 +54,6 @@ export function openTabMenu(
 }
 
 export function closeTabMenu(returnFocus = false): void {
-  lastRightClick = { key: '', time: 0 } // a right-click after any close starts afresh
   if (!tabMenu.open) return
   tabMenu.open = false
   const anchor = tabMenu.anchor
@@ -68,10 +75,14 @@ function openAtElement(target: TabMenuTarget, el: HTMLElement): void {
 export function onTabContextMenu(e: MouseEvent, target: TabMenuTarget): void {
   const el = e.currentTarget as HTMLElement | null
   const key = keyOf(target)
+  claimedEvent = e
   // A touch long-press or the keyboard's menu key is not a "right-click" (ctrl+click on a Mac is).
   const mouse = (e.button === 2 || e.ctrlKey) && (e as PointerEvent).pointerType !== 'touch'
   if (!mouse) {
     e.preventDefault()
+    // A touch long-press on the icon belongs to the icon's own zoom.
+    if ((e.target as Element | null)?.closest?.('[data-game-icon]') && (e.clientX || e.clientY))
+      return
     if (!tabMenu.open && el) {
       if (e.clientX || e.clientY) openTabMenu(target, el, e.clientX, e.clientY, false)
       else openAtElement(target, el)
