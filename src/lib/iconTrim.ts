@@ -31,6 +31,29 @@ export function trimTransform(b: InkBox, fill = 1): string | null {
   return `scale(${+s.toFixed(4)}) translate(${+tx.toFixed(3)}%, ${+ty.toFixed(3)}%)`
 }
 
+/** Width / height of the visible art; null when empty. */
+export function inkAspect(b: InkBox): number | null {
+  const iw = b.x1 - b.x0
+  const ih = b.y1 - b.y0
+  if (iw <= 0 || ih <= 0) return null
+  return +(iw / ih).toFixed(4)
+}
+
+/**
+ * Placement of the full image inside a box whose height is the art's height and whose width is
+ * the art's width (aspect = inkAspect): image height as % of the box, and the translate (% of the
+ * image's own size) that puts the art's centre at the box centre, from top/left 50%.
+ */
+export function heightFit(b: InkBox): { heightPct: number; tx: number; ty: number } | null {
+  const ih = b.y1 - b.y0
+  if (ih <= 0 || b.width <= 0 || b.height <= 0) return null
+  return {
+    heightPct: +((b.height / ih) * 100).toFixed(3),
+    tx: +(-((b.x0 + b.x1) / 2 / b.width) * 100).toFixed(3),
+    ty: +(-((b.y0 + b.y1) / 2 / b.height) * 100).toFixed(3),
+  }
+}
+
 const cache = new Map<string, InkBox | null>()
 const pending = new Map<string, Promise<InkBox | null>>()
 

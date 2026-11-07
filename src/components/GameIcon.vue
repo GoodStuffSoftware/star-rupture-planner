@@ -1,6 +1,13 @@
 <script setup lang="ts">
-import { ref, watch, onUnmounted, computed } from 'vue'
-import { cachedTrim, loadTrim, trimTransform, ICON_ART_FILL } from '../lib/iconTrim'
+import { ref, watch, onUnmounted, computed, type CSSProperties } from 'vue'
+import {
+  cachedTrim,
+  loadTrim,
+  trimTransform,
+  inkAspect,
+  heightFit,
+  ICON_ART_FILL,
+} from '../lib/iconTrim'
 import type { InkBox } from '../lib/iconTrim'
 import { usePlannerStore } from '../stores/plannerStore'
 
@@ -18,6 +25,9 @@ const props = withDefaults(
     trim?: boolean
     // Share of the box side the art's larger side fills (0-1)
     artFill?: number
+    // Tab chips: the box is as tall as its parent, the art's height fills it, and the box's width
+    // follows the art's aspect (square until measured). Needs a parent with a definite height.
+    fitHeight?: boolean
   }>(),
   { size: 24, trim: true, artFill: ICON_ART_FILL },
 )
@@ -50,6 +60,39 @@ watch(
   },
   { immediate: true },
 )
+
+const fit = computed(() =>
+  props.fitHeight && inkBox.value
+    ? { aspect: inkAspect(inkBox.value), pos: heightFit(inkBox.value) }
+    : null,
+)
+
+// The hover-zoom card reuses the cached measurement: art fills its inner area, centred
+const zoomCss = computed(() => (inkBox.value ? trimTransform(inkBox.value, 1) : null))
+
+const imgStyle = computed<CSSProperties | undefined>(() => {
+  if (!props.trim) return undefined
+  if (props.fitHeight) {
+    const pos = fit.value?.pos
+    if (pos) {
+      return {
+        position: 'absolute',
+        left: '50%',
+        top: '50%',
+        width: 'auto',
+        maxWidth: 'none',
+        height: `${pos.heightPct}%`,
+        transform: `translate(${pos.tx}%, ${pos.ty}%)`,
+      }
+    }
+    return { visibility: inkBox.value === undefined ? 'hidden' : undefined }
+  }
+  return {
+    transform: trimCss.value ?? undefined,
+    transformOrigin: 'center',
+    visibility: trimCss.value === undefined ? 'hidden' : undefined,
+  }
+})
 
 function onError() {
   failed.value = true
@@ -217,9 +260,13 @@ onUnmounted(() => {
     v-else
     data-game-icon
     class="inline-flex shrink-0 select-none"
-    :class="fill ? 'w-full h-full' : undefined"
+    :class="fitHeight ? 'relative h-full' : fill ? 'w-full h-full' : undefined"
     :style="{
-      ...(fill ? {} : { width: `${size}px`, height: `${size}px` }),
+      ...(fitHeight
+        ? { aspectRatio: String(fit?.aspect ?? 1) }
+        : fill
+          ? {}
+          : { width: `${size}px`, height: `${size}px` }),
       WebkitTouchCallout: 'none',
       WebkitUserSelect: 'none',
       userSelect: 'none',
@@ -236,21 +283,13 @@ onUnmounted(() => {
     <img
       :src="`/icons/${kind}s/${id}.webp`"
       :alt="name"
-      :width="fill ? undefined : size"
-      :height="fill ? undefined : size"
+      :width="fill || fitHeight ? undefined : size"
+      :height="fill || fitHeight ? undefined : size"
       loading="lazy"
       draggable="false"
       class="rounded object-contain w-full h-full pointer-events-none select-none"
       style="-webkit-touch-callout: none; -webkit-user-select: none; user-select: none"
-      :style="
-        trim
-          ? {
-              transform: trimCss ?? undefined,
-              transformOrigin: 'center',
-              visibility: trimCss === undefined ? 'hidden' : undefined,
-            }
-          : undefined
-      "
+      :style="imgStyle"
       @error="onError"
       @contextmenu="guardMenu"
     />
@@ -291,6 +330,7 @@ onUnmounted(() => {
               draggable="false"
               class="object-contain w-full h-full rounded-lg select-none pointer-events-none"
               style="-webkit-touch-callout: none; -webkit-user-select: none; user-select: none"
+              :style="zoomCss ? { transform: zoomCss, transformOrigin: 'center' } : undefined"
               @contextmenu.prevent
             />
           </div>
