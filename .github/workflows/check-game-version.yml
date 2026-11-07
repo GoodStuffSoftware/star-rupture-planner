@@ -1,0 +1,46 @@
+name: Check Steam game version
+
+# Daily, after the 06:00 UTC data refresh. Opens an issue when Steam has a newer live or
+# PTB build than the planner's data and the grace period has run out.
+on:
+  schedule:
+    - cron: '41 7 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Print the decisions without opening or commenting on issues'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: check-game-version
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Compare Steam builds with planner data
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout (full history, git log dates the data)
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Check game version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          args=()
+          if [ "$DRY_RUN" = "true" ]; then args+=(--dry-run); fi
+          node scripts/check-game-version.mjs "${args[@]}"
