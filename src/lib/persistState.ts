@@ -12,7 +12,25 @@ export interface PlanTargetState {
   overages: Overages
   expandLevel?: number // per-tab expand scope
   expanded?: NodeExpansion // per-tab manual caret toggles (deviations from expandLevel)
+  pinned?: boolean // pinned tabs sit at the left; absent in older saves (= not pinned)
 }
+
+/**
+ * A closed recipe tab, kept so it can be reopened. `index` is where the tab sat in the strip
+ * when it closed. Never holds an empty tab (there is nothing to reopen).
+ */
+export interface ClosedTabState {
+  targetItemId: string
+  targetRate: number
+  overages: Overages
+  expandLevel: number
+  expanded: NodeExpansion
+  pinned: boolean
+  index: number
+}
+
+/** The closed-tab stack never holds more than this many tabs (newest first). */
+export const MAX_CLOSED_TABS = 10
 
 export interface PlanState {
   version: string
@@ -27,6 +45,8 @@ export interface PlanState {
   tier: TierSelection
   overrides: VersionOverrides
   recipeOverrides?: RecipeOverrides
+  // Recently closed recipe tabs, newest first. Absent in older saves (= none); validated on load.
+  closedTabs?: ClosedTabState[]
 }
 
 export interface ViewPrefs {
@@ -198,6 +218,9 @@ function parseSaved(raw: string | null): { plan?: PlanState; prefs?: ViewPrefs }
           targets: Array.isArray(pl.targets) ? (pl.targets as PlanTargetState[]) : undefined,
           activeTargetIndex:
             typeof pl.activeTargetIndex === 'number' ? pl.activeTargetIndex : undefined,
+          closedTabs: Array.isArray(pl.closedTabs)
+            ? (pl.closedTabs as ClosedTabState[])
+            : undefined,
         }
       }
     }
@@ -223,7 +246,7 @@ const sortedEntries = (o: Record<string, unknown> | undefined) =>
 /**
  * Do two plans mean the same thing? Used to decide whether a share link needs
  * the user's say-so. Compared: game version, the ordered tabs (item, rate,
- * overages), tier upgrades, building overrides and recipe overrides. Ignored,
+ * overages; empty tabs are skipped), tier upgrades, building overrides and recipe overrides. Ignored,
  * because a share link doesn't reliably carry them or they are only view state:
  * which tab is active, expand levels and caret toggles, the all-v1 tier entries
  * (a link lists only v2 upgrades), and empty maps vs absent ones.
@@ -233,11 +256,13 @@ export function isSamePlan(a: PlanState, b: PlanState): boolean {
     JSON.stringify([
       p.version,
       // Rates compare as the whole numbers they load as, so a link holding 12.5 matches a save of 13.
-      planTargetList(p).map((t) => [
-        t.targetItemId,
-        typeof t.targetRate === 'number' ? normalizeTargetRate(t.targetRate) : t.targetRate,
-        sortedEntries(t.overages),
-      ]),
+      planTargetList(p)
+        .filter((t) => t.targetItemId !== null) // an empty "New tab" is not part of a plan's meaning
+        .map((t) => [
+          t.targetItemId,
+          typeof t.targetRate === 'number' ? normalizeTargetRate(t.targetRate) : t.targetRate,
+          sortedEntries(t.overages),
+        ]),
       sortedEntries(p.tier).filter(([, v]) => v === 'v2'),
       sortedEntries(p.overrides),
       sortedEntries(p.recipeOverrides),

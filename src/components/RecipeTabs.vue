@@ -1,6 +1,7 @@
 <script setup lang="ts">
-// Recipe tabs: one chip per planning target. Click to switch, × to close,
-// drag to reorder.
+// Recipe tabs: one chip per planning target. Click to switch, × to close (pinned tabs
+// have none), drag to reorder within the pinned or the unpinned group. A tab with no item
+// yet is a "New tab" chip.
 import { ref, computed } from 'vue'
 import { usePlannerStore } from '../stores/plannerStore'
 import { fmt } from '../lib/format'
@@ -10,7 +11,7 @@ import AddRecipeButton from './AddRecipeButton.vue'
 const store = usePlannerStore()
 
 function labelFor(itemId: string | null): string {
-  if (!itemId) return 'New recipe'
+  if (!itemId) return 'New tab'
   return store.itemsById.get(itemId)?.name ?? itemId
 }
 
@@ -64,7 +65,9 @@ function onDragEnd() {
         role="tab"
         draggable="true"
         :aria-selected="t.tid === store.activeTargetId"
-        :title="`${labelFor(t.targetItemId)} — ${fmt(t.targetRate)}/min`"
+        :title="
+          t.targetItemId ? `${labelFor(t.targetItemId)} — ${fmt(t.targetRate)}/min` : 'New tab'
+        "
         class="chamfer-sm group flex items-center gap-1.5 pl-2 pr-1.5 py-1.5 shrink-0 cursor-grab active:cursor-grabbing transition-colors select-none"
         :class="[
           t.tid === store.activeTargetId
@@ -79,6 +82,19 @@ function onDragEnd() {
         @drop="onDrop(t.tid)"
         @dragend="onDragEnd"
       >
+        <svg
+          v-if="t.pinned"
+          class="w-3 h-3 shrink-0"
+          viewBox="0 0 24 24"
+          fill="currentColor"
+          role="img"
+          aria-label="Pinned"
+          data-testid="pin-indicator"
+        >
+          <path
+            d="M16 3a1 1 0 0 1 .7 1.7L15 6.4V11l3 3v2h-5v5l-1 1-1-1v-5H6v-2l3-3V6.4L7.3 4.7A1 1 0 0 1 8 3z"
+          />
+        </svg>
         <GameIcon
           v-if="t.targetItemId"
           :id="t.targetItemId"
@@ -98,14 +114,15 @@ function onDragEnd() {
           {{ labelFor(t.targetItemId) }}
         </span>
         <span
+          v-if="t.targetItemId"
           class="text-xs font-mono whitespace-nowrap"
           :class="t.tid === store.activeTargetId ? 'opacity-80' : 'opacity-60'"
         >
           {{ fmt(t.targetRate) }}/min
         </span>
-        <!-- Close (only when more than one tab) -->
+        <!-- Close (only when more than one tab; pinned tabs have none) -->
         <button
-          v-if="store.targets.length > 1"
+          v-if="store.targets.length > 1 && !t.pinned"
           type="button"
           aria-label="Close recipe"
           title="Close recipe"

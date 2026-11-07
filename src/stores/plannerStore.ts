@@ -38,8 +38,10 @@ import {
   LS_KEY,
   hasNewerSave,
   loadSavedForSync,
+  MAX_CLOSED_TABS,
   type PlanState,
   type PlanTargetState,
+  type ClosedTabState,
 } from '../lib/persistState'
 import {
   readAddItemRequest,
@@ -67,11 +69,27 @@ export interface PlanTarget {
    * component) is what makes expansion survive a tab switch.
    */
   expanded: NodeExpansion
+  /** Pinned tabs sit at the left of the strip (in pin order) and have no × button. */
+  pinned: boolean
 }
 
 let _tidSeq = 0
 function _newTid(): string {
   return `t${Date.now().toString(36)}_${(_tidSeq++).toString(36)}`
+}
+
+/** A tab with no item yet (a "New tab"); `over` overrides any field. */
+function _blankTarget(expandLevel: number, over: Partial<PlanTarget> = {}): PlanTarget {
+  return {
+    tid: _newTid(),
+    targetItemId: null,
+    targetRate: 60,
+    overages: {},
+    expandLevel,
+    expanded: {},
+    pinned: false,
+    ...over,
+  }
 }
 
 export const usePlannerStore = defineStore('planner', () => {
@@ -105,16 +123,15 @@ export const usePlannerStore = defineStore('planner', () => {
   const handOff = ref<'asking' | 'done' | null>(null)
 
   // Multi-target tabs
-  const targets = ref<PlanTarget[]>([
-    {
-      tid: _newTid(),
-      targetItemId: null,
-      targetRate: 60,
-      overages: {},
-      expandLevel: 2,
-      expanded: {},
-    },
-  ])
+  // Display order. Invariant: the pinned tabs form a prefix (in pin order).
+  const targets = ref<PlanTarget[]>([_blankTarget(2)])
+  /** Recently closed tabs, newest first, at most MAX_CLOSED_TABS. Persisted with the plan. */
+  const closedTabs = ref<ClosedTabState[]>([])
+  /**
+   * Bumped to ask the item search box to clear itself and take focus (a new tab was opened).
+   * Transient: never saved, never synced.
+   */
+  const searchFocusTick = ref(0)
   const activeTargetId = ref<string>(targets.value[0].tid)
 
   const activeTarget = computed<PlanTarget>(
@@ -394,11 +411,21 @@ export const usePlannerStore = defineStore('planner', () => {
               },
             ]
 
+      // A tab list may hold deliberately empty tabs (item null); a legacy single-target
+      // plan, or an item this game version lacks, still falls back to a real item.
+      const hasTabList = !!(plan.targets && plan.targets.length)
       const restoredTargets: PlanTarget[] = sources.map((s) => {
         const validItem =
-          s.targetItemId && freshItemsById.has(s.targetItemId) ? s.targetItemId : fallbackItem
+          s.targetItemId && freshItemsById.has(s.targetItemId)
+            ? s.targetItemId
+            : s.targetItemId === null && hasTabList
+              ? null
+              : fallbackItem
         const rate =
-          typeof s.targetRate === 'number' && isFinite(s.targetRate) && s.targetRate > 0
+          validItem &&
+          typeof s.targetRate === 'number' &&
+          isFinite(s.targetRate) &&
+          s.targetRate > 0
             ? // Old saves and links may hold decimals: round them, but keep an exact multiple of the
               // item's machine output (what stepping produces), so it survives a reload or a sibling tab.
               normalizeTargetRate(
@@ -419,24 +446,52 @@ export const usePlannerStore = defineStore('planner', () => {
           overages: validateOverages(s.overages),
           expandLevel: exp,
           expanded: validateExpanded(s.expanded),
+          pinned: s.pinned === true,
         }
       })
       if (restoredTargets.length === 0) {
-        restoredTargets.push({
-          tid: _newTid(),
-          targetItemId: fallbackItem,
-          targetRate: fallbackItem ? defaultTargetRate(fallbackItem) : 60,
-          expandLevel: prefsStore.defaultExpandLevel,
-          overages: {},
-          expanded: {},
-        })
+        restoredTargets.push(
+          _blankTarget(prefsStore.defaultExpandLevel, {
+            targetItemId: fallbackItem,
+            targetRate: fallbackItem ? defaultTargetRate(fallbackItem) : 60,
+          }),
+        )
       }
-      targets.value = restoredTargets
       const ai = plan.activeTargetIndex ?? 0
-      activeTargetId.value =
-        ai === -1 && restoredTargets.length > 1
-          ? ALL_TARGETS_ID
-          : restoredTargets[Math.min(Math.max(ai, 0), restoredTargets.length - 1)].tid
+      const activeTid = restoredTargets[Math.min(Math.max(ai, 0), restoredTargets.length - 1)].tid
+      // Keep the pinned-prefix invariant even if a hand-edited save broke it (stable partition).
+      targets.value = [
+        ...restoredTargets.filter((t) => t.pinned),
+        ...restoredTargets.filter((t) => !t.pinned),
+      ]
+      activeTargetId.value = ai === -1 && restoredTargets.length > 1 ? ALL_TARGETS_ID : activeTid
+
+      // The closed-tab stack: keep well-formed entries whose item this game version has.
+      const restoredClosed: ClosedTabState[] = []
+      for (const c of Array.isArray(plan.closedTabs) ? plan.closedTabs : []) {
+        if (!c || typeof c !== 'object') continue
+        if (typeof c.targetItemId !== 'string' || !freshItemsById.has(c.targetItemId)) continue
+        if (typeof c.targetRate !== 'number' || !isFinite(c.targetRate) || c.targetRate <= 0)
+          continue
+        restoredClosed.push({
+          targetItemId: c.targetItemId,
+          targetRate: normalizeTargetRate(
+            c.targetRate,
+            isMachineMultiple(c.targetRate, defaultRateForItem(c.targetItemId)),
+          ),
+          overages: validateOverages(c.overages),
+          expandLevel:
+            typeof c.expandLevel === 'number' && c.expandLevel >= 0
+              ? c.expandLevel
+              : prefsStore.defaultExpandLevel,
+          expanded: validateExpanded(c.expanded),
+          pinned: c.pinned === true,
+          index:
+            typeof c.index === 'number' && Number.isInteger(c.index) && c.index >= 0 ? c.index : 0,
+        })
+        if (restoredClosed.length >= MAX_CLOSED_TABS) break
+      }
+      closedTabs.value = restoredClosed
     } else {
       tier.value = defaultTier
       overrides.value = {}
@@ -445,15 +500,12 @@ export const usePlannerStore = defineStore('planner', () => {
       const newTarget =
         data.items.find((i) => i.type === 'component')?.id ?? data.items[0]?.id ?? null
       targets.value = [
-        {
-          tid: _newTid(),
+        _blankTarget(prefsStore.defaultExpandLevel, {
           targetItemId: newTarget,
           targetRate: newTarget ? defaultTargetRate(newTarget) : 60,
-          overages: {},
-          expandLevel: prefsStore.defaultExpandLevel,
-          expanded: {},
-        },
+        }),
       ]
+      closedTabs.value = []
       activeTargetId.value = targets.value[0].tid
     }
   }
@@ -630,7 +682,8 @@ export const usePlannerStore = defineStore('planner', () => {
    * or rewrites anything: an item that is already a target is just focused
    * (its rate is left alone), an unknown id only raises a notice, and any
    * other item becomes a new tab. `hadPlan` is false only when nothing was
-   * saved, where the lone default tab is a placeholder and is filled instead.
+   * saved, where the lone default tab is a placeholder and is filled instead; an empty
+   * active "New tab" is filled the same way.
    */
   function _applyAddItemRequest(
     req: AddItemRequest,
@@ -652,6 +705,9 @@ export const usePlannerStore = defineStore('planner', () => {
       setTarget(req.itemId, start.rate, start.exact)
     } else if (existing) {
       setActiveTarget(existing.tid)
+    } else if (!isAllView.value && !activeTarget.value.targetItemId) {
+      // The active tab is a "New tab": the item goes there instead of opening another.
+      setTarget(req.itemId, start.rate, start.exact)
     } else {
       addTargetItem(req.itemId)
       setTarget(req.itemId, start.rate, start.exact)
@@ -716,50 +772,184 @@ export const usePlannerStore = defineStore('planner', () => {
 
   function addTargetItem(itemId: string | null) {
     const tid = _newTid()
-    targets.value.push({
-      tid,
-      targetItemId: itemId,
-      targetRate: itemId ? defaultTargetRate(itemId) : 60,
-      overages: {},
-      expandLevel: activeTarget.value?.expandLevel ?? prefsStore.defaultExpandLevel,
-      expanded: {},
-    })
+    targets.value.push(
+      _blankTarget(activeTarget.value?.expandLevel ?? prefsStore.defaultExpandLevel, {
+        tid,
+        targetItemId: itemId,
+        targetRate: itemId ? defaultTargetRate(itemId) : 60,
+      }),
+    )
     activeTargetId.value = tid
   }
 
-  function addTarget() {
-    const newItem =
-      dataStore.items.find((i) => i.type === 'component')?.id ?? dataStore.items[0]?.id ?? null
-    addTargetItem(newItem)
+  // ─── Tab actions ─────────────────────────────────────────────────────────
+  // `targets` is the display order with the pinned tabs as a prefix. Every action
+  // below keeps that, and never leaves the strip without a tab.
+
+  const pinnedCount = computed(() => targets.value.filter((t) => t.pinned).length)
+  const isEmptyTab = (tid: string) => targets.value.some((t) => t.tid === tid && !t.targetItemId)
+  const hasEmptyTab = computed(() => targets.value.some((t) => !t.targetItemId))
+  const isPinned = (tid: string) => targets.value.some((t) => t.tid === tid && t.pinned)
+  /** True when "Reopen last closed tab" has something to reopen. */
+  const canReopen = computed(() => closedTabs.value.length > 0)
+  /** Is there an unpinned tab other than `tid` for "Close other tabs" to close? */
+  function canCloseOthers(tid: string): boolean {
+    return targets.value.some((t) => t.tid !== tid && !t.pinned)
+  }
+  /** Is there an unpinned tab right of `tid` for "Close tabs to the right" to close? */
+  function canCloseToRight(tid: string): boolean {
+    const i = targets.value.findIndex((t) => t.tid === tid)
+    return i !== -1 && targets.value.slice(i + 1).some((t) => !t.pinned)
+  }
+  /** False only for the lone empty tab, which is what closing everything leaves behind. */
+  function canCloseTab(tid: string): boolean {
+    const only = targets.value.length === 1 ? targets.value[0] : null
+    return !(only && only.tid === tid && !only.targetItemId)
   }
 
-  function closeTarget(tid: string) {
-    const idx = targets.value.findIndex((t) => t.tid === tid)
-    if (idx === -1) return
-    targets.value.splice(idx, 1)
-    if (targets.value.length === 0) {
-      const newItem =
-        dataStore.items.find((i) => i.type === 'component')?.id ?? dataStore.items[0]?.id ?? null
-      targets.value.push({
-        tid: _newTid(),
-        targetItemId: newItem,
-        targetRate: newItem ? defaultTargetRate(newItem) : 60,
-        overages: {},
-        expandLevel: prefsStore.defaultExpandLevel,
-        expanded: {},
+  /** Ask the item search box to clear itself and take focus. */
+  function requestSearchFocus(): void {
+    searchFocusTick.value++
+  }
+
+  /**
+   * Open an EMPTY tab (no item yet), make it active and ask the search box to clear and focus,
+   * so typing starts at once. It goes at the end, or at `atIndex` (clamped to the unpinned part
+   * of the strip). Only one empty tab is ever made: with one already open, that one is
+   * activated instead. Returns the tab's id.
+   */
+  function newTab(atIndex?: number): string {
+    const existing = targets.value.find((t) => !t.targetItemId)
+    if (existing) {
+      activeTargetId.value = existing.tid
+    } else {
+      const t = _blankTarget(activeTarget.value?.expandLevel ?? prefsStore.defaultExpandLevel)
+      const at = Math.min(
+        Math.max(atIndex ?? targets.value.length, pinnedCount.value),
+        targets.value.length,
+      )
+      targets.value.splice(at, 0, t)
+      activeTargetId.value = t.tid
+    }
+    requestSearchFocus()
+    return activeTargetId.value
+  }
+
+  /** Pin or unpin a tab. Pinning appends it to the pins; unpinning puts it first among the rest. */
+  function togglePin(tid: string): void {
+    const i = targets.value.findIndex((t) => t.tid === tid)
+    if (i === -1) return
+    const arr = targets.value.slice()
+    const [t] = arr.splice(i, 1)
+    t.pinned = !t.pinned
+    arr.splice(arr.filter((x) => x.pinned).length, 0, t)
+    targets.value = arr
+  }
+
+  function _pushClosed(snap: ClosedTabState): void {
+    closedTabs.value = [snap, ...closedTabs.value].slice(0, MAX_CLOSED_TABS)
+  }
+
+  /**
+   * Remove tabs, remembering each (except empty ones) on the closed stack. Pushed right to
+   * left, so reopening restores them left to right at their old positions. If the active tab
+   * goes, `invokedOn` (the tab a bulk action was used on) takes over, else a neighbour.
+   */
+  function _closeTabs(tids: string[], invokedOn?: string): void {
+    const doomed = new Set(tids)
+    const list = targets.value
+    const kept = list.filter((t) => !doomed.has(t.tid))
+    if (kept.length === list.length) return
+    for (let i = list.length - 1; i >= 0; i--) {
+      const t = list[i]
+      if (!doomed.has(t.tid) || !t.targetItemId) continue
+      _pushClosed({
+        targetItemId: t.targetItemId,
+        targetRate: t.targetRate,
+        overages: { ...t.overages },
+        expandLevel: t.expandLevel,
+        expanded: { ...t.expanded },
+        pinned: t.pinned,
+        index: i,
       })
     }
+    const activeIdx = list.findIndex((t) => t.tid === activeTargetId.value)
+    if (kept.length === 0) kept.push(_blankTarget(prefsStore.defaultExpandLevel))
+    targets.value = kept
     if (activeTargetId.value === ALL_TARGETS_ID) {
-      if (targets.value.length <= 1) activeTargetId.value = targets.value[0].tid
-    } else if (!targets.value.some((t) => t.tid === activeTargetId.value)) {
-      activeTargetId.value = targets.value[Math.min(idx, targets.value.length - 1)].tid
+      if (kept.length <= 1) activeTargetId.value = kept[0].tid
+    } else if (!kept.some((t) => t.tid === activeTargetId.value)) {
+      const pick =
+        kept.find((t) => t.tid === invokedOn) ??
+        kept[Math.min(Math.max(activeIdx, 0), kept.length - 1)]
+      activeTargetId.value = pick.tid
     }
+  }
+
+  /** Close one tab (pinned or not). Closing the last tab leaves one empty tab. */
+  function closeTarget(tid: string): void {
+    if (!canCloseTab(tid)) return
+    _closeTabs([tid])
+  }
+
+  /** Close every unpinned tab except `tid`; `tid` becomes active if the active tab closed. */
+  function closeOtherTabs(tid: string): void {
+    if (!targets.value.some((t) => t.tid === tid)) return
+    _closeTabs(
+      targets.value.filter((t) => t.tid !== tid && !t.pinned).map((t) => t.tid),
+      tid,
+    )
+  }
+
+  /** Close the unpinned tabs right of `tid` in display order; `tid` takes over if needed. */
+  function closeTabsToRight(tid: string): void {
+    const i = targets.value.findIndex((t) => t.tid === tid)
+    if (i === -1) return
+    _closeTabs(
+      targets.value
+        .slice(i + 1)
+        .filter((t) => !t.pinned)
+        .map((t) => t.tid),
+      tid,
+    )
+  }
+
+  /**
+   * Bring back the most recently closed tab at its old position (clamped, and kept inside the
+   * pinned or unpinned part it belongs to) and activate it. A lone empty tab, the leftover of
+   * closing everything, is replaced rather than kept next to it. Returns the tab's id, or
+   * null with nothing to reopen.
+   */
+  function reopenClosedTab(): string | null {
+    const snap = closedTabs.value[0]
+    if (!snap) return null
+    closedTabs.value = closedTabs.value.slice(1)
+    const t = _blankTarget(snap.expandLevel, {
+      targetItemId: snap.targetItemId,
+      targetRate: snap.targetRate,
+      overages: { ...snap.overages },
+      expanded: { ...snap.expanded },
+      pinned: snap.pinned,
+    })
+    if (targets.value.length === 1 && !targets.value[0].targetItemId) {
+      targets.value = [t]
+    } else {
+      const pc = pinnedCount.value
+      const at = snap.pinned
+        ? Math.min(snap.index, pc)
+        : Math.min(Math.max(snap.index, pc), targets.value.length)
+      targets.value.splice(at, 0, t)
+    }
+    activeTargetId.value = t.tid
+    return t.tid
   }
 
   function moveTarget(fromTid: string, toTid: string) {
     const from = targets.value.findIndex((t) => t.tid === fromTid)
     const to = targets.value.findIndex((t) => t.tid === toTid)
     if (from === -1 || to === -1 || from === to) return
+    // Pinned tabs reorder among themselves, unpinned among themselves.
+    if (targets.value[from].pinned !== targets.value[to].pinned) return
     const arr = targets.value.slice()
     const [moved] = arr.splice(from, 1)
     arr.splice(to, 0, moved)
@@ -843,6 +1033,7 @@ export const usePlannerStore = defineStore('planner', () => {
       overages: t.overages,
       expandLevel: t.expandLevel,
       expanded: t.expanded,
+      pinned: t.pinned,
     }))
     return {
       version: dataStore.version,
@@ -854,6 +1045,7 @@ export const usePlannerStore = defineStore('planner', () => {
       tier: tier.value,
       overrides: overrides.value,
       recipeOverrides: recipeOverrides.value,
+      closedTabs: closedTabs.value,
     }
   }
 
@@ -1027,6 +1219,7 @@ export const usePlannerStore = defineStore('planner', () => {
   watch(() => dataStore.version, _scheduleSave)
   watch(activeTargetId, _scheduleSave)
   watch(targets, _scheduleSave, { deep: true })
+  watch(closedTabs, _scheduleSave, { deep: true })
   watch(tier, _scheduleSave, { deep: true })
   watch(overrides, _scheduleSave, { deep: true })
   watch(recipeOverrides, _scheduleSave, { deep: true })
@@ -1142,6 +1335,8 @@ export const usePlannerStore = defineStore('planner', () => {
     overrides,
     recipeOverrides,
     targets,
+    closedTabs,
+    searchFocusTick,
     activeTargetId,
     activeTarget,
     targetItemId,
@@ -1166,9 +1361,22 @@ export const usePlannerStore = defineStore('planner', () => {
     setTarget,
     setActiveTarget,
     showAllTotals,
-    addTarget,
     addTargetItem,
+    newTab,
+    togglePin,
     closeTarget,
+    closeOtherTabs,
+    closeTabsToRight,
+    reopenClosedTab,
+    requestSearchFocus,
+    pinnedCount,
+    isPinned,
+    isEmptyTab,
+    hasEmptyTab,
+    canReopen,
+    canCloseOthers,
+    canCloseToRight,
+    canCloseTab,
     moveTarget,
     selectTargetItem,
     defaultRateForItem,

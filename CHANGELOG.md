@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **New-tab behaviour and tab actions (model)**: The + button now opens an empty "New tab" and puts the cursor in a cleared item search, so you can type straight away; picking an item fills that tab at the "Default for new targets" rate. Tabs can be pinned (kept at the left, no close button), the store can close the other or right-hand unpinned tabs, and every closed tab goes on a persisted, cross-tab-synced stack of the last 10 so it can be reopened at its old position. The right-click menu for these comes next.
+
 ### Fixed
 - **Stale tab no longer overwrites a newer plan**: Each tab remembers which saved plan it last read and, before writing, checks that storage still holds it. A tab that missed a sibling's save (its `storage` event still queued, or never delivered) now takes the newer plan instead of replacing it, and an `?add=` item is written at once and added on top of any plan saved while the page was loading, so the in-game "Launch planner" item can no longer be lost to an older open tab. A tab that was behind drops only its own last unsaved edit (about 300 ms), never the other tab's data.
 
