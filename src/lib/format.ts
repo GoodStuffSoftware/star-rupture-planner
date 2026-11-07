@@ -159,3 +159,19 @@ export function newTargetRate(
   if (m === undefined) return { rate: DEFAULT_TARGET_FALLBACK_RATE, exact: false }
   return { rate: normalizeTargetRate(p.machines * m, true), exact: true }
 }
+
+// ─── Child-row rate fields ───────────────────────────────────────────────────
+
+/** A rate shown to at most 2 decimals (16.875 -> 16.88, 67.5, 45). The math keeps full precision. */
+export function roundRate(n: number): number {
+  return Math.round(n * 100) / 100
+}
+
+/** Narrowest and widest a child-row rate field gets, in characters: "1234.88" is 7. */
+export const RATE_INPUT_MIN_CH = 3
+export const RATE_INPUT_MAX_CH = 7
+
+/** Width in `ch` for a rate field showing `text`: grows with it, clamped to the min and max. */
+export function rateInputCh(text: string): number {
+  return Math.min(RATE_INPUT_MAX_CH, Math.max(RATE_INPUT_MIN_CH, text.length))
+}

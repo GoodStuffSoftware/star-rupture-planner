@@ -434,3 +434,74 @@ describe('root rate inline edit', () => {
     })
   })
 })
+
+describe('child rate field', () => {
+  let cleanup: (() => void) | undefined
+  beforeEach(() => {
+    localStorage.clear()
+    stubFetch()
+    vi.stubGlobal('BroadcastChannel', undefined)
+  })
+  afterEach(() => {
+    cleanup?.()
+    vi.unstubAllGlobals()
+  })
+
+  /** A real child row of the 45/min aerogel tree, shown with the given rate. */
+  async function childRow(ratePerMin: number) {
+    history.replaceState(null, '', '/?add=aerogel&r=45')
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const store = usePlannerStore()
+    await store.init()
+    await nextTick()
+    const child = store.tree!.children.find((c) => c.recipe && !c.isCycle)!
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const app = createApp({
+      render: () => h(NodeOverageInput, { node: { ...child, ratePerMin }, depth: 1 }),
+    }).use(pinia)
+    app.mount(host)
+    cleanup = () => {
+      app.unmount()
+      host.remove()
+    }
+    const input = host.querySelector<HTMLInputElement>('input.amount-input')!
+    return { store, input, ch: () => input.style.getPropertyValue('--amount-ch') }
+  }
+
+  it('shows at most 2 decimals', async () => {
+    for (const [rate, shown] of [
+      [16.875, '16.88'],
+      [67.5, '67.5'],
+      [45, '45'],
+      [0.333333, '0.33'],
+      [1234.5678, '1234.57'],
+    ] as const) {
+      const row = await childRow(rate)
+      expect(row.input.value).toBe(shown)
+      cleanup?.()
+    }
+  })
+
+  it('grows with the shown value and is clamped to a min and a max', async () => {
+    const widths: number[] = []
+    for (const rate of [5, 45, 16.875, 1234.5678, 123456.789]) {
+      const row = await childRow(rate)
+      widths.push(Number(row.ch()))
+      cleanup?.()
+    }
+    // "5", "45" -> the minimum; "16.88" -> 5; "1234.57" -> 7; "123456.79" -> clamped at 7
+    expect(widths).toEqual([3, 3, 5, 7, 7])
+  })
+
+  it('commits against the full-precision demand, not the shown 2 decimals', async () => {
+    const row = await childRow(16.875)
+    const setOverage = vi.spyOn(row.store, 'setOverage')
+    row.input.value = '20'
+    row.input.dispatchEvent(new Event('input', { bubbles: true }))
+    row.input.dispatchEvent(new Event('change', { bubbles: true }))
+    expect(setOverage).toHaveBeenCalledTimes(1)
+    expect(setOverage.mock.calls[0][1]).toBeCloseTo(20 - 16.875, 10)
+  })
+})

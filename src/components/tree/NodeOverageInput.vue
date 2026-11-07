@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
 import type { CraftNode } from '../../types/game'
-import { fmt, parseWholeRate, stepTargetRateBy, RATE_DEBOUNCE_MS } from '../../lib/format'
+import {
+  fmt,
+  parseWholeRate,
+  stepTargetRateBy,
+  roundRate,
+  rateInputCh,
+  RATE_DEBOUNCE_MS,
+} from '../../lib/format'
 import { usePlannerStore } from '../../stores/plannerStore'
 import { createWheelStepper } from '../../lib/wheelStep'
 import RateStepButton from './RateStepButton.vue'
@@ -33,12 +40,15 @@ const displayOverage = computed(() => {
   return 0
 })
 
-const outputInput = ref(props.node.ratePerMin)
+// Shown to 2 decimals at most; stepping and committing still use the full-precision rate.
+const outputInput = ref(roundRate(props.node.ratePerMin))
+// The field grows to the left with what it shows (its right edge is fixed), up to 7 characters.
+const outputCh = computed(() => rateInputCh(String(outputInput.value)))
 
 watch(
   () => props.node.ratePerMin,
   (r) => {
-    outputInput.value = r
+    outputInput.value = roundRate(r)
   },
 )
 
@@ -66,7 +76,7 @@ const onOutputWheel = createWheelStepper(stepOutput)
 function onOutputChange() {
   const v = Number(outputInput.value)
   if (isFinite(v)) setOutput(v)
-  else outputInput.value = props.node.ratePerMin
+  else outputInput.value = roundRate(props.node.ratePerMin)
 }
 
 function resetOverage() {
@@ -252,7 +262,8 @@ const rootStepTitle = computed(() =>
           min="0"
           step="1"
           :title="'Output items/min — raise above demand to overproduce, lower below it for a deficit'"
-          class="amount-input bg-[var(--panel-2)] text-[var(--text)] text-sm px-1 py-0.5 w-9 text-right font-mono focus:outline-none"
+          :style="{ '--amount-ch': outputCh }"
+          class="amount-input bg-[var(--panel-2)] text-[var(--text)] text-sm px-1 py-0.5 text-right font-mono focus:outline-none"
           @change="onOutputChange"
           @wheel="onOutputWheel"
           @click.stop
@@ -311,5 +322,7 @@ const rootStepTitle = computed(() =>
 .amount-input {
   -moz-appearance: textfield;
   appearance: textfield;
+  /* ch of the text plus the px-1 padding; at least the old w-9 */
+  width: max(2.25rem, calc(var(--amount-ch, 3) * 1ch + 0.5rem));
 }
 </style>
