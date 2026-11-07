@@ -32,3 +32,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# game-extract (C# tool): build output, and anything extracted from the game (never commit game content)
+tools/**/bin/
+tools/**/obj/
+*.usmap
+extract-out/

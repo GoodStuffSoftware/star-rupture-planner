@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Platforms>x64</Platforms>
+    <AssemblyName>GameExtract</AssemblyName>
+    <RootNamespace>GameExtract</RootNamespace>
+    <Version>0.1.0</Version>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <!-- Keep the exe usable from CI (framework-dependent, x64). -->
+    <SelfContained>false</SelfContained>
+    <!-- NU1608: the ImageSharp pin deliberately sits outside CUE4Parse-Conversion's exact (= 3.1.12) constraint. -->
+    <NoWarn>$(NoWarn);NU1608</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Pinned on purpose: the extractor's output depends on CUE4Parse's UE5.6 reader. Bump deliberately. -->
+    <PackageReference Include="CUE4Parse" Version="1.2.2.202611" />
+    <PackageReference Include="CUE4Parse-Conversion" Version="1.2.2.202611" />
+    <!-- Transitive packages of CUE4Parse that NuGet flags with security advisories: pinned to patched versions. -->
+    <!-- ImageSharp 3.2.0 is the first patched version (GHSA-jjfr-hcj7-qf5w and others), but its build targets demand a Six Labors license. We never call ImageSharp (textures go through SkiaSharp), so the pin carries no assets: patched version in the graph, nothing shipped, no license check. -->
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.2.0" ExcludeAssets="all" />
+    <PackageReference Include="Microsoft.Bcl.Memory" Version="10.0.14" />
+  </ItemGroup>
+
+</Project>
