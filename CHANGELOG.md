@@ -9,12 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [1.6.0] - 2026-11-07
+
 ### Added
-- **Right-click tab menu**: Right-click a recipe tab (or long-press it, or press the menu key or Shift+F10) for New tab, Pin/Unpin, Close tab, Close other tabs, Close tabs to the right and Reopen closed tab. The + and Σ All buttons offer New tab and Reopen. Right-click again within a moment (or while the menu is open) for the browser's own menu. The tab strip now also shows with a single pinned tab or a closed tab to reopen. The header rate field fits at least 5 digits.
-- **New-tab behaviour and tab actions (model)**: The + button now opens an empty "New tab" and puts the cursor in a cleared item search, so you can type straight away; picking an item fills that tab at the "Default for new targets" rate. Tabs can be pinned (kept at the left, no close button), the store can close the other or right-hand unpinned tabs, and every closed tab goes on a persisted, cross-tab-synced stack of the last 10 so it can be reopened at its old position. The right-click menu for these comes next.
+- **Edit the root rate inline**: The big rate at the top of the tree is now editable in place. Use the -/+ buttons (each steps one machine), the arrow keys or the mouse wheel. Targets are whole numbers, and exact machine multiples are allowed. Typing commits after a 400 ms pause, the tree's top number and the header rate field stay in sync, and clicking puts the caret where you click.
+- **Edit child rates inline**: Child rates in the tree show as plain numbers with a dotted underline and -/+ buttons, one size larger than before, with at most 2 decimal places.
+- **Default for new targets**: A new Options setting (N machines or items/min) sets the rate for every new target, including `?add=` links. Text size now sits directly below it.
+- **Header rate field**: ArrowUp/ArrowDown step by 1, and the field is wide enough for 4 digits.
+- **Right-click tab menu**: Right-click a recipe tab (or long-press it, or press the Menu key or Shift+F10) for New tab, Pin/Unpin, Close tab, Close other tabs, Close tabs to the right and Reopen closed tab. Right-click again within a moment (or press the Menu key) to reach the browser's own menu. The + and Sigma All buttons offer New tab and Reopen.
+- **Pinned tabs and tab behaviour**: Pinned tabs stay at the left and show only the icon. The + button opens an empty "New tab" and focuses a cleared item search; picking an item fills the tab at the default rate. The last 10 closed tabs can be reopened at their old position, synced across browser tabs.
+- **Footer redesign**: Studio logo, GitHub and Feedback links, a centred support button, and the app version linking to this changelog. The layout holds down to small phones.
+
+### Changed
+- **Icons**: Icons are cropped to their visible art and centred everywhere, including the hover preview, and fill their tab.
+- **Game data**: The default game version is never a test (PTB) build, and the version list shows the newest first.
+- **Saving**: The plan now saves when you close the browser tab.
+- **Mobile**: Layout fixes for the root rate, Options and footer on phones.
 
 ### Fixed
-- **Stale tab no longer overwrites a newer plan**: Each tab remembers which saved plan it last read and, before writing, checks that storage still holds it. A tab that missed a sibling's save (its `storage` event still queued, or never delivered) now takes the newer plan instead of replacing it, and an `?add=` item is written at once and added on top of any plan saved while the page was loading, so the in-game "Launch planner" item can no longer be lost to an older open tab. A tab that was behind drops only its own last unsaved edit (about 300 ms), never the other tab's data.
+- **Stale tab no longer overwrites a newer plan**: Each tab remembers which saved plan it last read and, before writing, checks that storage still holds it. A tab that missed a sibling's save now takes the newer plan instead of replacing it, and an `?add=` item is added on top of any plan saved while the page was loading, so the in-game "Launch planner" item can no longer be lost to an older open tab.
+- **Tab sync gaps**: The version, preferences and share prompt now stay in sync across browser tabs.
 
 ---
 
