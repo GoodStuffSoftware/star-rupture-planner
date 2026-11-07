@@ -265,13 +265,11 @@ const rootStepTitle = computed(() =>
         >/min</span
       >
     </template>
-    <!-- depth=0 root: large orange rate (replaces old header), same -/+ stepper as the child rows -->
+    <!-- depth=0 root: large orange rate (replaces old header); ghost -/+ show it can go up and down -->
     <template v-else-if="depth === 0">
-      <div
-        class="chamfer-sm [--cf-fill:var(--panel-2)] flex items-center p-px gap-px overflow-hidden"
-        @click.stop
-      >
+      <div class="flex items-center gap-0.5" @click.stop>
         <RateStepButton
+          ghost
           :dir="-1"
           :label="`−${rootStepTitle}`"
           :disabled="!canStepRootDown"
@@ -286,7 +284,7 @@ const rootStepTitle = computed(() =>
           aria-label="Target output per minute"
           title="Target output — click to edit"
           :style="{ width: `${Math.max(rootDraft.length, 1)}ch` }"
-          class="m-0 px-1 border-0 rounded-sm bg-[var(--panel-2)] text-xl font-bold font-mono text-[var(--accent)] text-right cursor-text outline-none hover:bg-[var(--border)]/50 focus:bg-[var(--border)] transition-colors box-content"
+          class="m-0 px-0.5 border-0 bg-transparent text-xl font-bold font-mono text-[var(--accent)] text-right cursor-text outline-none underline decoration-transparent decoration-dotted underline-offset-4 hover:decoration-[var(--accent)]/60 focus:decoration-[var(--accent)] transition-colors box-content"
           @focus="onRootFocus"
           @input="onRootInput"
           @keydown="onRootKey"
@@ -294,9 +292,9 @@ const rootStepTitle = computed(() =>
           @blur="commitRoot"
           @click.stop
         />
-        <RateStepButton :dir="1" :label="`+${rootStepTitle}`" @click.stop="stepRoot(1)" />
+        <RateStepButton ghost :dir="1" :label="`+${rootStepTitle}`" @click.stop="stepRoot(1)" />
+        <span class="ml-1 text-xl font-bold font-mono text-[var(--accent)]">/min</span>
       </div>
-      <span class="text-xl font-bold font-mono text-[var(--accent)]">/min</span>
     </template>
     <!-- depth>0 non-overage nodes -->
     <span v-else class="text-base font-mono text-slate-400">{{ fmt(node.ratePerMin) }}/min</span>
