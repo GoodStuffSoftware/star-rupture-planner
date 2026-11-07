@@ -68,6 +68,8 @@ const items = computed<MenuItem[]>(() => {
 
 const menuEl = ref<HTMLElement | null>(null)
 const rootEl = ref<HTMLElement | null>(null)
+// False until the menu has been measured and clamped, so it never flashes in the wrong place
+const placed = ref(false)
 const pos = ref({ left: 0, top: 0 })
 const MARGIN = 8
 
@@ -174,9 +176,11 @@ watch(
   async ([open]) => {
     listen(open)
     if (!open) return
+    placed.value = false
     pos.value = { left: tabMenu.x, top: tabMenu.y }
     await nextTick()
     clampIntoViewport()
+    placed.value = true
     if (tabMenu.viaKeyboard) enabledEls()[0]?.focus({ preventScroll: true })
     else rootEl.value?.focus({ preventScroll: true })
   },
@@ -192,7 +196,8 @@ onBeforeUnmount(() => listen(false))
     <div
       v-if="tabMenu.open && tabMenu.target"
       ref="menuEl"
-      class="fixed z-[110]"
+      class="fixed z-[110] w-max max-w-[calc(100vw-16px)]"
+      :class="placed ? undefined : 'invisible'"
       :style="{ left: pos.left + 'px', top: pos.top + 'px' }"
     >
       <div
@@ -222,7 +227,7 @@ onBeforeUnmount(() => listen(false))
               tabindex="-1"
               :data-item-id="item.id"
               :aria-disabled="item.disabled ? 'true' : undefined"
-              class="w-full text-left whitespace-nowrap px-3 py-1.5 text-sm outline-none transition-colors"
+              class="block w-full text-left whitespace-nowrap px-3 py-1.5 text-sm outline-none transition-colors"
               :class="
                 item.disabled
                   ? 'text-[var(--muted-2)] cursor-not-allowed'

@@ -46,6 +46,7 @@ export function openTabMenu(
 }
 
 export function closeTabMenu(returnFocus = false): void {
+  lastRightClick = { key: '', time: 0 } // a right-click after any close starts afresh
   if (!tabMenu.open) return
   tabMenu.open = false
   const anchor = tabMenu.anchor
