@@ -5,6 +5,9 @@ on:
     branches:
       - main
       - staging
+  # Lets update-game-data.yml deploy its own commit: a push made with GITHUB_TOKEN does not
+  # fire the push trigger above, but a GITHUB_TOKEN workflow_dispatch is allowed.
+  workflow_dispatch:
 
 jobs:
   deploy:

@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  actions: write # lets the last step dispatch deploy.yml
 
 jobs:
   update:
@@ -18,10 +19,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
         with:
-          # Use a PAT or the default GITHUB_TOKEN. The default token's push
-          # will trigger the deploy workflow because we use `workflow_dispatch`
-          # style commit, but for schedule-triggered pushes the deploy workflow
-          # fires automatically on push to main.
+          # The default GITHUB_TOKEN. A push made with it does NOT trigger push-based
+          # workflows (GitHub blocks that to prevent loops), so deploy.yml does not run
+          # for the bot commit by itself. The last step dispatches it explicitly instead
+          # (workflow_dispatch is the one event GITHUB_TOKEN may trigger).
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node
@@ -34,6 +35,9 @@ jobs:
         run: npm ci
 
       - name: Refresh game data and icons
+        env:
+          # Authenticates the version-discovery API call (5000 req/h instead of 60).
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run refresh-data
 
       - name: Check for changes
@@ -56,3 +60,9 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git commit -m "chore: auto-update game data $(date -u +%Y-%m-%d)"
           git push
+
+      - name: Deploy the data commit
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run deploy.yml --ref "${{ github.ref_name }}"
