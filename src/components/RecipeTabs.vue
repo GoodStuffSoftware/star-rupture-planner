@@ -128,10 +128,13 @@ function onChipClick(tid: string) {
       >
         <!-- The chip's height comes from its text (one line of text plus the usual padding). The
              icon takes its size only from that box: full height, square, an even 3px of padding
-             inside, object-contain. Nothing on it is a px/em size or tied to the text size. -->
+             inside, object-contain. Unpinned, a negative right margin (15% of the chip height,
+             about the art's own slack) pulls the name in so art-to-name is ~6px, like the ~5px
+             above, below and left of the art. Nothing on it is a px/em size or tied to the text size. -->
         <span
           v-if="hasIcon(t)"
           class="relative h-full aspect-square shrink-0"
+          :class="t.pinned ? undefined : 'mr-[calc((1lh+0.75rem)*-0.15)]'"
           data-testid="tab-icon"
         >
           <span class="absolute inset-[3px]">
