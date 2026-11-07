@@ -5,7 +5,7 @@ import { sortVersions, isTestVersion, pickDefaultVersion } from './versionLogic.
 export const LIVE = 'public'
 export const PTB = 'public_test_branch'
 export const DAY = 86400 // seconds
-export const DEFAULT_GRACE_DAYS = { [LIVE]: 3, [PTB]: 10 }
+export const DEFAULT_GRACE_DAYS = { [LIVE]: 1, [PTB]: 1 }
 
 const BRANCH_LABEL = { [LIVE]: 'live', [PTB]: 'public test branch' }
 
