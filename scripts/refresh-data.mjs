@@ -5,6 +5,12 @@
 // insulated from upstream changes. Re-run this when a new game version drops.
 //
 // Versions are auto-discovered from the upstream repo — no hardcoded list needed.
+//
+// Environment:
+//   UPSTREAM_REF  Branch, tag or commit of the upstream repo to read (default: main). Pins
+//                 version discovery, data files and icons, so a past state can be reproduced.
+//   GITHUB_TOKEN / GH_TOKEN  Sent with the version-discovery API call (raises the rate limit).
+//   CI            When set, a failed version discovery fails the run instead of falling back.
 
 import { mkdir, writeFile, readFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
@@ -16,7 +22,8 @@ const PUBLIC = resolve(__dirname, '..', 'public')
 const OUT_ROOT = resolve(PUBLIC, 'game-data')
 
 const REPO = 'flexsurfer/starrupture-planner'
-const RAW = `https://raw.githubusercontent.com/${REPO}/main/assets`
+const REF = process.env.UPSTREAM_REF || 'main'
+const RAW = `https://raw.githubusercontent.com/${REPO}/${REF}/assets`
 const API = `https://api.github.com/repos/${REPO}`
 const DATA_BASE = `${RAW}/game-data`
 const ICON_BASE = `${RAW}/icons`
@@ -26,6 +33,10 @@ const FILES = [
   'items_catalog.json',
   'corporations_components.json',
 ]
+
+// Read by src/data/loader.ts. Upstream does not ship it for every version (or at all, today):
+// a 404 is not an error and never deletes the bundled copy.
+const OPTIONAL_FILES = ['building_costs.json']
 
 // Simple bounded-concurrency map.
 async function pool(items, limit, fn) {
@@ -42,10 +53,15 @@ async function pool(items, limit, fn) {
 }
 
 // ---- Phase 0: Discover versions from upstream ----
-console.log('Discovering game data versions from upstream...')
+console.log(`Discovering game data versions from upstream (ref: ${REF})...`)
 let VERSIONS
 try {
-  const res = await fetch(`${API}/contents/assets/game-data`)
+  const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN
+  const headers = { Accept: 'application/vnd.github+json' }
+  if (token) headers.Authorization = `Bearer ${token}`
+  const res = await fetch(`${API}/contents/assets/game-data?ref=${encodeURIComponent(REF)}`, {
+    headers,
+  })
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   const dirs = await res.json()
   VERSIONS = dirs
@@ -56,8 +72,17 @@ try {
     .sort()
   console.log(`  Found ${VERSIONS.length} versions: ${VERSIONS.join(', ')}`)
 } catch (e) {
+  if (process.env.CI) {
+    // The local folders cannot reveal a brand-new upstream version, so a silent fallback
+    // here could hide it. Fail loudly instead.
+    console.error(`  Failed to discover versions from GitHub API: ${e.message}`)
+    console.error(
+      '  Refusing to fall back to local folders in CI: a new upstream version could go unnoticed.',
+    )
+    process.exit(1)
+  }
   console.warn(`  Failed to discover versions from GitHub API: ${e.message}`)
-  console.warn('  Falling back to scanning existing local directories...')
+  console.warn('  Falling back to scanning existing local directories (local run only)...')
   // Fallback: use whatever version directories already exist locally
   const { readdirSync, statSync } = await import('node:fs')
   try {
@@ -86,6 +111,25 @@ for (const version of VERSIONS) {
     const url = `${DATA_BASE}/${version}/${file}`
     try {
       const res = await fetch(url)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const text = await res.text()
+      JSON.parse(text)
+      await writeFile(resolve(OUT_ROOT, version, file), text)
+      console.log(`  ok   data ${version}/${file}`)
+      dataOk++
+    } catch (e) {
+      console.warn(`  FAIL data ${version}/${file} — ${e.message}`)
+      dataFail++
+    }
+  }
+  for (const file of OPTIONAL_FILES) {
+    const url = `${DATA_BASE}/${version}/${file}`
+    try {
+      const res = await fetch(url)
+      if (res.status === 404) {
+        console.log(`  skip data ${version}/${file} (not in upstream)`)
+        continue
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const text = await res.text()
       JSON.parse(text)

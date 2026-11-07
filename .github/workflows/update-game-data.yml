@@ -8,20 +8,22 @@ on:
 
 permissions:
   contents: write
+  actions: write # lets the last step dispatch deploy.yml
 
 jobs:
   update:
     name: Refresh game data
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # a hung fetch is reported (failure() or cancelled()) instead of running 6 h
 
     steps:
       - name: Checkout
         uses: actions/checkout@v5
         with:
-          # Use a PAT or the default GITHUB_TOKEN. The default token's push
-          # will trigger the deploy workflow because we use `workflow_dispatch`
-          # style commit, but for schedule-triggered pushes the deploy workflow
-          # fires automatically on push to main.
+          # The default GITHUB_TOKEN. A push made with it does NOT trigger push-based
+          # workflows (GitHub blocks that to prevent loops), so deploy.yml does not run
+          # for the bot commit by itself. The last step dispatches it explicitly instead
+          # (workflow_dispatch is the one event GITHUB_TOKEN may trigger).
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node
@@ -34,6 +36,10 @@ jobs:
         run: npm ci
 
       - name: Refresh game data and icons
+        env:
+          # Authenticates the version-discovery API call (an Actions token gets about 1000
+          # req/h per repo instead of 60).
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run refresh-data
 
       - name: Check for changes
@@ -56,3 +62,46 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git commit -m "chore: auto-update game data $(date -u +%Y-%m-%d)"
           git push
+
+      - name: Deploy the data commit
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          REF: ${{ github.ref_name }}
+        run: |
+          # The data commit is already on main: retry a transient API error rather than leave
+          # it undeployed (tomorrow's run would see no diff and never dispatch it).
+          for attempt in 1 2 3; do
+            if gh workflow run deploy.yml --ref "$REF"; then exit 0; fi
+            echo "deploy dispatch attempt $attempt failed"
+            if [ "$attempt" -lt 3 ]; then sleep $((attempt * 10)); fi
+          done
+          exit 1
+
+      - name: Notify Discord (data deployed)
+        if: steps.diff.outputs.changed == 'true'
+        continue-on-error: true # never turn a good deploy dispatch into a red run
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          files=$(git diff --name-only HEAD~1 HEAD)
+          versions=$(echo "$files" | grep '^public/game-data/' | cut -d/ -f3 | sort -u | paste -sd ',' - | sed 's/,/, /g' || true)
+          data=$(echo "$files" | grep -c '^public/game-data/' || true)
+          icons=$(echo "$files" | grep -c '^public/icons/' || true)
+          node scripts/notify-discord.mjs "Game data updated and a deploy was started.
+          Versions changed: ${versions:-none} (${data} data files, ${icons} icons)
+          Commit: $REPO_URL/commit/$(git rev-parse HEAD)
+          Deploy runs: $REPO_URL/actions/workflows/deploy.yml
+          This run: $RUN_URL"
+
+      - name: Notify Discord (run failed)
+        if: failure() || cancelled()
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          node scripts/notify-discord.mjs "The daily game data refresh failed or was cancelled. A data commit may already be on main without a deploy: if the run log shows the commit was pushed, run: gh workflow run deploy.yml --ref main
+          This run: $RUN_URL"
