@@ -15,6 +15,10 @@ concurrency:
   group: deploy-${{ github.ref }}
   cancel-in-progress: false
 
+# npm ci runs "husky" (the prepare script): the git hooks must not run in CI.
+env:
+  HUSKY: 0
+
 jobs:
   deploy:
     name: Build and deploy

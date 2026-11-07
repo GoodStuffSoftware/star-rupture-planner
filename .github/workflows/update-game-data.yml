@@ -10,6 +10,15 @@ permissions:
   contents: write
   actions: write # lets the last step dispatch deploy.yml
 
+# One group with publish-game-data.yml so two jobs never commit to main at once.
+concurrency:
+  group: game-data-main
+  cancel-in-progress: false
+
+# npm ci runs "husky" (the prepare script): in CI the git hooks must not run (the data commit and every push would run lint-staged, a typecheck and a build).
+env:
+  HUSKY: 0
+
 jobs:
   update:
     name: Refresh game data

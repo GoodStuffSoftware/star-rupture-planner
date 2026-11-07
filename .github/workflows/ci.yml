@@ -6,6 +6,10 @@ on:
       - main
       - staging
 
+# npm ci runs "husky" (the prepare script): the git hooks must not run in CI.
+env:
+  HUSKY: 0
+
 jobs:
   check:
     name: Lint, typecheck, build

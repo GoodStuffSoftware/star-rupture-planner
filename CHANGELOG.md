@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **New game build check**: A daily check compares the latest Steam build with the planner data and opens an issue when the game has been ahead for a few days (3 for live builds, 10 for test builds), so a new update does not go unnoticed. It sends a Discord notice when a webhook is configured.
+- **Game data straight from the game files**: A new extractor reads the game build itself and a publish workflow turns it into planner data and icons, so a new game version can appear in the version picker without waiting on the upstream data repo.
 
 ### Fixed
 - **Game data updates now go live**: When the scheduled job refreshes the game data, the site is redeployed automatically. Before, the new data sat in the repo until someone pushed. A Discord notice (when a webhook is configured) reports each deploy or failure, and a data refresh that cannot reach upstream now fails loudly instead of silently keeping the old files.
