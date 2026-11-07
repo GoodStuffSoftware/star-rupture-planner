@@ -36,7 +36,7 @@ jobs:
 
       - name: Refresh game data and icons
         env:
-          # Authenticates the version-discovery API call (5000 req/h instead of 60).
+          # Authenticates the version-discovery API call (an Actions token gets about 1000 req/h per repo instead of 60).
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run refresh-data
 
@@ -65,4 +65,40 @@ jobs:
         if: steps.diff.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh workflow run deploy.yml --ref "${{ github.ref_name }}"
+          GH_REPO: ${{ github.repository }}
+          REF: ${{ github.ref_name }}
+        run: |
+          # The data commit is already on main: retry a transient API error rather than leave
+          # it undeployed (tomorrow's run would see no diff and never dispatch it).
+          for attempt in 1 2 3; do
+            if gh workflow run deploy.yml --ref "$REF"; then exit 0; fi
+            echo "deploy dispatch attempt $attempt failed"
+            sleep $((attempt * 10))
+          done
+          exit 1
+
+      - name: Notify Discord (data deployed)
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          files=$(git diff --name-only HEAD~1 HEAD)
+          versions=$(echo "$files" | grep '^public/game-data/' | cut -d/ -f3 | sort -u | paste -sd ',' - | sed 's/,/, /g' || true)
+          data=$(echo "$files" | grep -c '^public/game-data/' || true)
+          icons=$(echo "$files" | grep -c '^public/icons/' || true)
+          node scripts/notify-discord.mjs "Game data updated and a deploy was started.
+          Versions changed: ${versions:-none} (${data} data files, ${icons} icons)
+          Commit: $REPO_URL/commit/$(git rev-parse HEAD)
+          Deploy runs: $REPO_URL/actions/workflows/deploy.yml
+          This run: $RUN_URL"
+
+      - name: Notify Discord (run failed)
+        if: failure()
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          node scripts/notify-discord.mjs "The daily game data refresh failed. Nothing may have been deployed.
+          This run: $RUN_URL"

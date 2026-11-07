@@ -9,6 +9,12 @@ on:
   # fire the push trigger above, but a GITHUB_TOKEN workflow_dispatch is allowed.
   workflow_dispatch:
 
+# One deploy per ref at a time, in arrival order: a push and the data bot's dispatch can land
+# within seconds of each other and must not finish out of order.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   deploy:
     name: Build and deploy
