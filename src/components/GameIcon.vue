@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, watch, onUnmounted } from 'vue'
+import { ref, watch, onUnmounted, computed } from 'vue'
+import { cachedTrim, loadTrim } from '../lib/iconTrim'
 import { usePlannerStore } from '../stores/plannerStore'
 
 const props = withDefaults(
@@ -12,12 +13,37 @@ const props = withDefaults(
     fill?: boolean
     // Leave the browser's context menu alone (a parent wants to decide what a right-click does)
     nativeContextMenu?: boolean
+    // Centre the visible art in the box and scale its larger side to fill it (opt-in)
+    trim?: boolean
   }>(),
   { size: 24 },
 )
 
 const store = usePlannerStore()
 const failed = ref(false)
+
+const imgSrc = computed(() => `/icons/${props.kind}s/${props.id}.webp`)
+// undefined = still measuring (image hidden so it never jumps); null = untrimmed
+const trimCss = ref<string | null | undefined>(undefined)
+watch(
+  [() => props.trim, imgSrc],
+  ([on, src]) => {
+    if (!on) {
+      trimCss.value = null
+      return
+    }
+    const hit = cachedTrim(src)
+    if (hit !== undefined) {
+      trimCss.value = hit
+      return
+    }
+    trimCss.value = undefined
+    loadTrim(src).then((t) => {
+      if (imgSrc.value === src) trimCss.value = t
+    })
+  },
+  { immediate: true },
+)
 
 function onError() {
   failed.value = true
@@ -210,6 +236,15 @@ onUnmounted(() => {
       draggable="false"
       class="rounded object-contain w-full h-full pointer-events-none select-none"
       style="-webkit-touch-callout: none; -webkit-user-select: none; user-select: none"
+      :style="
+        trim
+          ? {
+              transform: trimCss ?? undefined,
+              transformOrigin: 'center',
+              visibility: trimCss === undefined ? 'hidden' : undefined,
+            }
+          : undefined
+      "
       @error="onError"
       @contextmenu="guardMenu"
     />
