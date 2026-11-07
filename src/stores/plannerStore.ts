@@ -21,7 +21,7 @@ import {
   type ProducerEntry,
 } from '../lib/recipeIndex'
 import { resolveTree, aggregateTotals } from '../lib/resolver'
-import { DEFAULT_VERSION } from '../data/versions'
+import { DEFAULT_VERSION, VERSIONS } from '../data/versions'
 import {
   normalizeTargetRate,
   isMachineMultiple,
@@ -195,8 +195,20 @@ export const usePlannerStore = defineStore('planner', () => {
   const ALL_TARGETS_ID = '__all__'
   const isAllView = computed(() => activeTargetId.value === ALL_TARGETS_ID)
 
+  /**
+   * True for an item id the loaded game version lacks (a tab kept across a version switch).
+   * False for an empty tab, and while no data is loaded yet.
+   */
+  function isMissingItem(itemId: string | null): boolean {
+    return !!itemId && dataStore.items.length > 0 && !dataStore.itemsById.has(itemId)
+  }
+  /** The active tab's item is not in this game version: it shows a notice, not a tree. */
+  const activeTargetMissing = computed(
+    () => !isAllView.value && isMissingItem(activeTarget.value?.targetItemId ?? null),
+  )
+
   const tree = computed<CraftNode | null>(() => {
-    if (isAllView.value || !targetItemId.value) return null
+    if (isAllView.value || !targetItemId.value || activeTargetMissing.value) return null
     return resolveTree(targetItemId.value, targetRate.value, {
       itemsById: dataStore.itemsById,
       producerIndex: producerIndex.value,
@@ -208,7 +220,7 @@ export const usePlannerStore = defineStore('planner', () => {
   })
 
   const allTotals = computed<Totals | null>(() => {
-    const real = targets.value.filter((t) => t.targetItemId)
+    const real = targets.value.filter((t) => t.targetItemId && !isMissingItem(t.targetItemId))
     if (real.length === 0) return null
     const rawMap = new Map<string, { itemName: string; ratePerMin: number }>()
     const intMap = new Map<string, { itemName: string; itemType: ItemType; ratePerMin: number }>()
@@ -324,11 +336,20 @@ export const usePlannerStore = defineStore('planner', () => {
    * Apply a plan — or fall back to defaults — against an ALREADY-loaded
    * game-data set. Split out of `load` so cross-tab sync can re-hydrate from a
    * sibling tab's save without refetching JSON or flashing the loading spinner.
+   *
+   * `carry`: the plan is the user's own tabs being carried to another game version. Nothing of
+   * theirs is lost: rates stay as set, and a tab or closed tab whose item this version lacks is
+   * KEPT (shown as "not in this version", see `isMissingItem`) until a version that has the
+   * item is loaded. Finer choices (overrides, recipe keys, per-node paths) still drop where the
+   * data can't honor them. Without `carry`, an unknown item falls back to a real one (a link,
+   * a hand-edited save), except a tab flagged `missing` by an earlier save of ours: that one
+   * was kept on purpose and stays.
    */
   function _applyPlan(
     v: string,
     plan: PlanState | null | undefined,
     data: { items: Item[]; buildings: Building[]; chains: UpgradeChain[] },
+    carry = false,
   ) {
     const defaultTier: TierSelection = {}
     for (const chain of data.chains) {
@@ -362,9 +383,13 @@ export const usePlannerStore = defineStore('planner', () => {
       }
       overrides.value = restoredOverrides
 
+      // Carried to another version, a recipe key that version has no recipe for is dropped (the
+      // resolver would only fall back to the item's first recipe, leaving a stale choice behind).
       const restoredRecipeOverrides: RecipeOverrides = {}
       for (const [itemId, rKey] of Object.entries(plan.recipeOverrides ?? {})) {
-        if (freshItemsById.has(itemId) && typeof rKey === 'string') {
+        if (!freshItemsById.has(itemId) || typeof rKey !== 'string') continue
+        const producers = freshFullIndex.get(itemId)
+        if (!carry || producers?.some((e) => recipeKey(e.recipe, e.building) === rKey)) {
           restoredRecipeOverrides[itemId] = rKey
         }
       }
@@ -373,12 +398,14 @@ export const usePlannerStore = defineStore('planner', () => {
       const fallbackItem =
         data.items.find((i) => i.type === 'component')?.id ?? data.items[0]?.id ?? null
 
-      const validateOverages = (raw: Overages | undefined): Overages => {
+      // `rootKnown` false: the tab's item is not in this version, so its paths cannot be checked
+      // and are kept as they are (they are checked again once a version has the item).
+      const validateOverages = (raw: Overages | undefined, rootKnown = true): Overages => {
         const out: Overages = {}
         for (const [path, extra] of Object.entries(raw ?? {})) {
           const leafItemId = path.split('>').pop() ?? ''
           if (
-            freshItemsById.has(leafItemId) &&
+            (!rootKnown || freshItemsById.has(leafItemId)) &&
             typeof extra === 'number' &&
             isFinite(extra) &&
             extra !== 0
@@ -391,11 +418,15 @@ export const usePlannerStore = defineStore('planner', () => {
 
       // Expansion is keyed by node path, which only makes sense against the
       // tree the tab resolves to — keep well-formed entries, drop the rest.
-      const validateExpanded = (raw: NodeExpansion | undefined): NodeExpansion => {
+      const validateExpanded = (
+        raw: NodeExpansion | undefined,
+        rootKnown = true,
+      ): NodeExpansion => {
         const out: NodeExpansion = {}
         for (const [path, open] of Object.entries(raw ?? {})) {
           const leafItemId = path.split('>').pop() ?? ''
-          if (freshItemsById.has(leafItemId) && typeof open === 'boolean') out[path] = open
+          if ((!rootKnown || freshItemsById.has(leafItemId)) && typeof open === 'boolean')
+            out[path] = open
         }
         return out
       }
@@ -415,25 +446,33 @@ export const usePlannerStore = defineStore('planner', () => {
       // plan, or an item this game version lacks, still falls back to a real item.
       const hasTabList = !!(plan.targets && plan.targets.length)
       const restoredTargets: PlanTarget[] = sources.map((s) => {
+        const known = !!s.targetItemId && freshItemsById.has(s.targetItemId)
+        // A tab list keeps an item this version lacks when carried or flagged (see `carry`).
+        const kept = hasTabList && !known && !!s.targetItemId && (carry || s.missing === true)
         const validItem =
-          s.targetItemId && freshItemsById.has(s.targetItemId)
+          known || kept
             ? s.targetItemId
             : s.targetItemId === null && hasTabList
               ? null
               : fallbackItem
+        const rateOk =
+          typeof s.targetRate === 'number' && isFinite(s.targetRate) && s.targetRate > 0
         const rate =
-          validItem &&
-          typeof s.targetRate === 'number' &&
-          isFinite(s.targetRate) &&
-          s.targetRate > 0
-            ? // Old saves and links may hold decimals: round them, but keep an exact multiple of the
-              // item's machine output (what stepping produces), so it survives a reload or a sibling tab.
-              normalizeTargetRate(
-                s.targetRate,
-                !!validItem && isMachineMultiple(s.targetRate, defaultRateForItem(validItem)),
-              )
+          validItem && rateOk
+            ? carry || kept || s.exactRate === true
+              ? // The rate is what the user set (the store normalized it then). It stays that
+                // through a version switch, even where the machine output differs.
+                normalizeTargetRate(s.targetRate, true)
+              : // Old saves and links may hold decimals: round them, but keep an exact multiple of the
+                // item's machine output (what stepping produces), so it survives a reload or a sibling tab.
+                normalizeTargetRate(
+                  s.targetRate,
+                  isMachineMultiple(s.targetRate, defaultRateForItem(validItem)),
+                )
             : validItem
-              ? defaultTargetRate(validItem)
+              ? kept
+                ? 60
+                : defaultTargetRate(validItem)
               : 60
         const exp =
           typeof s.expandLevel === 'number' && s.expandLevel >= 0
@@ -443,9 +482,9 @@ export const usePlannerStore = defineStore('planner', () => {
           tid: _newTid(),
           targetItemId: validItem,
           targetRate: rate,
-          overages: validateOverages(s.overages),
+          overages: validateOverages(s.overages, !kept),
           expandLevel: exp,
-          expanded: validateExpanded(s.expanded),
+          expanded: validateExpanded(s.expanded, !kept),
           pinned: s.pinned === true,
         }
       })
@@ -470,21 +509,23 @@ export const usePlannerStore = defineStore('planner', () => {
       const restoredClosed: ClosedTabState[] = []
       for (const c of Array.isArray(plan.closedTabs) ? plan.closedTabs : []) {
         if (!c || typeof c !== 'object') continue
-        if (typeof c.targetItemId !== 'string' || !freshItemsById.has(c.targetItemId)) continue
+        if (typeof c.targetItemId !== 'string' || !c.targetItemId) continue
+        const cKnown = freshItemsById.has(c.targetItemId)
+        if (!cKnown && !carry && c.missing !== true) continue
         if (typeof c.targetRate !== 'number' || !isFinite(c.targetRate) || c.targetRate <= 0)
           continue
         restoredClosed.push({
           targetItemId: c.targetItemId,
           targetRate: normalizeTargetRate(
             c.targetRate,
-            isMachineMultiple(c.targetRate, defaultRateForItem(c.targetItemId)),
+            carry || !cKnown || isMachineMultiple(c.targetRate, defaultRateForItem(c.targetItemId)),
           ),
-          overages: validateOverages(c.overages),
+          overages: validateOverages(c.overages, cKnown),
           expandLevel:
             typeof c.expandLevel === 'number' && c.expandLevel >= 0
               ? c.expandLevel
               : prefsStore.defaultExpandLevel,
-          expanded: validateExpanded(c.expanded),
+          expanded: validateExpanded(c.expanded, cKnown),
           pinned: c.pinned === true,
           index:
             typeof c.index === 'number' && Number.isInteger(c.index) && c.index >= 0 ? c.index : 0,
@@ -510,10 +551,10 @@ export const usePlannerStore = defineStore('planner', () => {
     }
   }
 
-  async function load(v: string, plan?: PlanState | null) {
+  async function load(v: string, plan?: PlanState | null, carry = false) {
     try {
       const data = await dataStore.loadData(v)
-      _applyPlan(v, plan, data)
+      _applyPlan(v, plan, data, carry)
     } catch {
       // handled in dataStore
     }
@@ -737,8 +778,25 @@ export const usePlannerStore = defineStore('planner', () => {
     tier.value = { ...tier.value, [baseId]: value }
   }
 
-  function setVersion(v: string) {
-    load(v)
+  /**
+   * Switch game version, carrying the whole plan over: every tab (order, active tab, pins, item,
+   * rate), the closed-tab stack and the finer choices that still make sense in the new data.
+   * Re-picking the current version does nothing (a failed load can be retried by picking it again).
+   * A tab whose item the new version lacks is kept and shows "not in this version".
+   */
+  async function setVersion(v: string) {
+    if (v === dataStore.version && dataStore.items.length > 0 && !dataStore.error) return
+    const carried: PlanState = { ..._planState(), version: v }
+    await load(v, carried, true)
+    if (dataStore.version !== v || dataStore.error) return
+    const missing = targets.value.filter((t) => isMissingItem(t.targetItemId)).length
+    if (missing > 0) {
+      const label = VERSIONS.find((x) => x.id === v)?.label ?? v
+      notice.value =
+        missing === 1
+          ? `1 tab isn't in ${label}. It's kept and works again in a version that has it.`
+          : `${missing} tabs aren't in ${label}. They're kept and work again in a version that has them.`
+    }
   }
 
   /** `exactMachineMultiple`: only the steppers pass it (see normalizeTargetRate). */
@@ -1026,6 +1084,14 @@ export const usePlannerStore = defineStore('planner', () => {
     expandLevel.value = n
   }
 
+  /** A fractional rate that is not a whole number of this version's machines (see exactRate). */
+  function _hasOddRate(t: PlanTarget): boolean {
+    if (!t.targetItemId || isMissingItem(t.targetItemId) || Number.isInteger(t.targetRate)) {
+      return false
+    }
+    return !isMachineMultiple(t.targetRate, defaultRateForItem(t.targetItemId))
+  }
+
   function _planState(): PlanState {
     const active = activeTarget.value
     const idx = isAllView.value
@@ -1041,6 +1107,9 @@ export const usePlannerStore = defineStore('planner', () => {
       expandLevel: t.expandLevel,
       expanded: t.expanded,
       pinned: t.pinned,
+      // Only written when true, so a plan with every item present keeps its old shape.
+      ...(isMissingItem(t.targetItemId) ? { missing: true } : {}),
+      ...(_hasOddRate(t) ? { exactRate: true } : {}),
     }))
     return {
       version: dataStore.version,
@@ -1052,7 +1121,9 @@ export const usePlannerStore = defineStore('planner', () => {
       tier: tier.value,
       overrides: overrides.value,
       recipeOverrides: recipeOverrides.value,
-      closedTabs: closedTabs.value,
+      closedTabs: closedTabs.value.map((c) =>
+        isMissingItem(c.targetItemId) ? { ...c, missing: true } : c,
+      ),
     }
   }
 
@@ -1355,6 +1426,8 @@ export const usePlannerStore = defineStore('planner', () => {
     producerIndex,
     isAllView,
     tree,
+    isMissingItem,
+    activeTargetMissing,
     allTotals,
     totals,
     treeMaxDepth,
