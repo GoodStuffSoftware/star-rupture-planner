@@ -567,8 +567,8 @@ describe('child rate field', () => {
       widths.push(Number(row.ch()))
       cleanup?.()
     }
-    // "5", "45" -> the minimum; "16.88" -> 5; "1234.57" -> 7; "123456.79" -> clamped at 7
-    expect(widths).toEqual([3, 3, 5, 7, 7])
+    // exactly the shown text: "5" -> 1, "45" -> 2, "16.88" -> 5, "1234.57" -> 7; clamped at 7
+    expect(widths).toEqual([1, 2, 5, 7, 7])
   })
 
   it('commits against the full-precision demand, not the shown 2 decimals', async () => {
@@ -598,6 +598,21 @@ describe('child rate field', () => {
     }
     // It becomes an editable box only while focused.
     expect(row.input.className).toContain('focus:bg-[var(--panel-2)]')
+  })
+
+  it('uses no accent (orange) anywhere on a child row, and underlines on hover like the root', async () => {
+    const row = await childRow(45)
+    const group = row.input.parentElement!
+    expect(group.innerHTML).not.toContain('accent')
+    expect(row.input.className).toContain('underline')
+    expect(row.input.className).toContain('decoration-dotted')
+    expect(row.input.className).toContain('hover:decoration-[var(--muted)]')
+  })
+
+  it('sizes the field to its own text, with no minimum padding', async () => {
+    const row = await childRow(5)
+    expect(row.ch()).toBe('1')
+    expect(row.input.className).toContain('px-0')
   })
 
   it('keeps the /min suffix right next to the +, in the same group', async () => {

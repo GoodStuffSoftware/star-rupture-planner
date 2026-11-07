@@ -16,7 +16,7 @@ import RateStepButton from './RateStepButton.vue'
 // The look of an editable rate that reads as plain inline text until hovered or clicked; shared by
 // the root row and the child rows (each adds its own size, colour and focus cue).
 const INLINE_RATE_CLASS =
-  'm-0 border-0 bg-transparent font-mono text-right cursor-text outline-none underline decoration-transparent decoration-dotted underline-offset-4 hover:decoration-[var(--accent)]/60 transition-colors'
+  'm-0 border-0 bg-transparent font-mono text-right cursor-text outline-none underline decoration-transparent decoration-dotted underline-offset-4 transition-colors'
 
 const props = defineProps<{
   node: CraftNode
@@ -260,6 +260,7 @@ const rootStepTitle = computed(() =>
         <RateStepButton
           ghost
           small
+          neutral
           :dir="-1"
           :label="`−${stepTitle}`"
           @click.stop="stepOutput(-1)"
@@ -271,15 +272,22 @@ const rootStepTitle = computed(() =>
           step="1"
           :title="'Output items/min — raise above demand to overproduce, lower below it for a deficit'"
           :style="{ '--amount-ch': outputCh }"
-          class="amount-input px-1 py-0.5 text-sm text-[var(--text)] rounded-sm focus:bg-[var(--panel-2)] focus:ring-1 focus:ring-[var(--accent)]"
+          class="amount-input px-0 py-0.5 text-sm text-[var(--text)] hover:decoration-[var(--muted)] focus:decoration-[var(--text)]/60 focus:bg-[var(--panel-2)]"
           :class="INLINE_RATE_CLASS"
           @change="onOutputChange"
           @wheel="onOutputWheel"
           @click.stop
         />
-        <RateStepButton ghost small :dir="1" :label="`+${stepTitle}`" @click.stop="stepOutput(1)" />
+        <RateStepButton
+          ghost
+          small
+          neutral
+          :dir="1"
+          :label="`+${stepTitle}`"
+          @click.stop="stepOutput(1)"
+        />
         <span
-          class="ml-0.5 text-sm font-mono"
+          class="text-sm font-mono"
           :class="isDeficit ? 'text-red-400' : 'text-slate-400'"
           :title="
             isDeficit ? `Producing below the ${fmt(baseDemand)}/min required here` : undefined
@@ -307,7 +315,7 @@ const rootStepTitle = computed(() =>
           aria-label="Target output per minute"
           title="Target output — click to edit"
           :style="{ width: `${Math.max(rootDraft.length, 1)}ch` }"
-          class="px-0.5 text-xl font-bold text-[var(--accent)] box-content focus:decoration-[var(--accent)]"
+          class="px-0.5 text-xl font-bold text-[var(--accent)] box-content hover:decoration-[var(--accent)]/60 focus:decoration-[var(--accent)]"
           :class="INLINE_RATE_CLASS"
           @focus="onRootFocus"
           @input="onRootInput"
@@ -317,7 +325,7 @@ const rootStepTitle = computed(() =>
           @click.stop
         />
         <RateStepButton ghost :dir="1" :label="`+${rootStepTitle}`" @click.stop="stepRoot(1)" />
-        <span class="ml-0.5 text-xl font-bold font-mono text-[var(--accent)]">/min</span>
+        <span class="text-xl font-bold font-mono text-[var(--accent)]">/min</span>
       </div>
     </template>
     <!-- depth>0 non-overage nodes -->
@@ -334,7 +342,7 @@ const rootStepTitle = computed(() =>
 .amount-input {
   -moz-appearance: textfield;
   appearance: textfield;
-  /* ch of the text plus the px-1 padding; at least the old w-9 */
-  width: max(2.25rem, calc(var(--amount-ch, 3) * 1ch + 0.5rem));
+  /* Exactly the shown text, plus a hair for the caret: the -/+ sit right next to the number. */
+  width: calc(var(--amount-ch, 1) * 1ch + 2px);
 }
 </style>

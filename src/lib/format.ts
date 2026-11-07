@@ -168,7 +168,7 @@ export function roundRate(n: number): number {
 }
 
 /** Narrowest and widest a child-row rate field gets, in characters: "1234.88" is 7. */
-export const RATE_INPUT_MIN_CH = 3
+export const RATE_INPUT_MIN_CH = 1
 export const RATE_INPUT_MAX_CH = 7
 
 /** Width in `ch` for a rate field showing `text`: grows with it, clamped to the min and max. */
