@@ -22,7 +22,7 @@ const link =
     <div>
       <!-- Main row: logo + links | coffee (dead centre) | version -->
       <div
-        class="grid grid-cols-[1fr_auto] min-[420px]:grid-cols-[1fr_auto_1fr] items-center gap-x-4 gap-y-3"
+        class="grid grid-cols-[1fr_auto] min-[320px]:grid-cols-[1fr_auto_1fr] items-center gap-x-3 gap-y-3"
       >
         <div class="col-start-1 row-start-1 flex flex-col items-start gap-2 justify-self-start">
           <a
@@ -41,7 +41,7 @@ const link =
               class="h-9 w-auto max-w-full"
             />
           </a>
-          <nav aria-label="Footer links" class="flex items-center gap-x-4">
+          <nav aria-label="Footer links" class="flex flex-wrap items-center gap-x-3 gap-y-1">
             <a :href="REPO" target="_blank" rel="noopener noreferrer" :class="link">GitHub</a>
             <a :href="FEEDBACK_URL" target="_blank" rel="noopener noreferrer" :class="link"
               >Feedback</a
@@ -50,7 +50,7 @@ const link =
         </div>
 
         <div
-          class="col-span-2 row-start-2 justify-self-center min-[420px]:col-span-1 min-[420px]:col-start-2 min-[420px]:row-start-1"
+          class="col-span-2 row-start-2 justify-self-center min-[320px]:col-span-1 min-[320px]:col-start-2 min-[320px]:row-start-1"
         >
           <SupportButton />
         </div>
@@ -61,7 +61,7 @@ const link =
           rel="noopener noreferrer"
           title="View the changelog"
           data-testid="app-version"
-          class="font-mono text-[var(--accent)] transition-colors hover:text-[var(--accent-hover)] focus-visible:text-[var(--accent-hover)] col-start-2 row-start-1 justify-self-end min-[420px]:col-start-3"
+          class="font-mono text-[var(--accent)] transition-colors hover:text-[var(--accent-hover)] focus-visible:text-[var(--accent-hover)] col-start-2 row-start-1 justify-self-end min-[320px]:col-start-3"
           ><span class="sr-only">Changelog, </span>v{{ version }}</a
         >
       </div>
