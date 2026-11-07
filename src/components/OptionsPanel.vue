@@ -315,147 +315,153 @@ function selectedBuildingId(chain: { baseId: string; upgradedId: string }): stri
           Display
         </h4>
         <div
-          class="relative grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 md:[&>*:nth-child(even)]:pl-8 md:before:absolute md:before:left-1/2 md:before:top-0 md:before:bottom-0 md:before:w-px md:before:bg-[var(--border)]"
+          class="relative grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 md:before:absolute md:before:left-1/2 md:before:top-0 md:before:bottom-0 md:before:w-px md:before:bg-[var(--border)]"
         >
-          <!-- Show extractors toggle -->
-          <label class="flex items-center justify-between gap-3 cursor-pointer">
-            <span class="text-base text-[var(--text)]">Show extractors</span>
-            <ChamferToggle
-              :checked="store.showExtractors"
-              @toggle="store.setShowExtractors(!store.showExtractors)"
-            />
-          </label>
-
-          <!-- Show machine icons toggle -->
-          <label class="flex items-center justify-between gap-3 cursor-pointer">
-            <span class="text-base text-[var(--text)]">Show icons</span>
-            <ChamferToggle
-              :checked="store.showIcons"
-              @toggle="store.setShowIcons(!store.showIcons)"
-            />
-          </label>
-
-          <!-- Underline rows toggle -->
-          <label class="flex items-center justify-between gap-3 cursor-pointer">
-            <span class="text-base text-[var(--text)]">Underline rows</span>
-            <ChamferToggle
-              :checked="store.showRowDividers"
-              @toggle="store.setShowRowDividers(!store.showRowDividers)"
-            />
-          </label>
-
-          <!-- Show overages toggle -->
-          <label class="flex items-center justify-between gap-3 cursor-pointer">
-            <div>
-              <span class="text-base text-[var(--text)]">Show overages</span>
-              <span class="block text-xs text-[var(--muted-2)]">Round up to whole machines</span>
-            </div>
-            <ChamferToggle
-              :checked="store.showOverages"
-              @toggle="store.setShowOverages(!store.showOverages)"
-            />
-          </label>
-
-          <!-- Theme -->
-          <div class="flex items-center justify-between gap-3">
-            <span class="text-base text-[var(--text)]">Theme</span>
-            <SegmentedControl
-              :options="themeOptions"
-              :model-value="store.theme"
-              @update:model-value="store.setTheme($event as 'starrupture' | 'spaceage')"
-            />
-          </div>
-
-          <!-- Default for new targets. Order matters: in the two-column grid the even items are the
-               right column, so this (6th) and Text size (8th) stack there, Text size below. -->
-          <div class="flex items-center justify-between gap-3">
-            <div class="min-w-0">
-              <span class="text-base text-[var(--text)]">Default for new targets</span>
-              <span class="block text-xs text-[var(--muted-2)]">
-                Where a target starts when added without a rate
-              </span>
-            </div>
-            <div class="flex flex-wrap items-center justify-end gap-x-2 gap-y-1.5">
-              <SegmentedControl
-                :options="defaultTargetOptions"
-                :model-value="dtMode"
-                @update:model-value="setDtMode($event as DefaultTargetMode)"
+          <!-- Two real columns (not a row-major grid), so on a phone Text size follows Default. -->
+          <div class="flex flex-col gap-3">
+            <!-- Show extractors toggle -->
+            <label class="flex items-center justify-between gap-3 cursor-pointer">
+              <span class="text-base text-[var(--text)]">Show extractors</span>
+              <ChamferToggle
+                :checked="store.showExtractors"
+                @toggle="store.setShowExtractors(!store.showExtractors)"
               />
-              <div class="flex items-center gap-1.5">
-                <div
-                  class="chamfer-sm [--cf-fill:var(--panel-2)] flex items-center p-px gap-px overflow-hidden"
-                >
-                  <button
-                    type="button"
-                    :title="dtMode === 'machines' ? 'One machine fewer' : '1/min less'"
-                    aria-label="Decrease default"
-                    class="px-2 py-1 bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)] transition-colors text-base leading-none"
-                    @click="stepDt(-1)"
+            </label>
+
+            <!-- Underline rows toggle -->
+            <label class="flex items-center justify-between gap-3 cursor-pointer">
+              <span class="text-base text-[var(--text)]">Underline rows</span>
+              <ChamferToggle
+                :checked="store.showRowDividers"
+                @toggle="store.setShowRowDividers(!store.showRowDividers)"
+              />
+            </label>
+
+            <!-- Theme -->
+            <div class="flex items-center justify-between gap-3">
+              <span class="text-base text-[var(--text)]">Theme</span>
+              <SegmentedControl
+                :options="themeOptions"
+                :model-value="store.theme"
+                @update:model-value="store.setTheme($event as 'starrupture' | 'spaceage')"
+              />
+            </div>
+
+            <!-- Totals placement -->
+            <div class="flex items-center justify-between gap-3">
+              <span class="text-base text-[var(--text)]">Totals position</span>
+              <SegmentedControl
+                :options="totalsOptions"
+                :model-value="store.totalsPlacement"
+                @update:model-value="store.setTotalsPlacement($event as 'side' | 'bottom')"
+              />
+            </div>
+          </div>
+          <div class="flex flex-col gap-3 md:pl-8">
+            <!-- Show machine icons toggle -->
+            <label class="flex items-center justify-between gap-3 cursor-pointer">
+              <span class="text-base text-[var(--text)]">Show icons</span>
+              <ChamferToggle
+                :checked="store.showIcons"
+                @toggle="store.setShowIcons(!store.showIcons)"
+              />
+            </label>
+
+            <!-- Show overages toggle -->
+            <label class="flex items-center justify-between gap-3 cursor-pointer">
+              <div>
+                <span class="text-base text-[var(--text)]">Show overages</span>
+                <span class="block text-xs text-[var(--muted-2)]">Round up to whole machines</span>
+              </div>
+              <ChamferToggle
+                :checked="store.showOverages"
+                @toggle="store.setShowOverages(!store.showOverages)"
+              />
+            </label>
+
+            <!-- Default for new targets. Order matters: in the two-column grid the even items are the
+                 right column, so this (6th) and Text size (8th) stack there, Text size below. -->
+            <div
+              class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
+            >
+              <div class="min-w-0">
+                <span class="text-base text-[var(--text)]">Default for new targets</span>
+                <span class="block text-xs text-[var(--muted-2)]">
+                  Where a target starts when added without a rate
+                </span>
+              </div>
+              <div class="flex flex-wrap items-center gap-x-2 gap-y-1.5 sm:justify-end">
+                <SegmentedControl
+                  :options="defaultTargetOptions"
+                  :model-value="dtMode"
+                  @update:model-value="setDtMode($event as DefaultTargetMode)"
+                />
+                <div class="flex items-center gap-1.5">
+                  <div
+                    class="chamfer-sm [--cf-fill:var(--panel-2)] flex items-center p-px gap-px overflow-hidden"
                   >
-                    &minus;
-                  </button>
-                  <input
-                    v-model="dtInput"
-                    type="number"
-                    inputmode="numeric"
-                    min="1"
-                    :max="dtMax"
-                    step="1"
-                    aria-label="Default for new targets"
-                    data-testid="default-target-input"
-                    class="bg-[var(--panel-2)] text-[var(--text)] text-sm px-1 py-1 w-14 focus:outline-none text-right"
-                    @focus="dtEditing = true"
-                    @input="onDtInput"
-                    @change="commitDt"
-                    @blur="onDtBlur"
-                    @keydown.enter="commitDt"
-                  />
-                  <button
-                    type="button"
-                    :title="dtMode === 'machines' ? 'One machine more' : '1/min more'"
-                    aria-label="Increase default"
-                    class="px-2 py-1 bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)] transition-colors text-base leading-none"
-                    @click="stepDt(1)"
-                  >
-                    +
-                  </button>
+                    <button
+                      type="button"
+                      :title="dtMode === 'machines' ? 'One machine fewer' : '1/min less'"
+                      aria-label="Decrease default"
+                      class="px-2 py-1 bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)] transition-colors text-base leading-none"
+                      @click="stepDt(-1)"
+                    >
+                      &minus;
+                    </button>
+                    <input
+                      v-model="dtInput"
+                      type="number"
+                      inputmode="numeric"
+                      min="1"
+                      :max="dtMax"
+                      step="1"
+                      aria-label="Default for new targets"
+                      data-testid="default-target-input"
+                      class="bg-[var(--panel-2)] text-[var(--text)] text-sm px-1 py-1 w-14 focus:outline-none text-right"
+                      @focus="dtEditing = true"
+                      @input="onDtInput"
+                      @change="commitDt"
+                      @blur="onDtBlur"
+                      @keydown.enter="commitDt"
+                    />
+                    <button
+                      type="button"
+                      :title="dtMode === 'machines' ? 'One machine more' : '1/min more'"
+                      aria-label="Increase default"
+                      class="px-2 py-1 bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)] transition-colors text-base leading-none"
+                      @click="stepDt(1)"
+                    >
+                      +
+                    </button>
+                  </div>
+                  <span class="text-[var(--muted)] text-sm font-medium w-14 text-left">{{
+                    dtMode === 'machines' ? (dtValue === 1 ? 'machine' : 'machines') : '/min'
+                  }}</span>
                 </div>
-                <span class="text-[var(--muted)] text-sm font-medium w-14 text-left">{{
-                  dtMode === 'machines' ? (dtValue === 1 ? 'machine' : 'machines') : '/min'
-                }}</span>
               </div>
             </div>
-          </div>
 
-          <!-- Totals placement -->
-          <div class="flex items-center justify-between gap-3">
-            <span class="text-base text-[var(--text)]">Totals position</span>
-            <SegmentedControl
-              :options="totalsOptions"
-              :model-value="store.totalsPlacement"
-              @update:model-value="store.setTotalsPlacement($event as 'side' | 'bottom')"
-            />
+            <!-- Tree text size -->
+            <div class="flex items-center justify-between gap-3">
+              <span class="text-base text-[var(--text)]">Text size</span>
+              <SegmentedControl
+                :options="fontScales"
+                :model-value="store.treeFontScale"
+                @update:model-value="store.setTreeFontScale($event as number)"
+              />
+            </div>
           </div>
+        </div>
 
-          <!-- Tree text size -->
-          <div class="flex items-center justify-between gap-3">
-            <span class="text-base text-[var(--text)]">Text size</span>
-            <SegmentedControl
-              :options="fontScales"
-              :model-value="store.treeFontScale"
-              @update:model-value="store.setTreeFontScale($event as number)"
-            />
-          </div>
-
-          <!-- Reset overrides button (only when overrides exist) -->
-          <div v-if="hasOverrides" class="pt-1">
-            <button
-              class="chamfer-sm [--cf-fill:var(--panel-2)] text-xs px-3 py-1.5 text-[var(--muted)] hover:text-red-300 transition-colors"
-              @click="store.clearOverrides()"
-            >
-              Reset node overrides ({{ overrideCount }})
-            </button>
-          </div>
+        <!-- Reset overrides button (only when overrides exist) -->
+        <div v-if="hasOverrides" class="pt-3">
+          <button
+            class="chamfer-sm [--cf-fill:var(--panel-2)] text-xs px-3 py-1.5 text-[var(--muted)] hover:text-red-300 transition-colors"
+            @click="store.clearOverrides()"
+          >
+            Reset node overrides ({{ overrideCount }})
+          </button>
         </div>
       </div>
     </div>
