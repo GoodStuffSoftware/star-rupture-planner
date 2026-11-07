@@ -137,7 +137,9 @@ function onSearchBlur() {
   // Delay to allow click on dropdown item
   setTimeout(() => {
     // Focus may have come straight back (the + button clicked within the delay).
-    if (document.activeElement !== inputRef.value) showDropdown.value = false
+    if (!document.hasFocus() || document.activeElement !== inputRef.value) {
+      showDropdown.value = false
+    }
   }, 150)
 }
 
