@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { catalogIds, planIcons } from '../../scripts/lib/convertIcons.mjs'
 import {
   assetName,
   carryRecipeCuration,
@@ -421,5 +422,44 @@ describe('output format and parity comparison', () => {
     }
     const { A } = compareData({ buildings: [], items: [], corporations: {} }, planner)
     expect(A).toHaveLength(1)
+  })
+})
+
+describe('planIcons', () => {
+  const extract = {
+    items: [
+      { id: 'I_Foo', asset: '/Game/Items/I_Foo', icon: '/Game/UI/T_Foo_Icon' },
+      { id: 'I_Bar', asset: '/Game/Items/I_Bar', icon: '/Game/UI/T_Bar_Icon' },
+      { id: 'I_NoIcon', asset: '/Game/Items/I_NoIcon' },
+    ],
+    buildings: [
+      { configAsset: '/Game/B/DA_Maker', icon: '/Game/UI/T_Maker_Icon' },
+      { configAsset: '/Game/B/DA_Maker', icon: '/Game/UI/T_MakerVariant_Icon' },
+    ],
+  }
+  const idMap = {
+    items: { I_Foo: 'foo', I_Bar: 'bar', I_NoIcon: 'noicon', I_Gone: 'gone' },
+    buildings: { DA_Maker: 'maker', DA_Unknown: 'unknown' },
+  }
+
+  it('names icons by planner id and texture, first building per config', () => {
+    const { icons, missing } = planIcons({ extract, idMap })
+    expect(icons).toContainEqual({ kind: 'items', id: 'foo', texture: 'T_Foo_Icon' })
+    expect(icons).toContainEqual({ kind: 'buildings', id: 'maker', texture: 'T_Maker_Icon' })
+    expect(missing.map((m) => `${m.kind}/${m.id}`).sort()).toEqual([
+      'buildings/unknown',
+      'items/gone',
+      'items/noicon',
+    ])
+  })
+
+  it('writes only ids in the converted catalog when asked', () => {
+    const ids = catalogIds({
+      items: [{ id: 'foo', name: 'Foo', type: 'component' }],
+      buildings: [],
+    })
+    const { icons, missing } = planIcons({ extract, idMap, ids })
+    expect(icons).toEqual([{ kind: 'items', id: 'foo', texture: 'T_Foo_Icon' }])
+    expect(missing).toEqual([])
   })
 })

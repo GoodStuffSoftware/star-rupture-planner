@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 // Convert the game-extract raw output into the planner's game-data JSON.
 //   node scripts/convert-game-data.mjs --in <extract-dir> --out <version-dir> [--prev <version-dir>] [--id-map <file>]
+//                                      [--icons <public/icons dir> [--icons-catalog-only]]
 // Writes buildings_and_recipes.json, items_catalog.json, corporations_components.json into --out
 // and writes the id map back when new ids were assigned. Raw extracts are never committed.
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { convertGameData, toPlannerJson } from './lib/convertGameData.mjs'
+import { planIcons, catalogIds, writeIcons } from './lib/convertIcons.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 
@@ -18,9 +20,12 @@ function parseArgs(argv) {
     else if (a === '--out') out.out = argv[++i]
     else if (a === '--prev') out.prev = argv[++i]
     else if (a === '--id-map') out.idMap = argv[++i]
+    else if (a === '--icons') out.icons = argv[++i]
+    else if (a === '--icons-catalog-only') out.iconsCatalogOnly = true
     else throw new Error(`unknown argument ${a}`)
   }
-  if (!out.in || !out.out) throw new Error('usage: convert-game-data.mjs --in <extract-dir> --out <version-dir> [--prev <version-dir>] [--id-map <file>]')
+  if (!out.in || !out.out) throw new Error('usage: convert-game-data.mjs --in <extract-dir> --out <version-dir> [--prev <version-dir>] [--id-map <file>] [--icons <dir> [--icons-catalog-only]]')
+  if (out.iconsCatalogOnly && !out.icons) throw new Error('--icons-catalog-only needs --icons <dir>')
   return out
 }
 
@@ -46,7 +51,7 @@ export function readPlannerVersion(dir) {
   }
 }
 
-function main() {
+async function main() {
   const args = parseArgs(process.argv.slice(2))
   const extract = readExtract(args.in)
   const idMap = readJson(args.idMap)
@@ -70,7 +75,21 @@ function main() {
   for (const m of r.missingFromExtract) console.warn(`MISSING from extract: ${m.kind} ${m.id} (${m.asset})`)
   for (const u of r.uncurated) console.warn(`NO CURATED VALUE: ${u.kind} ${u.id} ${u.field}: ${u.note}`)
   for (const f of r.extractorRateFallbacks) console.warn(`extractor rate fallback: ${f.building} ${f.recipe}`)
+  if (args.icons) {
+    // --icons-catalog-only: only ids in the converted catalog; otherwise every id in the id map.
+    const ids = args.iconsCatalogOnly ? catalogIds(result) : undefined
+    const plan = planIcons({ extract, idMap: result.idMap, ids })
+    const res = await writeIcons({ plan, extractDir: args.in, outDir: args.icons })
+    console.log(`icons: wrote ${res.written.length} WebP to ${args.icons}${args.iconsCatalogOnly ? ' (catalog ids only)' : ''}`)
+    for (const m of plan.missing) console.warn(`icon missing: ${m.kind}/${m.id} (${m.asset}): ${m.why}`)
+    for (const m of res.noPng) console.warn(`icon PNG not found: ${m.src}`)
+  }
   if (r.missingFromExtract.length) process.exitCode = 2
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main()
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((e) => {
+    console.error(e.message)
+    process.exitCode = 2
+  })
+}
