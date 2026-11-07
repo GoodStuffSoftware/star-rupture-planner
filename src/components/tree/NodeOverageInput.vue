@@ -212,7 +212,7 @@ const rootStepTitle = computed(() =>
 
 <template>
   <div
-    class="ml-auto flex items-center gap-1.5 shrink-0 pl-3 sticky right-0 z-10 bg-[var(--panel)] group-hover:bg-[var(--panel-2)] transition-colors shadow-[-10px_0_10px_-6px_rgba(0,0,0,0.5)] sm:shadow-none"
+    class="ml-auto self-stretch flex items-center gap-1.5 shrink-0 pl-3 sticky right-0 z-10 bg-[var(--panel)] group-hover:bg-[var(--panel-2)] transition-colors shadow-[-10px_0_10px_-6px_rgba(0,0,0,0.5)] sm:shadow-none"
     :class="depth === 0 && !canOverage ? 'max-sm:shadow-none' : ''"
   >
     <template v-if="canOverage">
