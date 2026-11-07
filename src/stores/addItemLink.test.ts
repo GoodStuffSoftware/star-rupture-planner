@@ -1180,7 +1180,14 @@ describe('default rate for new targets', () => {
     withSetting(machines(3))
     const { store, host, unmount } = await mountApp('')
     const input = async () => {
-      for (let i = 0; i < 50 && !host.querySelector('[data-testid="default-target-input"]'); i++) {
+      // The game data has to be in: a tab still on its first load takes a sibling's save afterwards.
+      for (
+        let i = 0;
+        i < 50 &&
+        (!host.querySelector('[data-testid="default-target-input"]') ||
+          !store.dataStore.items.length);
+        i++
+      ) {
         await vi.advanceTimersByTimeAsync(50)
       }
       return host.querySelector<HTMLInputElement>('[data-testid="default-target-input"]')!
@@ -1189,7 +1196,11 @@ describe('default rate for new targets', () => {
     expect(field.value).toBe('3')
     // Focus, then a sibling tab changes the setting while the field is still showing 3.
     field.dispatchEvent(new FocusEvent('focus'))
-    save(savedPlan(), withDefault(machines(5)))
+    // Written straight to storage: it is another tab's write, which this tab has not read.
+    localStorage.setItem(
+      LS_KEY,
+      JSON.stringify({ plan: savedPlan(), prefs: withDefault(machines(5)) }),
+    )
     window.dispatchEvent(
       new StorageEvent('storage', { key: LS_KEY, newValue: localStorage.getItem(LS_KEY) }),
     )
