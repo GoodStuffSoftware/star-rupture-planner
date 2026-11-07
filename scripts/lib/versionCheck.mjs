@@ -96,6 +96,8 @@ export function trustedIssues(issues) {
     .map((i) => ({ ...i, comments: (i.comments ?? []).filter(isTrustedAuthor) }))
 }
 
+const toSeconds = (iso) => (iso ? Date.parse(iso) / 1000 || 0 : 0)
+
 export function isoDate(seconds) {
   return new Date(seconds * 1000).toISOString().slice(0, 10)
 }
@@ -175,7 +177,14 @@ export function decideBranch({
       ...i,
       state: String(i.state).toLowerCase(),
       markers: issueMarkers(i, branch),
-      createdAt: i.createdAt ? Date.parse(i.createdAt) / 1000 : 0,
+      // When the issue, or a later comment naming a build, was posted: the announcements up
+      // to then were dealt with by it.
+      handledAt: Math.max(
+        toSeconds(i.createdAt),
+        ...(i.comments ?? [])
+          .filter((c) => parseMarkers(c.body ?? '').some((m) => m.branch === branch))
+          .map((c) => toSeconds(c.createdAt)),
+      ),
     }))
     .filter((i) => i.markers.length)
   const closed = mine.filter((i) => i.state === 'closed')
@@ -202,7 +211,7 @@ export function decideBranch({
   // the covering data's last change, so later hotfixes do not restart it. Announcements up to
   // the time a closed (acknowledged) issue was opened belong to the builds it dealt with: a
   // build's post comes after its update time, so the coverage date alone would not skip them.
-  const announcedAfter = Math.max(cov.lastChange, ackThrough, ...closed.map((i) => i.createdAt))
+  const announcedAfter = Math.max(cov.lastChange, ackThrough, ...closed.map((i) => i.handledAt))
   const announcement =
     news
       .filter((n) => classifyAnnouncement(n.title) === branch && n.date > announcedAfter)

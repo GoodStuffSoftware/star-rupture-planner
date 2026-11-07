@@ -38,6 +38,8 @@ if (nowIdx !== -1) {
   now = Math.floor(parsed / 1000)
 }
 
+if (nowIdx !== -1 && !dryRun) fail('--now simulates the clock and needs --dry-run')
+
 function fail(msg) {
   console.error(`check-game-version: ${msg}`)
   process.exit(1)

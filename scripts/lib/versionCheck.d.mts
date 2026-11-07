@@ -21,7 +21,7 @@ export interface IssueRecord extends Authored {
   state: string
   body?: string
   createdAt?: string
-  comments?: ({ body?: string } & Authored)[]
+  comments?: ({ body?: string; createdAt?: string } & Authored)[]
 }
 export interface Decision {
   branch: string

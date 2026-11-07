@@ -433,6 +433,40 @@ describe('acknowledged builds count as coverage up to their update time', () => 
     expect(d.status).toBe('grace')
   })
 
+  it('skips announcements up to a comment that acknowledged a later build on the closed issue', () => {
+    // Issue #5 (opened 11-08 for build 200) got a comment on 11-12 for build 201, then was closed.
+    // Build 201's post (11-12 09:00) must not start the grace period of hotfix 202 on 11-30.
+    const commented = closed({
+      number: 5,
+      createdAt: '2026-11-08T10:00:00Z',
+      comments: [
+        {
+          body: marker(PTB, '201', t('2026-11-12T08:00:00Z')),
+          createdAt: '2026-11-22T10:00:00Z',
+          authorAssociation: 'OWNER',
+        },
+      ],
+    })
+    const d = decide(PTB, {
+      branches: {
+        ...base.branches,
+        [PTB]: { buildid: '202', timeupdated: String(t('2026-11-30T08:00:00Z')) },
+      },
+      news: [
+        ...hotfixNews,
+        {
+          title: 'StarRupture Update 3 Public Test Branch - Hotfix 3 now available',
+          date: t('2026-11-30T09:00:00Z'),
+        },
+      ],
+      issues: [commented],
+      now: t('2026-11-30T12:00:00Z'),
+    })
+    expect(d.announcement?.title).toContain('Hotfix 3')
+    expect(d.status).toBe('grace')
+    expect(d.action).toBe('none')
+  })
+
   it('treats a closed issue for a build updated at or after this one as full coverage', () => {
     const newer = closed({ body: marker(PTB, '300', t('2026-11-20T00:00:00Z')) })
     const d = decide(PTB, { ...hotfix, issues: [newer] })
