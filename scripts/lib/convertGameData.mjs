@@ -1,6 +1,7 @@
 // Pure conversion of the game-extract raw output into the planner's game-data JSON.
 // No file or network access here: the CLI (scripts/convert-game-data.mjs) does the I/O.
 // See tools/game-extract/README.md for the raw layout and scripts/data/id-map.json for the id map.
+import { deriveBuildingType, deriveItemType, itemFacts } from './deriveTypes.mjs'
 
 /** Last path segment of an asset path ("/Game/Chimera/Items/I_Foo" -> "I_Foo"). */
 export function assetName(path) {
@@ -32,17 +33,6 @@ export function uniqueSlug(raw, taken) {
 export function ratePerMinute(count, buildTime) {
   if (!(buildTime > 0)) throw new Error(`invalid build time ${buildTime}`)
   return Math.round(((count * 60) / buildTime) * 1e4) / 1e4
-}
-
-const GAME_TYPE_TO_PLANNER = {
-  'ECrBuildingType::Crafting': 'production',
-  'ECrBuildingType::RawMaterialProcessing': 'production',
-  'ECrBuildingType::Extraction': 'production',
-  'ECrBuildingType::Power': 'generator',
-  'ECrBuildingType::Defensive': 'defense',
-  'ECrBuildingType::Habitat': 'habitat',
-  'ECrBuildingType::Transport': 'transport',
-  'ECrBuildingType::TemperatureManagement': 'temperature',
 }
 
 function corpColumn(corpAsset) {
@@ -95,7 +85,8 @@ export function convertGameData({ extract, idMap, prev }) {
   const report = {
     newItemIds: [],
     newBuildingIds: [],
-    uncurated: [], // { kind, id, field, note }: new thing with no curated value
+    uncurated: [], // { kind, id, field, note }: new thing with no curated value and nothing in the game to derive it from
+    derived: [], // { kind, id, field, value }: new thing whose value came from game fields (deriveTypes.mjs)
     missingFromExtract: [], // map entries whose asset is not in the extract
     extractorRateFallbacks: [],
     defaultedBuildTimes: [],
@@ -109,6 +100,7 @@ export function convertGameData({ extract, idMap, prev }) {
   const recipeById = new Map(extract.recipes.map((r) => [r.id, r]))
   const collectionById = new Map(extract.collections.map((c) => [c.id, c]))
   const itemById = new Map(extract.items.map((i) => [i.id, i]))
+  const facts = itemFacts(extract)
   const buildingByAsset = new Map(extract.buildings.map((b) => [b.asset, b]))
   // first BD per DA config (several BDs share one DA)
   const buildingByConfig = new Map()
@@ -189,10 +181,11 @@ export function convertGameData({ extract, idMap, prev }) {
 
     const out = { id, name: before?.name ?? bd.displayName }
     if (!before) {
-      report.uncurated.push({ kind: 'building', id, field: 'name,type,upgrade', note: `new building, name from the game: "${bd.displayName}"` })
+      report.uncurated.push({ kind: 'building', id, field: 'upgrade', note: `new building, name and type come from the game ("${bd.displayName}"); an upgrade link to a Tier2 building is not derived` })
     }
     if (before?.upgrade) out.upgrade = before.upgrade
-    out.type = before?.type ?? GAME_TYPE_TO_PLANNER[bd.type] ?? 'production'
+    out.type = before?.type ?? deriveBuildingType(bd)
+    if (!before?.type) report.derived.push({ kind: 'building', id, field: 'type', value: out.type })
     out.power = bd.power?.electricityValue ?? 0
     out.heat = bd.heat ?? 0
     if (before?.coreHeatCapacity !== undefined) out.coreHeatCapacity = before.coreHeatCapacity
@@ -280,10 +273,9 @@ export function convertGameData({ extract, idMap, prev }) {
       continue
     }
     const gameName = game.displayName && !game.displayName.includes('MISSING STRING TABLE') ? game.displayName : undefined
-    if (!before) {
-      report.uncurated.push({ kind: 'item', id, field: 'type', note: `new item "${gameName ?? id}", type defaulted to "component"` })
-    }
-    itemsOut.push({ id, name: gameName ?? before?.name ?? id, type: before?.type ?? 'component' })
+    const type = before?.type ?? deriveItemType(game, facts)
+    if (!before?.type) report.derived.push({ kind: 'item', id, field: 'type', value: type })
+    itemsOut.push({ id, name: gameName ?? before?.name ?? id, type })
   }
 
   // the committed catalog order is hand-kept: previous order first, new items after it by display name

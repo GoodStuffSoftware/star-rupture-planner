@@ -287,14 +287,23 @@ describe('convertGameData', () => {
       'recipes',
     ])
     expect(assembler.power).toBe(60) // game numbers always win
-    // names come from the game; types are curated and default to component when unknown
+    // names come from the game; a curated type wins, a new item's type is derived from the game
     expect(items.find((i) => i.id === 'gear')).toEqual({
       id: 'gear',
       name: 'Gear',
       type: 'component',
     })
     expect(items.find((i) => i.id === 'plate')?.type).toBe('component')
-    expect(report.uncurated.some((u) => u.kind === 'item' && u.id === 'plate')).toBe(true)
+    // a new item's type comes from the game (deriveTypes.mjs), not from a manual follow-up
+    expect(report.derived).toContainEqual({
+      kind: 'item',
+      id: 'plate',
+      field: 'type',
+      value: 'component',
+    })
+    expect(report.uncurated.some((u) => u.kind === 'item')).toBe(false)
+    // a curated type is never overwritten
+    expect(report.derived.some((d) => d.id === 'gear')).toBe(false)
   })
 
   it('falls back to the previous name when the game name is a missing string table entry', () => {
