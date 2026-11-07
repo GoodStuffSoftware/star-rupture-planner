@@ -13,6 +13,11 @@ import { usePlannerStore } from '../../stores/plannerStore'
 import { createWheelStepper } from '../../lib/wheelStep'
 import RateStepButton from './RateStepButton.vue'
 
+// The look of an editable rate that reads as plain inline text until hovered or clicked; shared by
+// the root row and the child rows (each adds its own size, colour and focus cue).
+const INLINE_RATE_CLASS =
+  'm-0 border-0 bg-transparent font-mono text-right cursor-text outline-none underline decoration-transparent decoration-dotted underline-offset-4 transition-colors'
+
 const props = defineProps<{
   node: CraftNode
   depth: number
@@ -112,11 +117,10 @@ function revertRoot() {
   rootDraft.value = fmt(store.targetRate)
 }
 
-function onRootFocus(e: FocusEvent) {
+function onRootFocus() {
   rootFocused = true
   rootDirty = false
   rootFocusRate = store.targetRate
-  ;(e.target as HTMLInputElement).select()
 }
 
 // Typing commits a valid value once the user pauses; an empty or half-typed draft ("", "1.", "abc")
@@ -207,7 +211,7 @@ const rootStepTitle = computed(() =>
 
 <template>
   <div
-    class="ml-auto flex items-center gap-1.5 shrink-0 pl-3 sticky right-0 z-10 bg-[var(--panel)] group-hover:bg-[var(--panel-2)] transition-colors shadow-[-10px_0_10px_-6px_rgba(0,0,0,0.5)] sm:shadow-none"
+    class="ml-auto self-stretch flex items-center gap-1.5 shrink-0 pl-3 sticky right-0 z-10 bg-[var(--panel)] group-hover:bg-[var(--panel-2)] transition-colors shadow-[-10px_0_10px_-6px_rgba(0,0,0,0.5)] sm:shadow-none"
     :class="depth === 0 && !canOverage ? 'max-sm:shadow-none' : ''"
   >
     <template v-if="canOverage">
@@ -250,12 +254,16 @@ const rootStepTitle = computed(() =>
         {{ fmt(node.overage ?? 0) }}
       </span>
 
-      <!-- Stepper buttons & input -->
-      <div
-        class="chamfer-sm [--cf-fill:var(--panel-2)] flex items-center p-px gap-px overflow-hidden"
-        @click.stop
-      >
-        <RateStepButton :dir="-1" :label="`−${stepTitle}`" @click.stop="stepOutput(-1)" />
+      <!-- Stepper buttons & input: plain inline number with ghost -/+, like the root row -->
+      <div class="flex items-center" @click.stop>
+        <RateStepButton
+          ghost
+          small
+          neutral
+          :dir="-1"
+          :label="`−${stepTitle}`"
+          @click.stop="stepOutput(-1)"
+        />
         <input
           v-model.number="outputInput"
           type="number"
@@ -263,23 +271,33 @@ const rootStepTitle = computed(() =>
           step="1"
           :title="'Output items/min — raise above demand to overproduce, lower below it for a deficit'"
           :style="{ '--amount-ch': outputCh }"
-          class="amount-input bg-[var(--panel-2)] text-[var(--text)] text-sm px-1 py-0.5 text-right font-mono focus:outline-none"
+          class="amount-input px-0 py-0.5 text-base text-[var(--text)] hover:decoration-[var(--muted)] focus:decoration-[var(--text)]/60 focus:bg-[var(--panel-2)]"
+          :class="INLINE_RATE_CLASS"
           @change="onOutputChange"
           @wheel="onOutputWheel"
           @click.stop
         />
-        <RateStepButton :dir="1" :label="`+${stepTitle}`" @click.stop="stepOutput(1)" />
+        <RateStepButton
+          ghost
+          small
+          neutral
+          :dir="1"
+          :label="`+${stepTitle}`"
+          @click.stop="stepOutput(1)"
+        />
+        <span
+          class="text-sm font-mono"
+          :class="isDeficit ? 'text-red-400' : 'text-slate-400'"
+          :title="
+            isDeficit ? `Producing below the ${fmt(baseDemand)}/min required here` : undefined
+          "
+          >/min</span
+        >
       </div>
-      <span
-        class="text-sm font-mono"
-        :class="isDeficit ? 'text-red-400' : 'text-slate-400'"
-        :title="isDeficit ? `Producing below the ${fmt(baseDemand)}/min required here` : undefined"
-        >/min</span
-      >
     </template>
     <!-- depth=0 root: large orange rate (replaces old header); ghost -/+ show it can go up and down -->
     <template v-else-if="depth === 0">
-      <div class="flex items-center gap-0.5" @click.stop>
+      <div class="flex items-center" @click.stop>
         <RateStepButton
           ghost
           :dir="-1"
@@ -296,7 +314,8 @@ const rootStepTitle = computed(() =>
           aria-label="Target output per minute"
           title="Target output — click to edit"
           :style="{ width: `${Math.max(rootDraft.length, 1)}ch` }"
-          class="m-0 px-0.5 border-0 bg-transparent text-xl font-bold font-mono text-[var(--accent)] text-right cursor-text outline-none underline decoration-transparent decoration-dotted underline-offset-4 hover:decoration-[var(--accent)]/60 focus:decoration-[var(--accent)] transition-colors box-content"
+          class="px-0.5 text-xl font-bold text-[var(--accent)] box-content hover:decoration-[var(--accent)]/60 focus:decoration-[var(--accent)]"
+          :class="INLINE_RATE_CLASS"
           @focus="onRootFocus"
           @input="onRootInput"
           @keydown="onRootKey"
@@ -305,7 +324,7 @@ const rootStepTitle = computed(() =>
           @click.stop
         />
         <RateStepButton ghost :dir="1" :label="`+${rootStepTitle}`" @click.stop="stepRoot(1)" />
-        <span class="ml-1 text-xl font-bold font-mono text-[var(--accent)]">/min</span>
+        <span class="text-xl font-bold font-mono text-[var(--accent)]">/min</span>
       </div>
     </template>
     <!-- depth>0 non-overage nodes -->
@@ -322,7 +341,7 @@ const rootStepTitle = computed(() =>
 .amount-input {
   -moz-appearance: textfield;
   appearance: textfield;
-  /* ch of the text plus the px-1 padding; at least the old w-9 */
-  width: max(2.25rem, calc(var(--amount-ch, 3) * 1ch + 0.5rem));
+  /* Exactly the shown text, plus a hair for the caret: the -/+ sit right next to the number. */
+  width: calc(var(--amount-ch, 1) * 1ch + 2px);
 }
 </style>

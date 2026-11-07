@@ -1,19 +1,98 @@
 <script setup lang="ts">
-import { ref, watch, onUnmounted } from 'vue'
+import { ref, watch, onUnmounted, computed, type CSSProperties } from 'vue'
+import {
+  cachedTrim,
+  loadTrim,
+  trimTransform,
+  inkAspect,
+  heightFit,
+  ICON_ART_FILL,
+} from '../lib/iconTrim'
+import type { InkBox } from '../lib/iconTrim'
 import { usePlannerStore } from '../stores/plannerStore'
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     kind: 'building' | 'item'
     id: string
     name: string
     size?: number
+    // Size from the parent box (100% x 100%, square, object-contain) instead of `size` px
+    fill?: boolean
+    // Leave the browser's context menu alone (a parent wants to decide what a right-click does)
+    nativeContextMenu?: boolean
+    // Centre the visible art in the box and scale it to `artFill` (on by default)
+    trim?: boolean
+    // Share of the box side the art's larger side fills (0-1)
+    artFill?: number
+    // Tab chips: the box is as tall as its parent, the art's height fills it, and the box's width
+    // follows the art's aspect (square until measured). Needs a parent with a definite height.
+    fitHeight?: boolean
   }>(),
-  { size: 24 },
+  { size: 24, trim: true, artFill: ICON_ART_FILL },
 )
 
 const store = usePlannerStore()
 const failed = ref(false)
+
+const imgSrc = computed(() => `/icons/${props.kind}s/${props.id}.webp`)
+// undefined = still measuring (image hidden so it never jumps); null = untrimmed
+const inkBox = ref<InkBox | null | undefined>(undefined)
+const trimCss = computed(() =>
+  inkBox.value ? trimTransform(inkBox.value, props.artFill) : inkBox.value,
+)
+watch(
+  [() => props.trim, imgSrc],
+  ([on, src]) => {
+    if (!on) {
+      inkBox.value = null
+      return
+    }
+    const hit = cachedTrim(src)
+    if (hit !== undefined) {
+      inkBox.value = hit
+      return
+    }
+    inkBox.value = undefined
+    loadTrim(src).then((t) => {
+      if (imgSrc.value === src) inkBox.value = t
+    })
+  },
+  { immediate: true },
+)
+
+const fit = computed(() =>
+  props.fitHeight && inkBox.value
+    ? { aspect: inkAspect(inkBox.value), pos: heightFit(inkBox.value) }
+    : null,
+)
+
+// The hover-zoom card reuses the cached measurement: art fills its inner area, centred
+const zoomCss = computed(() => (inkBox.value ? trimTransform(inkBox.value, 1) : null))
+
+const imgStyle = computed<CSSProperties | undefined>(() => {
+  if (!props.trim) return undefined
+  if (props.fitHeight) {
+    const pos = fit.value?.pos
+    if (pos) {
+      return {
+        position: 'absolute',
+        left: '50%',
+        top: '50%',
+        width: 'auto',
+        maxWidth: 'none',
+        height: `${pos.heightPct}%`,
+        transform: `translate(${pos.tx}%, ${pos.ty}%)`,
+      }
+    }
+    return { visibility: inkBox.value === undefined ? 'hidden' : undefined }
+  }
+  return {
+    transform: trimCss.value ?? undefined,
+    transformOrigin: 'center',
+    visibility: trimCss.value === undefined ? 'hidden' : undefined,
+  }
+})
 
 function onError() {
   failed.value = true
@@ -88,6 +167,13 @@ function clearAutoDismissTimer() {
   }
 }
 
+// Suppress the browser menu (long-press image menu on touch) unless a parent asked to keep it
+function guardMenu(e: Event) {
+  // Only a mouse right-click may reach the browser menu; a touch long-press never does.
+  const mouse = (e as MouseEvent).button === 2 || (e as MouseEvent).ctrlKey
+  if (!(props.nativeContextMenu && mouse)) e.preventDefault()
+}
+
 // Touch / press-and-hold
 function onTouchStart(e: TouchEvent) {
   lastTouchTimestamp = Date.now()
@@ -158,7 +244,12 @@ onUnmounted(() => {
   <span
     v-else-if="failed"
     class="inline-flex items-center justify-center rounded bg-[var(--panel-2)] text-[var(--muted)] font-bold select-none shrink-0"
-    :style="{ width: `${size}px`, height: `${size}px`, fontSize: `${Math.max(8, size * 0.45)}px` }"
+    :class="fill ? 'w-full h-full text-[10px]' : undefined"
+    :style="
+      fill
+        ? undefined
+        : { width: `${size}px`, height: `${size}px`, fontSize: `${Math.max(8, size * 0.45)}px` }
+    "
     :title="name"
   >
     {{ fallbackLabel(name) }}
@@ -167,10 +258,15 @@ onUnmounted(() => {
   <!-- Normal image with hover-zoom -->
   <span
     v-else
+    data-game-icon
     class="inline-flex shrink-0 select-none"
+    :class="fitHeight ? 'relative h-full' : fill ? 'w-full h-full' : undefined"
     :style="{
-      width: `${size}px`,
-      height: `${size}px`,
+      ...(fitHeight
+        ? { aspectRatio: String(fit?.aspect ?? 1) }
+        : fill
+          ? {}
+          : { width: `${size}px`, height: `${size}px` }),
       WebkitTouchCallout: 'none',
       WebkitUserSelect: 'none',
       userSelect: 'none',
@@ -182,19 +278,20 @@ onUnmounted(() => {
     @touchmove.passive="onTouchMove"
     @touchend.passive="onTouchEnd"
     @touchcancel.passive="onTouchEnd"
-    @contextmenu.prevent
+    @contextmenu="guardMenu"
   >
     <img
       :src="`/icons/${kind}s/${id}.webp`"
       :alt="name"
-      :width="size"
-      :height="size"
+      :width="fill || fitHeight ? undefined : size"
+      :height="fill || fitHeight ? undefined : size"
       loading="lazy"
       draggable="false"
       class="rounded object-contain w-full h-full pointer-events-none select-none"
       style="-webkit-touch-callout: none; -webkit-user-select: none; user-select: none"
+      :style="imgStyle"
       @error="onError"
-      @contextmenu.prevent
+      @contextmenu="guardMenu"
     />
 
     <!-- Teleport zoom preview to body so it's never clipped -->
@@ -233,6 +330,7 @@ onUnmounted(() => {
               draggable="false"
               class="object-contain w-full h-full rounded-lg select-none pointer-events-none"
               style="-webkit-touch-callout: none; -webkit-user-select: none; user-select: none"
+              :style="zoomCss ? { transform: zoomCss, transformOrigin: 'center' } : undefined"
               @contextmenu.prevent
             />
           </div>
