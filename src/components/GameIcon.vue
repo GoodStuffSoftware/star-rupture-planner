@@ -2,12 +2,14 @@
 import { ref, watch, onUnmounted } from 'vue'
 import { usePlannerStore } from '../stores/plannerStore'
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     kind: 'building' | 'item'
     id: string
     name: string
     size?: number
+    // Leave the browser's context menu alone (a parent wants to decide what a right-click does)
+    nativeContextMenu?: boolean
   }>(),
   { size: 24 },
 )
@@ -86,6 +88,11 @@ function clearAutoDismissTimer() {
     clearTimeout(autoDismissTimer)
     autoDismissTimer = null
   }
+}
+
+// Suppress the browser menu (long-press image menu on touch) unless a parent asked to keep it
+function guardMenu(e: Event) {
+  if (!props.nativeContextMenu) e.preventDefault()
 }
 
 // Touch / press-and-hold
@@ -167,6 +174,7 @@ onUnmounted(() => {
   <!-- Normal image with hover-zoom -->
   <span
     v-else
+    data-game-icon
     class="inline-flex shrink-0 select-none"
     :style="{
       width: `${size}px`,
@@ -182,7 +190,7 @@ onUnmounted(() => {
     @touchmove.passive="onTouchMove"
     @touchend.passive="onTouchEnd"
     @touchcancel.passive="onTouchEnd"
-    @contextmenu.prevent
+    @contextmenu="guardMenu"
   >
     <img
       :src="`/icons/${kind}s/${id}.webp`"
@@ -194,7 +202,7 @@ onUnmounted(() => {
       class="rounded object-contain w-full h-full pointer-events-none select-none"
       style="-webkit-touch-callout: none; -webkit-user-select: none; user-select: none"
       @error="onError"
-      @contextmenu.prevent
+      @contextmenu="guardMenu"
     />
 
     <!-- Teleport zoom preview to body so it's never clipped -->

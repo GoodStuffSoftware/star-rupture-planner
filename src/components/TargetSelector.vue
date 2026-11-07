@@ -70,6 +70,14 @@ watch(
   },
 )
 
+// The rate field fits at least 5 digits (the number spin arrows are hidden: the − / + stepper
+// replaces them, and they ate the last digit) and grows leftwards (it is right-aligned) as the
+// number gets longer, up to 9.
+const rateWidth = computed(() => {
+  const digits = String(rateInput.value).length
+  return `calc(${Math.min(Math.max(digits + 1, 5), 9)}ch + 0.75rem)`
+})
+
 const filteredItems = computed<Item[]>(() => {
   const q = searchText.value.toLowerCase().trim()
   if (!q) return store.items.slice(0, 50)
@@ -364,7 +372,8 @@ function onRateEnter(e: KeyboardEvent) {
           step="1"
           :disabled="!store.targetItemId"
           placeholder="–"
-          class="bg-[var(--panel-2)] text-[var(--text)] text-xs sm:text-sm px-0.5 sm:px-1 py-1 sm:py-1.5 w-10 sm:w-12 focus:outline-none transition-colors text-right disabled:opacity-40 disabled:cursor-not-allowed"
+          :style="{ width: rateWidth }"
+          class="bg-[var(--panel-2)] text-[var(--text)] text-xs sm:text-sm px-0.5 sm:px-1 py-1 sm:py-1.5 min-w-[calc(5ch+0.75rem)] max-w-[calc(9ch+0.75rem)] focus:outline-none transition-colors text-right disabled:opacity-40 disabled:cursor-not-allowed [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
           @focus="onRateFocus"
           @input="onRateInput"
           @change="onRateChange"

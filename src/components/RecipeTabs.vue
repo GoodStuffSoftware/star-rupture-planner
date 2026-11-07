@@ -1,12 +1,20 @@
 <script setup lang="ts">
 // Recipe tabs: one chip per planning target. Click to switch, × to close (pinned tabs
 // have none), drag to reorder within the pinned or the unpinned group. A tab with no item
-// yet is a "New tab" chip.
+// yet is a "New tab" chip. Right-click, a long-press or the menu key opens the tab menu.
 import { ref, computed } from 'vue'
 import { usePlannerStore } from '../stores/plannerStore'
 import { fmt } from '../lib/format'
 import GameIcon from './GameIcon.vue'
 import AddRecipeButton from './AddRecipeButton.vue'
+import {
+  onTabContextMenu,
+  onTabMenuKey,
+  onTabTouchStart,
+  onTabTouchMove,
+  clearLongPress,
+  consumeLongPressClick,
+} from '../lib/tabMenu'
 
 const store = usePlannerStore()
 
@@ -51,6 +59,20 @@ function onDragEnd() {
   dragTid.value = null
   overTid.value = null
 }
+
+// A chip is focusable: Enter or Space selects it (when the chip itself has focus, not its ×);
+// the ContextMenu key or Shift+F10 opens its menu.
+function onChipKey(tid: string, e: KeyboardEvent) {
+  onTabMenuKey(e, { kind: 'tab', tid })
+  if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) {
+    e.preventDefault()
+    store.setActiveTarget(tid)
+  }
+}
+function onChipClick(tid: string) {
+  if (consumeLongPressClick()) return
+  store.setActiveTarget(tid)
+}
 </script>
 
 <template>
@@ -64,6 +86,8 @@ function onDragEnd() {
         :key="t.tid"
         role="tab"
         draggable="true"
+        tabindex="0"
+        aria-haspopup="menu"
         :aria-selected="t.tid === store.activeTargetId"
         :title="
           t.targetItemId ? `${labelFor(t.targetItemId)} — ${fmt(t.targetRate)}/min` : 'New tab'
@@ -76,7 +100,13 @@ function onDragEnd() {
           dragTid === t.tid ? 'opacity-50' : '',
           overTid === t.tid ? 'ring-2 ring-[var(--accent)]' : '',
         ]"
-        @click="store.setActiveTarget(t.tid)"
+        @click="onChipClick(t.tid)"
+        @keydown="onChipKey(t.tid, $event)"
+        @contextmenu="onTabContextMenu($event, { kind: 'tab', tid: t.tid })"
+        @touchstart.passive="onTabTouchStart($event, { kind: 'tab', tid: t.tid })"
+        @touchmove.passive="onTabTouchMove"
+        @touchend.passive="clearLongPress"
+        @touchcancel.passive="clearLongPress"
         @dragstart="onDragStart(t.tid, $event)"
         @dragover.prevent="onDragOver(t.tid)"
         @drop="onDrop(t.tid)"
@@ -101,6 +131,7 @@ function onDragEnd() {
           kind="item"
           :name="labelFor(t.targetItemId)"
           :size="20"
+          native-context-menu
         />
         <!-- Mobile: only the first 3 letters -->
         <span class="sm:hidden text-sm font-medium whitespace-nowrap">
@@ -144,6 +175,7 @@ function onDragEnd() {
       <button
         type="button"
         title="Combined totals across all recipes"
+        aria-haspopup="menu"
         class="chamfer-sm shrink-0 flex items-center px-2.5 py-1.5 text-sm font-semibold transition-colors select-none"
         :class="
           store.isAllView
@@ -151,6 +183,8 @@ function onDragEnd() {
             : '[--cf-fill:var(--panel-2)] hover:[--cf-fill:var(--border)] text-[var(--muted)] hover:text-[var(--text)]'
         "
         @click="store.showAllTotals()"
+        @contextmenu="onTabContextMenu($event, { kind: 'all' })"
+        @keydown="onTabMenuKey($event, { kind: 'all' })"
       >
         &Sigma; All
       </button>
