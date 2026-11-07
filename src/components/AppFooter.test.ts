@@ -71,4 +71,9 @@ describe('AppFooter', () => {
     expect(hrefs).toContain('https://starrupture.wiki.gg')
     expect(root.textContent).toContain('not affiliated with')
   })
+
+  it('renders a divider rule above the fine print', async () => {
+    const root = await mountFooter()
+    expect(root.querySelector('hr')).not.toBeNull()
+  })
 })

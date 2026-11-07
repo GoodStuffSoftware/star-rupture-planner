@@ -18,13 +18,13 @@ const link =
 <template>
   <!-- Sits directly on the page background: no panel, border or fill. Same horizontal inset and
        max width as <main>; equal top and bottom padding. -->
-  <footer class="px-2 py-4 sm:px-4">
-    <div class="mx-auto flex max-w-screen-xl flex-col gap-4 text-xs text-[var(--muted)]">
+  <footer class="w-full max-w-screen-xl mx-auto px-2 py-4 sm:px-4 text-xs text-[var(--muted)]">
+    <div>
       <!-- Main row: logo + links | coffee (dead centre) | version -->
       <div
-        class="grid grid-cols-1 items-center justify-items-center gap-4 lg:grid-cols-[1fr_auto_1fr] lg:justify-items-stretch"
+        class="grid grid-cols-[1fr_auto] min-[420px]:grid-cols-[1fr_auto_1fr] items-center gap-x-4 gap-y-3"
       >
-        <div class="flex flex-col items-center gap-2 lg:items-start">
+        <div class="col-start-1 row-start-1 flex flex-col items-start gap-2 justify-self-start">
           <a
             href="https://goodstuffsoftware.com"
             target="_blank"
@@ -38,7 +38,7 @@ const link =
               alt="Good Stuff Software"
               width="129"
               height="36"
-              class="h-9 w-auto"
+              class="h-9 w-auto max-w-full"
             />
           </a>
           <nav aria-label="Footer links" class="flex items-center gap-x-4">
@@ -49,7 +49,11 @@ const link =
           </nav>
         </div>
 
-        <SupportButton />
+        <div
+          class="col-span-2 row-start-2 justify-self-center min-[420px]:col-span-1 min-[420px]:col-start-2 min-[420px]:row-start-1"
+        >
+          <SupportButton />
+        </div>
 
         <a
           :href="CHANGELOG_URL"
@@ -57,15 +61,17 @@ const link =
           rel="noopener noreferrer"
           title="View the changelog"
           data-testid="app-version"
-          class="font-mono text-[var(--accent)] transition-colors hover:text-[var(--accent-hover)] focus-visible:text-[var(--accent-hover)] lg:justify-self-end"
+          class="font-mono text-[var(--accent)] transition-colors hover:text-[var(--accent-hover)] focus-visible:text-[var(--accent-hover)] col-start-2 row-start-1 justify-self-end min-[420px]:col-start-3"
           ><span class="sr-only">Changelog, </span>v{{ version }}</a
         >
       </div>
 
+      <hr class="my-3 border-0 border-t border-[var(--border)]" />
+
       <!-- Fine print: disclaimer + attribution (licence terms require the credits) -->
-      <p class="mx-auto max-w-screen-xl text-balance text-center text-[0.6875rem] leading-snug">
-        Unofficial fan tool, not affiliated with or endorsed by Creepy Jar. Game data &amp; icons
-        from
+      <p class="text-center text-[0.6875rem] leading-snug">
+        Unofficial fan tool, not affiliated with or endorsed by Creepy Jar. Free to use; donations
+        welcome. Game data &amp; icons from
         <a
           href="https://github.com/flexsurfer/starrupture-planner"
           target="_blank"
