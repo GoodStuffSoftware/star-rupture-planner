@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
+import { sanitizeDefaultTarget, DEFAULT_TARGET_PREF, type DefaultTargetPref } from '../lib/format'
 import { loadSaved, savePrefs, type ViewPrefs } from '../lib/persistState'
 
 export const usePrefsStore = defineStore('prefs', () => {
@@ -13,6 +14,7 @@ export const usePrefsStore = defineStore('prefs', () => {
   const treeFontScale = ref<number>(1)
   const totalsPlacement = ref<'side' | 'bottom'>('side')
   const totalsCollapsed = ref<Record<string, boolean>>({})
+  const defaultTarget = ref<DefaultTargetPref>({ ...DEFAULT_TARGET_PREF })
 
   function getPrefs(): ViewPrefs {
     return {
@@ -26,6 +28,7 @@ export const usePrefsStore = defineStore('prefs', () => {
       treeFontScale: treeFontScale.value,
       totalsPlacement: totalsPlacement.value,
       totalsCollapsed: totalsCollapsed.value,
+      defaultTarget: { ...defaultTarget.value },
     }
   }
 
@@ -47,6 +50,7 @@ export const usePrefsStore = defineStore('prefs', () => {
       treeFontScale.value = p.treeFontScale
       totalsPlacement.value = p.totalsPlacement
       totalsCollapsed.value = p.totalsCollapsed ?? {}
+      defaultTarget.value = sanitizeDefaultTarget(p.defaultTarget)
     }
     document.documentElement.dataset.theme = theme.value === 'spaceage' ? 'spaceage' : ''
   }
@@ -74,6 +78,12 @@ export const usePrefsStore = defineStore('prefs', () => {
 
   function setShowOverages(val: boolean) {
     showOverages.value = val
+    persist()
+  }
+
+  /** Change part of the default-for-new-targets setting. Existing targets are never touched. */
+  function setDefaultTarget(patch: Partial<DefaultTargetPref>) {
+    defaultTarget.value = sanitizeDefaultTarget({ ...defaultTarget.value, ...patch })
     persist()
   }
 
@@ -111,6 +121,7 @@ export const usePrefsStore = defineStore('prefs', () => {
     treeFontScale,
     totalsPlacement,
     totalsCollapsed,
+    defaultTarget,
     getPrefs,
     initPrefs,
     setTheme,
@@ -118,6 +129,7 @@ export const usePrefsStore = defineStore('prefs', () => {
     setShowIcons,
     setShowRowDividers,
     setShowOverages,
+    setDefaultTarget,
     toggleOptions,
     setTreeFontScale,
     setTotalsPlacement,

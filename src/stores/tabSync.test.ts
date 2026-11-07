@@ -15,6 +15,7 @@ import {
   type ViewPrefs,
 } from '../lib/persistState'
 import { DEFAULT_VERSION } from '../data/versions'
+import { DEFAULT_TARGET_PREF } from '../lib/format'
 
 // Several tabs cannot be told apart inside one jsdom window: they share the module state
 // that tracks the revision. The two-tab behaviour is checked by scripts/e2e-tab-sync.mjs.
@@ -44,6 +45,7 @@ const prefs = {
   treeFontScale: 1,
   totalsPlacement: 'side' as const,
   totalsCollapsed: {},
+  defaultTarget: { ...DEFAULT_TARGET_PREF },
 }
 
 /** A plan with one recipe tab per item id. */
@@ -209,6 +211,20 @@ describe('cross-tab sync', () => {
 
     expect(itemIds(tab)).toEqual(['aerogel', 'airlock', 'accumulator', 'rotor'])
     expect(loadSaved()?.prefs?.theme).toBe('spaceage')
+  })
+
+  it('an ?add= tab keeps a sibling’s default-target change that landed during its load', async () => {
+    save(planOf('aerogel', 'airlock'), prefs)
+    const { tab, finish } = await loadingTab('?add=rotor')
+    const defaultTarget = { ...DEFAULT_TARGET_PREF, machines: 3 }
+    siblingSaves(planOf('aerogel', 'airlock'), {
+      notify: false,
+      withPrefs: { ...prefs, defaultTarget },
+    })
+    await finish()
+
+    expect(itemIds(tab)).toContain('rotor')
+    expect(loadSaved()?.prefs?.defaultTarget).toEqual(defaultTarget)
   })
 
   it('an ?add= tab never writes over a sibling’s switch to another game version', async () => {
