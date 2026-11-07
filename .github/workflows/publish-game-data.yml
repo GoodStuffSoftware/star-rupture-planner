@@ -162,7 +162,11 @@ jobs:
           record() { # record <outcome> <branch> <buildid>: the coverage tag the outcome earns (scripts/lib/coverageTags.mjs), if any
             local name
             name=$(node scripts/plan-game-pull.mjs coverage-tag --outcome "$1" --branch "$2" --buildid "$3")
-            if [ -n "$name" ] && [ "$DRY_RUN" != 'true' ]; then git tag -f "$name" && { git push origin "refs/tags/$name" || echo "tag $name is already on the remote"; }; fi
+            if [ -n "$name" ] && [ "$DRY_RUN" != 'true' ]; then
+              git tag -f "$name" && { git push origin "refs/tags/$name" || echo "tag $name is already on the remote"; }
+              # a retried build that is now covered must not keep its failed tag: one build, one coverage state
+              if [ "$name" = "srdata-$2-$3" ]; then git push origin ":refs/tags/srdata-failed-$2-$3" 2>/dev/null || true; fi
+            fi
           }
           clean() { # drop anything a failed build left in the tree, so the next build never commits it
             git checkout -- . && git clean -fdq public src scripts/data

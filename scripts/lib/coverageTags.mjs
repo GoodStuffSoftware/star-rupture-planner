@@ -22,7 +22,7 @@ export const NONEWS_PREFIX = 'srnonews-'
 const COVERED_OUTCOMES = new Set([
   'published', // data committed to main
   'unchanged', // converted, identical to the folder it would replace
-  'already-published', // a SOURCE.json already holds this build (or a newer one of its branch)
+  'already-published', // a SOURCE.json already holds this build, or a newer one of its branch (the older build is superseded, so it counts)
 ])
 const NO_TAG_OUTCOMES = new Set([
   'no-news-wait', // a news post may still appear: retried
