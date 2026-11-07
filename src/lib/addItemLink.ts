@@ -4,6 +4,7 @@
 // "I want this item" and must never overwrite what the user has saved.
 
 import { SHARE_PARAMS } from './persistState'
+import { normalizeTargetRate } from './format'
 
 export const ADD_PARAM = 'add'
 export const ADD_RATE_PARAM = 'r'
@@ -12,11 +13,25 @@ const MAX_ADD_RATE = 1_000_000
 
 export interface AddItemRequest {
   itemId: string
-  /** Items per minute; falls back to DEFAULT_ADD_RATE when missing or invalid. */
-  rate: number
+  /**
+   * Whole items per minute from an explicit `r`, or null when the link has none (or an
+   * unusable one): the planner then starts the target at the "default for new targets" setting.
+   */
+  rate: number | null
 }
 
-/** A usable items-per-minute rate, or the default when it is missing, non-numeric or absurd. */
+/** A usable whole items-per-minute rate (rounded, at least 1), or null when missing, non-numeric or absurd. */
+export function parseAddRate(rate: number): number | null {
+  return Number.isFinite(rate) && rate > 0 && rate <= MAX_ADD_RATE
+    ? normalizeTargetRate(rate)
+    : null
+}
+
+/**
+ * A shared plan's rate for "add to my plan": kept as it is (a fractional machine multiple
+ * like 22.5 must survive; the store rounds anything that is not one), or DEFAULT_ADD_RATE
+ * when unusable.
+ */
 export function sanitizeAddRate(rate: number): number {
   return Number.isFinite(rate) && rate > 0 && rate <= MAX_ADD_RATE ? rate : DEFAULT_ADD_RATE
 }
@@ -26,7 +41,7 @@ export function readAddItemRequest(search: string): AddItemRequest | null {
   const params = new URLSearchParams(search)
   const itemId = params.get(ADD_PARAM)?.trim()
   if (!itemId) return null
-  return { itemId, rate: sanitizeAddRate(Number(params.get(ADD_RATE_PARAM))) }
+  return { itemId, rate: parseAddRate(Number(params.get(ADD_RATE_PARAM))) }
 }
 
 /**
@@ -76,7 +91,7 @@ export const HANDOFF_TIMEOUT_MS = 800
 type HandOffMessage =
   | { type: 'ask'; id: string }
   | { type: 'offer'; id: string; from: string }
-  | { type: 'take'; id: string; to: string; itemId: string; rate: number }
+  | { type: 'take'; id: string; to: string; itemId: string; rate: number | null }
   | { type: 'done'; id: string }
 
 export function hasHandOffSupport(): boolean {
@@ -103,7 +118,7 @@ function readMessage(data: unknown): HandOffMessage | null {
             id: m.id,
             to: m.to,
             itemId: m.itemId.trim(),
-            rate: sanitizeAddRate(Number(m.rate)),
+            rate: m.rate === null || m.rate === undefined ? null : parseAddRate(Number(m.rate)),
           }
         : null
     default:

@@ -11,6 +11,7 @@ import CraftTree from './components/CraftTree.vue'
 import TotalsPanel from './components/TotalsPanel.vue'
 import DetailDrawer from './components/DetailDrawer.vue'
 import HoverCard from './components/HoverCard.vue'
+import TabContextMenu from './components/TabContextMenu.vue'
 import AppFooter from './components/AppFooter.vue'
 
 const store = usePlannerStore()
@@ -112,16 +113,16 @@ onUnmounted(() => {
                  in its trailing slot, so it stays on the per-minute line. With
                  multiple recipes it's hidden at >=640px (the tab line carries it). -->
             <TargetSelector>
-              <span :class="store.targets.length > 1 ? 'sm:hidden' : ''">
+              <span :class="store.showTabStrip ? 'sm:hidden' : ''">
                 <AddRecipeButton />
               </span>
             </TargetSelector>
           </div>
         </div>
 
-        <!-- Row 2: recipe tabs — only once a second recipe exists. The tab strip
+        <!-- Row 2: recipe tabs — with 2+ recipes, a pinned tab or a closed tab to reopen. The tab strip
              carries its own sticky-right + add button (at sm+). -->
-        <div v-if="store.targets.length > 1" class="border-t border-[var(--border)] pt-2.5 min-w-0">
+        <div v-if="store.showTabStrip" class="border-t border-[var(--border)] pt-2.5 min-w-0">
           <RecipeTabs />
         </div>
       </div>
@@ -235,5 +236,6 @@ onUnmounted(() => {
     <!-- v6: single app-level detail drawer + hover card -->
     <DetailDrawer />
     <HoverCard />
+    <TabContextMenu />
   </div>
 </template>

@@ -1,5 +1,5 @@
 /// <reference types="node" />
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi, type MockInstance } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { nextTick } from 'vue'
@@ -15,6 +15,7 @@ import {
   type ViewPrefs,
 } from '../lib/persistState'
 import { DEFAULT_VERSION } from '../data/versions'
+import { DEFAULT_TARGET_PREF } from '../lib/format'
 
 // Several tabs cannot be told apart inside one jsdom window: they share the module state
 // that tracks the revision. The two-tab behaviour is checked by scripts/e2e-tab-sync.mjs.
@@ -44,6 +45,7 @@ const prefs = {
   treeFontScale: 1,
   totalsPlacement: 'side' as const,
   totalsCollapsed: {},
+  defaultTarget: { ...DEFAULT_TARGET_PREF },
 }
 
 /** A plan with one recipe tab per item id. */
@@ -79,11 +81,18 @@ function siblingSaves(
   }
 }
 
+// Every store a test opens is disposed afterwards, so its page listeners do not outlive it.
+const opened: ReturnType<typeof usePlannerStore>[] = []
+function track(store: ReturnType<typeof usePlannerStore>) {
+  opened.push(store)
+  return store
+}
+
 /** Open the planner as a page load at `search`; vitest's module state stands in for the tab. */
 async function openTab(search = '') {
   history.replaceState(null, '', `/${search}`)
   setActivePinia(createPinia())
-  const store = usePlannerStore()
+  const store = track(usePlannerStore())
   await store.init()
   await nextTick()
   vi.advanceTimersByTime(400) // flush the debounced save
@@ -97,6 +106,7 @@ beforeEach(() => {
   stubFetch()
 })
 afterEach(() => {
+  opened.splice(0).forEach((s) => s.$dispose())
   gate = null
   vi.useRealTimers()
   vi.unstubAllGlobals()
@@ -161,7 +171,7 @@ describe('cross-tab sync', () => {
 
     history.replaceState(null, '', '/?add=rotor')
     setActivePinia(createPinia())
-    const tab = usePlannerStore()
+    const tab = track(usePlannerStore())
     const init = tab.init()
     // The plan was read; while the game data is still loading a sibling saves a
     // change. (Its event is left out: tabs from earlier tests in this window would
@@ -183,7 +193,7 @@ describe('cross-tab sync', () => {
     gate = new Promise((r) => (release = r))
     history.replaceState(null, '', `/${search}`)
     setActivePinia(createPinia())
-    const tab = usePlannerStore()
+    const tab = track(usePlannerStore())
     const init = tab.init()
     await vi.advanceTimersByTimeAsync(0) // the plan is read; the data is still loading
     return {
@@ -209,6 +219,20 @@ describe('cross-tab sync', () => {
 
     expect(itemIds(tab)).toEqual(['aerogel', 'airlock', 'accumulator', 'rotor'])
     expect(loadSaved()?.prefs?.theme).toBe('spaceage')
+  })
+
+  it('an ?add= tab keeps a sibling’s default-target change that landed during its load', async () => {
+    save(planOf('aerogel', 'airlock'), prefs)
+    const { tab, finish } = await loadingTab('?add=rotor')
+    const defaultTarget = { ...DEFAULT_TARGET_PREF, machines: 3 }
+    siblingSaves(planOf('aerogel', 'airlock'), {
+      notify: false,
+      withPrefs: { ...prefs, defaultTarget },
+    })
+    await finish()
+
+    expect(itemIds(tab)).toContain('rotor')
+    expect(loadSaved()?.prefs?.defaultTarget).toEqual(defaultTarget)
   })
 
   it('an ?add= tab never writes over a sibling’s switch to another game version', async () => {
@@ -238,6 +262,102 @@ describe('cross-tab sync', () => {
     vi.advanceTimersByTime(400)
 
     expect(storedIds()).toEqual(['aerogel', 'airlock', 'accumulator', 'rotor'])
+  })
+})
+
+describe('save on leaving the page', () => {
+  const planWrites = () => setItem.mock.calls.filter(([k]) => k === LS_KEY).length
+  const storedRate = () => loadSaved()?.plan?.targets?.[0]?.targetRate
+  let setItem: MockInstance<Storage['setItem']>
+  let visibility: DocumentVisibilityState = 'visible'
+
+  /** The page going to the background (hidden) or coming back (visible). */
+  function setVisibility(v: DocumentVisibilityState) {
+    visibility = v
+    document.dispatchEvent(new Event('visibilitychange'))
+  }
+
+  beforeEach(() => {
+    visibility = 'visible'
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      get: () => visibility,
+    })
+    setItem = vi.spyOn(Storage.prototype, 'setItem')
+  })
+  afterEach(() => {
+    setItem.mockRestore()
+    delete (document as { visibilityState?: unknown }).visibilityState
+  })
+
+  /** A tab with a rate edit still waiting out its 300ms debounce. */
+  async function tabWithPendingEdit() {
+    save(planOf('aerogel', 'airlock'), prefs)
+    const tab = await openTab()
+    setItem.mockClear()
+    tab.setTarget('aerogel', 77)
+    await nextTick()
+    expect(storedRate()).toBe(30) // not written yet
+    return tab
+  }
+
+  it('writes a pending save when the page is hidden', async () => {
+    await tabWithPendingEdit()
+    setVisibility('hidden')
+    expect(storedRate()).toBe(77)
+    expect(planWrites()).toBe(1)
+  })
+
+  it('writes a pending save on pagehide', async () => {
+    await tabWithPendingEdit()
+    window.dispatchEvent(new Event('pagehide'))
+    expect(storedRate()).toBe(77)
+    expect(planWrites()).toBe(1)
+  })
+
+  it('writes once when both events fire, and the timer adds nothing', async () => {
+    await tabWithPendingEdit()
+    setVisibility('hidden')
+    window.dispatchEvent(new Event('pagehide'))
+    vi.advanceTimersByTime(400)
+    expect(planWrites()).toBe(1)
+  })
+
+  it('writes nothing when no save is pending', async () => {
+    save(planOf('aerogel', 'airlock'), prefs)
+    await openTab()
+    setItem.mockClear()
+    setVisibility('hidden')
+    window.dispatchEvent(new Event('pagehide'))
+    expect(planWrites()).toBe(0)
+  })
+
+  it('does not write when the page becomes visible', async () => {
+    await tabWithPendingEdit()
+    setVisibility('visible')
+    expect(planWrites()).toBe(0)
+    vi.advanceTimersByTime(400) // the debounce still saves it
+    expect(storedRate()).toBe(77)
+  })
+
+  it('still will not overwrite a newer save from a sibling tab', async () => {
+    save(planOf('aerogel', 'airlock'), prefs)
+    const tab = await openTab()
+    siblingSaves(planOf('aerogel', 'airlock', 'rotor'), { notify: false })
+    tab.setTarget('aerogel', 77)
+    await nextTick()
+    setVisibility('hidden')
+    await nextTick()
+    expect(storedIds()).toEqual(['aerogel', 'airlock', 'rotor'])
+    expect(storedRate()).toBe(30)
+  })
+
+  it('stops listening once the store is disposed', async () => {
+    const tab = await tabWithPendingEdit()
+    tab.$dispose()
+    setVisibility('hidden')
+    window.dispatchEvent(new Event('pagehide'))
+    expect(planWrites()).toBe(0)
   })
 })
 

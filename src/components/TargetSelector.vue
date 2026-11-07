@@ -2,12 +2,14 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { usePlannerStore } from '../stores/plannerStore'
 import { itemTypeChipClass } from '../lib/itemTypeChip'
+import { parseWholeRate, RATE_DEBOUNCE_MS } from '../lib/format'
 import type { Item } from '../types/game'
 
 const store = usePlannerStore()
 
 const searchText = ref('')
-const rateInput = ref(store.targetRate)
+// '' while the active tab is empty (nothing to set a rate on)
+const rateInput = ref<number | ''>(store.targetItemId ? store.targetRate : '')
 const showDropdown = ref(false)
 const inputRef = ref<HTMLInputElement | null>(null)
 const dropdownEl = ref<HTMLElement | null>(null)
@@ -23,17 +25,58 @@ watch(
       if (item) {
         searchText.value = item.name
       }
+      rateInput.value = store.targetRate
+    } else {
+      // An empty tab: nothing to show in the search box, no rate yet
+      searchText.value = ''
+      rateInput.value = ''
     }
   },
   { immediate: true },
 )
 
+// A new tab was opened: clear the search box, put the cursor in it and open the list, so the
+// user can type at once.
+watch(
+  () => store.searchFocusTick,
+  () => {
+    searchText.value = ''
+    activeIndex.value = 0
+    nextTick(() => {
+      inputRef.value?.focus()
+      openDropdown()
+    })
+  },
+)
+
+// While this field is focused and the user has typed, its draft is theirs: a debounced commit of
+// their own typing must not rewrite it under the cursor. Changes from elsewhere (the root number,
+// a stepper, another tab) show up unless they are mid-edit.
+let rateFocused = false
+let rateDirty = false
+let rateFocusRate = 0 // the rate when the field got focus: what Escape restores
+let rateTimer: ReturnType<typeof setTimeout> | null = null
+
+function clearRateTimer() {
+  if (rateTimer !== null) clearTimeout(rateTimer)
+  rateTimer = null
+}
+
 watch(
   () => store.targetRate,
   (newRate) => {
-    rateInput.value = newRate
+    if (rateFocused && rateDirty) return
+    rateInput.value = store.targetItemId ? newRate : ''
   },
 )
+
+// The rate field fits at least 5 digits (the number spin arrows are hidden: the − / + stepper
+// replaces them, and they ate the last digit) and grows leftwards (it is right-aligned) as the
+// number gets longer, up to 9.
+const rateWidth = computed(() => {
+  const digits = String(rateInput.value).length
+  return `calc(${Math.min(Math.max(digits + 1, 5), 9)}ch + 0.75rem)`
+})
 
 const filteredItems = computed<Item[]>(() => {
   const q = searchText.value.toLowerCase().trim()
@@ -101,7 +144,10 @@ function onSearchFocus() {
 function onSearchBlur() {
   // Delay to allow click on dropdown item
   setTimeout(() => {
-    showDropdown.value = false
+    // Focus may have come straight back (the + button clicked within the delay).
+    if (!document.hasFocus() || document.activeElement !== inputRef.value) {
+      showDropdown.value = false
+    }
   }, 150)
 }
 
@@ -135,11 +181,9 @@ function onEsc() {
 
 // --- Per-machine rate stepper ---
 function stepRate(dir: number) {
-  if (!store.targetItemId) return
-  const step = machineStep.value || 1
-  const next = Math.max(0, (Number(store.targetRate) || 0) + dir * step)
-  // Round to avoid floating-point drift from repeated steps.
-  store.setTarget(store.targetItemId, Math.round(next * 1000) / 1000)
+  clearRateTimer()
+  rateDirty = false
+  store.stepTargetRate(dir)
 }
 
 onMounted(() => {
@@ -148,15 +192,86 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  clearRateTimer()
   window.removeEventListener('scroll', updateDropdownPos, true)
   window.removeEventListener('resize', updateDropdownPos)
 })
 
+function onRateFocus() {
+  rateFocused = true
+  rateDirty = false
+  rateFocusRate = store.targetRate
+}
+
+// Typing commits a valid value once the user pauses; an empty or half-typed draft commits nothing
+// (it is settled on blur/Enter).
+function onRateInput() {
+  rateDirty = true
+  clearRateTimer()
+  rateTimer = setTimeout(() => {
+    rateTimer = null
+    const rate = parseWholeRate(rateInput.value)
+    if (rate !== null && store.targetItemId && rate !== store.targetRate) {
+      store.setTarget(store.targetItemId, rate)
+    }
+  }, RATE_DEBOUNCE_MS)
+}
+
+// The target is a whole number of items/min: round the typed value; empty, non-numeric or
+// rounding below 1 puts the current rate back. Fires on Enter and blur, after typing.
 function onRateChange() {
-  const rate = Number(rateInput.value)
-  if (rate >= 0 && store.targetItemId) {
+  clearRateTimer()
+  if (!rateDirty) return
+  rateDirty = false
+  const rate = parseWholeRate(rateInput.value)
+  if (rate !== null && store.targetItemId) {
     store.setTarget(store.targetItemId, rate)
+    rateInput.value = rate
+  } else {
+    rateInput.value = store.targetItemId ? store.targetRate : ''
   }
+}
+
+function onRateBlur() {
+  clearRateTimer()
+  // `change` already settled a typed draft; this settles one that never fired it (and reverts
+  // an empty or invalid draft).
+  onRateChange()
+  rateFocused = false
+  rateDirty = false
+  rateInput.value = store.targetItemId ? store.targetRate : ''
+}
+
+// Escape: back to the rate the field had on focus, undoing debounced commits made during this edit.
+function onRateEscape(e: KeyboardEvent) {
+  e.stopPropagation() // don't also close the detail drawer
+  clearRateTimer()
+  rateDirty = false
+  if (store.targetItemId && store.targetRate !== rateFocusRate) {
+    store.setTarget(store.targetItemId, rateFocusRate, true) // a value the store already held
+  }
+  rateInput.value = rateFocusRate
+  ;(e.target as HTMLInputElement).blur()
+}
+
+// ArrowUp / ArrowDown tick the rate by one item (whole numbers, never below 1), the same as the
+// field's own up/down spin buttons; the -/+ buttons beside it step one machine.
+function onRateArrow(e: KeyboardEvent, dir: 1 | -1) {
+  e.preventDefault()
+  const id = store.targetItemId
+  if (!id) return
+  const typed = Number(rateInput.value)
+  const base = rateInput.value !== '' && Number.isFinite(typed) ? typed : store.targetRate
+  // Whole numbers: from 7.5 up is 8 and down is 7, like the native spin buttons.
+  const next = Math.max(1, dir > 0 ? Math.floor(base + 1e-9) + 1 : Math.ceil(base - 1e-9) - 1)
+  clearRateTimer()
+  rateDirty = false
+  store.setTarget(id, next)
+  rateInput.value = store.targetRate
+}
+
+function onRateEnter(e: KeyboardEvent) {
+  ;(e.target as HTMLInputElement).blur()
 }
 </script>
 
@@ -259,7 +374,8 @@ function onRateChange() {
         <button
           type="button"
           :title="machineStep ? `−${machineStep}/min (one machine)` : 'decrease'"
-          class="px-1.5 sm:px-2 py-1 sm:py-1.5 bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)] transition-colors text-xs sm:text-base leading-none"
+          :disabled="!store.targetItemId"
+          class="px-1.5 sm:px-2 py-1 sm:py-1.5 bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)] transition-colors text-xs sm:text-base leading-none disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[var(--panel-2)] disabled:hover:text-[var(--muted)]"
           @click="stepRate(-1)"
         >
           &minus;
@@ -267,15 +383,27 @@ function onRateChange() {
         <input
           v-model.number="rateInput"
           type="number"
-          min="0"
+          inputmode="numeric"
+          min="1"
           step="1"
-          class="bg-[var(--panel-2)] text-[var(--text)] text-xs sm:text-sm px-0.5 sm:px-1 py-1 sm:py-1.5 w-10 sm:w-12 focus:outline-none transition-colors text-right"
+          :disabled="!store.targetItemId"
+          placeholder="–"
+          :style="{ width: rateWidth }"
+          class="bg-[var(--panel-2)] text-[var(--text)] text-xs sm:text-sm px-0.5 sm:px-1 py-1 sm:py-1.5 min-w-[calc(5ch+0.75rem)] max-w-[calc(9ch+0.75rem)] focus:outline-none transition-colors text-right disabled:opacity-40 disabled:cursor-not-allowed [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+          @focus="onRateFocus"
+          @input="onRateInput"
           @change="onRateChange"
+          @blur="onRateBlur"
+          @keydown.enter="onRateEnter"
+          @keydown.up="onRateArrow($event, 1)"
+          @keydown.down="onRateArrow($event, -1)"
+          @keydown.esc="onRateEscape"
         />
         <button
           type="button"
           :title="machineStep ? `+${machineStep}/min (one machine)` : 'increase'"
-          class="px-1.5 sm:px-2 py-1 sm:py-1.5 bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)] transition-colors text-xs sm:text-base leading-none"
+          :disabled="!store.targetItemId"
+          class="px-1.5 sm:px-2 py-1 sm:py-1.5 bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)] transition-colors text-xs sm:text-base leading-none disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[var(--panel-2)] disabled:hover:text-[var(--muted)]"
           @click="stepRate(1)"
         >
           +

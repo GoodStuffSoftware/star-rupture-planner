@@ -85,7 +85,10 @@ function isV2Building(buildingId: string): boolean {
   <div :class="depth > 0 ? `pl-4 border-l-2 ${getBorderColor(depth - 1)}` : ''">
     <div
       class="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-[var(--panel-2)] transition-colors group w-full"
-      :class="[depth === 0 ? 'py-2' : '', store.showRowDividers ? 'row-underline' : '']"
+      :class="[
+        depth === 0 ? 'py-2 max-sm:flex-wrap' : '', // root: the rate wraps under the name on phones
+        store.showRowDividers ? 'row-underline' : '',
+      ]"
     >
       <!-- Caret / expand button -->
       <button
@@ -243,6 +246,9 @@ function isV2Building(buildingId: string): boolean {
         <!-- Modular Building Tier Selector Component -->
         <NodeBuildingPicker :node="node" />
       </template>
+
+      <!-- Phones, root row: a line break so the sticky rate controls sit under the name -->
+      <div v-if="depth === 0" class="hidden max-sm:block basis-full h-0" />
 
       <!-- Modular Rate & Overage Stepper Component -->
       <NodeOverageInput :node="node" :depth="depth" />

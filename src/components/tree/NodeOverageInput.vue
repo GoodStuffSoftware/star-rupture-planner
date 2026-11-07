@@ -1,8 +1,22 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
 import type { CraftNode } from '../../types/game'
-import { fmt } from '../../lib/format'
+import {
+  fmt,
+  parseWholeRate,
+  stepTargetRateBy,
+  roundRate,
+  rateInputCh,
+  RATE_DEBOUNCE_MS,
+} from '../../lib/format'
 import { usePlannerStore } from '../../stores/plannerStore'
+import { createWheelStepper } from '../../lib/wheelStep'
+import RateStepButton from './RateStepButton.vue'
+
+// The look of an editable rate that reads as plain inline text until hovered or clicked; shared by
+// the root row and the child rows (each adds its own size, colour and focus cue).
+const INLINE_RATE_CLASS =
+  'm-0 border-0 bg-transparent font-mono text-right cursor-text outline-none underline decoration-transparent decoration-dotted underline-offset-4 transition-colors'
 
 const props = defineProps<{
   node: CraftNode
@@ -31,12 +45,15 @@ const displayOverage = computed(() => {
   return 0
 })
 
-const outputInput = ref(props.node.ratePerMin)
+// Shown to 2 decimals at most; stepping and committing still use the full-precision rate.
+const outputInput = ref(roundRate(props.node.ratePerMin))
+// The field grows to the left with what it shows (its right edge is fixed), up to 7 characters.
+const outputCh = computed(() => rateInputCh(String(outputInput.value)))
 
 watch(
   () => props.node.ratePerMin,
   (r) => {
-    outputInput.value = r
+    outputInput.value = roundRate(r)
   },
 )
 
@@ -59,24 +76,143 @@ function stepOutput(dir: number) {
   setOutput(target)
 }
 
+const onOutputWheel = createWheelStepper(stepOutput)
+
 function onOutputChange() {
   const v = Number(outputInput.value)
   if (isFinite(v)) setOutput(v)
-  else outputInput.value = props.node.ratePerMin
+  else outputInput.value = roundRate(props.node.ratePerMin)
 }
 
 function resetOverage() {
   store.setOverage(props.node.path, 0)
 }
 
+// Root row: the big rate is an in-place editor for the active target's rate.
+const rootDraft = ref(fmt(props.node.ratePerMin))
+
+// While the field is focused and the user has typed, its draft belongs to the user: a debounced
+// commit of their own typing must not rewrite it under the cursor. A change from elsewhere (the
+// header field, a stepper, another tab) shows up unless they are mid-edit.
+let rootFocused = false
+let rootDirty = false
+let rootFocusRate = 0 // the target's rate when the field got focus: what Escape restores
+let rootTimer: ReturnType<typeof setTimeout> | null = null
+
+function clearRootTimer() {
+  if (rootTimer !== null) clearTimeout(rootTimer)
+  rootTimer = null
+}
+onBeforeUnmount(clearRootTimer)
+
+watch(
+  () => props.node.ratePerMin,
+  (r) => {
+    if (rootFocused && rootDirty) return
+    rootDraft.value = fmt(r)
+  },
+)
+
+function revertRoot() {
+  rootDraft.value = fmt(store.targetRate)
+}
+
+function onRootFocus() {
+  rootFocused = true
+  rootDirty = false
+  rootFocusRate = store.targetRate
+}
+
+// Typing commits a valid value once the user pauses; an empty or half-typed draft ("", "1.", "abc")
+// commits nothing, and is settled on blur/Enter.
+function onRootInput() {
+  rootDirty = true
+  clearRootTimer()
+  rootTimer = setTimeout(() => {
+    rootTimer = null
+    const rate = parseWholeRate(rootDraft.value)
+    if (rate !== null && store.targetItemId && rate !== store.targetRate) {
+      store.setTarget(store.targetItemId, rate)
+    }
+  }, RATE_DEBOUNCE_MS)
+}
+
+function commitRoot() {
+  clearRootTimer()
+  rootFocused = false
+  rootDirty = false
+  // Untouched text (focus then leave, Escape) must not rewrite a rate the field only displays rounded.
+  if (rootDraft.value === fmt(store.targetRate)) return
+  // The target is a whole number of items/min: round the typed value; one that rounds below 1 reverts.
+  const rate = parseWholeRate(rootDraft.value)
+  if (rate !== null && store.targetItemId) {
+    store.setTarget(store.targetItemId, rate)
+    rootDraft.value = fmt(rate)
+  } else {
+    revertRoot()
+  }
+}
+
+// Escape: back to the rate the field had on focus, undoing debounced commits made during this edit.
+function escapeRoot() {
+  clearRootTimer()
+  rootDirty = false
+  if (store.targetItemId && store.targetRate !== rootFocusRate) {
+    store.setTarget(store.targetItemId, rootFocusRate, true) // a value the store already held
+  }
+  rootDraft.value = fmt(rootFocusRate)
+}
+
+// One producing machine's output for the target: what the root -/+ and arrows step by (as in the header).
+const rootStep = computed(() =>
+  store.targetItemId ? store.defaultRateForItem(store.targetItemId) : 0,
+)
+// Never step the target to zero or below: a step down that would is a no-op (the minus disables).
+const canStepRootDown = computed(
+  () => stepTargetRateBy(store.targetRate, rootStep.value, -1) !== null,
+)
+
+function stepRoot(dir: 1 | -1) {
+  if (dir < 0 && !canStepRootDown.value) return
+  clearRootTimer()
+  rootDirty = false
+  store.stepTargetRate(dir)
+  rootDraft.value = fmt(store.targetRate)
+}
+
+const onRootWheel = createWheelStepper((dir) => {
+  stepRoot(dir)
+  const el = document.activeElement
+  if (el instanceof HTMLInputElement) nextTick(() => el.select())
+})
+
+function onRootKey(e: KeyboardEvent) {
+  const el = e.target as HTMLInputElement
+  if (e.key === 'Enter') {
+    el.blur() // blur commits
+  } else if (e.key === 'Escape') {
+    e.stopPropagation() // don't also close the detail drawer
+    escapeRoot()
+    el.blur()
+  } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+    e.preventDefault()
+    stepRoot(e.key === 'ArrowUp' ? 1 : -1)
+    nextTick(() => el.select())
+  }
+}
+
 const stepTitle = computed(() =>
   machineStep.value ? `${machineStep.value}/min (one machine)` : '1/min',
+)
+const rootStepTitle = computed(() =>
+  rootStep.value ? `${rootStep.value}/min (one machine)` : '1/min',
 )
 </script>
 
 <template>
   <div
-    class="ml-auto flex items-center gap-1.5 shrink-0 pl-3 sticky right-0 z-10 bg-[var(--panel)] group-hover:bg-[var(--panel-2)] transition-colors shadow-[-10px_0_10px_-6px_rgba(0,0,0,0.5)] sm:shadow-none"
+    class="ml-auto self-stretch flex items-center gap-1.5 shrink-0 pl-3 sticky right-0 z-10 bg-[var(--panel)] group-hover:bg-[var(--panel-2)] transition-colors shadow-[-10px_0_10px_-6px_rgba(0,0,0,0.5)] sm:shadow-none"
+    :class="depth === 0 && !canOverage ? 'max-sm:shadow-none' : ''"
   >
     <template v-if="canOverage">
       <!-- Reset button (⟳) -->
@@ -118,49 +254,79 @@ const stepTitle = computed(() =>
         {{ fmt(node.overage ?? 0) }}
       </span>
 
-      <!-- Stepper buttons & input -->
-      <div
-        class="chamfer-sm [--cf-fill:var(--panel-2)] flex items-center p-px gap-px overflow-hidden"
-        @click.stop
-      >
-        <button
-          type="button"
-          :title="`−${stepTitle}`"
-          class="px-1 py-0.5 bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)] transition-colors text-sm leading-none"
+      <!-- Stepper buttons & input: plain inline number with ghost -/+, like the root row -->
+      <div class="flex items-center" @click.stop>
+        <RateStepButton
+          ghost
+          small
+          neutral
+          :dir="-1"
+          :label="`−${stepTitle}`"
           @click.stop="stepOutput(-1)"
-        >
-          &minus;
-        </button>
+        />
         <input
           v-model.number="outputInput"
           type="number"
           min="0"
           step="1"
           :title="'Output items/min — raise above demand to overproduce, lower below it for a deficit'"
-          class="amount-input bg-[var(--panel-2)] text-[var(--text)] text-sm px-1 py-0.5 w-9 text-right font-mono focus:outline-none"
+          :style="{ '--amount-ch': outputCh }"
+          class="amount-input px-0 py-0.5 text-base text-[var(--text)] hover:decoration-[var(--muted)] focus:decoration-[var(--text)]/60 focus:bg-[var(--panel-2)]"
+          :class="INLINE_RATE_CLASS"
           @change="onOutputChange"
+          @wheel="onOutputWheel"
           @click.stop
         />
-        <button
-          type="button"
-          :title="`+${stepTitle}`"
-          class="px-1 py-0.5 bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)] transition-colors text-sm leading-none"
+        <RateStepButton
+          ghost
+          small
+          neutral
+          :dir="1"
+          :label="`+${stepTitle}`"
           @click.stop="stepOutput(1)"
+        />
+        <span
+          class="text-sm font-mono"
+          :class="isDeficit ? 'text-red-400' : 'text-slate-400'"
+          :title="
+            isDeficit ? `Producing below the ${fmt(baseDemand)}/min required here` : undefined
+          "
+          >/min</span
         >
-          +
-        </button>
       </div>
-      <span
-        class="text-sm font-mono"
-        :class="isDeficit ? 'text-red-400' : 'text-slate-400'"
-        :title="isDeficit ? `Producing below the ${fmt(baseDemand)}/min required here` : undefined"
-        >/min</span
-      >
     </template>
-    <!-- depth=0 root: large orange rate (replaces old header) -->
-    <span v-else-if="depth === 0" class="text-xl font-bold font-mono text-[var(--accent)]"
-      >{{ fmt(node.ratePerMin) }}/min</span
-    >
+    <!-- depth=0 root: large orange rate (replaces old header); ghost -/+ show it can go up and down -->
+    <template v-else-if="depth === 0">
+      <div class="flex items-center" @click.stop>
+        <RateStepButton
+          ghost
+          :dir="-1"
+          :label="`−${rootStepTitle}`"
+          :disabled="!canStepRootDown"
+          @click.stop="stepRoot(-1)"
+        />
+        <input
+          v-model="rootDraft"
+          type="text"
+          inputmode="numeric"
+          autocomplete="off"
+          spellcheck="false"
+          aria-label="Target output per minute"
+          title="Target output — click to edit"
+          :style="{ width: `${Math.max(rootDraft.length, 1)}ch` }"
+          class="px-0.5 text-xl font-bold text-[var(--accent)] box-content hover:decoration-[var(--accent)]/60 focus:decoration-[var(--accent)]"
+          :class="INLINE_RATE_CLASS"
+          @focus="onRootFocus"
+          @input="onRootInput"
+          @keydown="onRootKey"
+          @wheel="onRootWheel"
+          @blur="commitRoot"
+          @click.stop
+        />
+        <RateStepButton ghost :dir="1" :label="`+${rootStepTitle}`" @click.stop="stepRoot(1)" />
+        <span class="text-xl font-bold font-mono text-[var(--accent)]">/min</span>
+      </div>
+    </template>
     <!-- depth>0 non-overage nodes -->
     <span v-else class="text-base font-mono text-slate-400">{{ fmt(node.ratePerMin) }}/min</span>
   </div>
@@ -175,5 +341,7 @@ const stepTitle = computed(() =>
 .amount-input {
   -moz-appearance: textfield;
   appearance: textfield;
+  /* Exactly the shown text, plus a hair for the caret: the -/+ sit right next to the number. */
+  width: calc(var(--amount-ch, 1) * 1ch + 2px);
 }
 </style>
