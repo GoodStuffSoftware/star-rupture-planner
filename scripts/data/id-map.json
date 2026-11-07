@@ -52,7 +52,8 @@
     "storage_depot_v1",
     "storage_depot_v2",
     "teleporter",
-    "base_core"
+    "base_core",
+    "smeltertier2"
   ],
   "carryForwardBuildings": [
     "drone_merger_3_to_1",
@@ -101,7 +102,8 @@
     "DA_ResourceRedistributor": "storage_depot_v1",
     "DA_Storage": "storage_depot_v2",
     "DA_Teleporter": "teleporter",
-    "DA_BaseCore": "base_core"
+    "DA_BaseCore": "base_core",
+    "DA_SmelterTier2": "smeltertier2"
   },
   "items": {
     "I_Accumulator": "accumulator",
