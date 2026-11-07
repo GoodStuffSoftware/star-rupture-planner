@@ -62,6 +62,18 @@ describe('parseArtifactName (sr-data-<branch>-<buildid>)', () => {
     })
   })
 
+  it('skips the CI tools artifact (sr-data-tools-<runid>-<branch>-<buildid>)', () => {
+    expect(parseArtifactName('sr-data-tools-42425187905-public_test_branch-26461198')).toBeNull()
+    expect(parseArtifactName('sr-data-public_test_branch-26461198')).toEqual({
+      branch: 'public_test_branch',
+      buildid: '26461198',
+    })
+    expect(parseArtifactName('sr-data-public-25646882')).toEqual({
+      branch: 'public',
+      buildid: '25646882',
+    })
+  })
+
   it('refuses everything else', () => {
     expect(parseArtifactName('sr-data-26461198')).toBeNull() // the old name has no branch: dedupe could not tell builds apart
     expect(parseArtifactName('sr-data-tools-42399350787-1')).toBeNull() // not a Steam branch
