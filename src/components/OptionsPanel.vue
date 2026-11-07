@@ -366,16 +366,6 @@ function selectedBuildingId(chain: { baseId: string; upgradedId: string }): stri
             />
           </div>
 
-          <!-- Tree text size -->
-          <div class="flex items-center justify-between gap-3">
-            <span class="text-base text-[var(--text)]">Text size</span>
-            <SegmentedControl
-              :options="fontScales"
-              :model-value="store.treeFontScale"
-              @update:model-value="store.setTreeFontScale($event as number)"
-            />
-          </div>
-
           <!-- Totals placement -->
           <div class="flex items-center justify-between gap-3">
             <span class="text-base text-[var(--text)]">Totals position</span>
@@ -444,6 +434,16 @@ function selectedBuildingId(chain: { baseId: string; upgradedId: string }): stri
                 }}</span>
               </div>
             </div>
+          </div>
+
+          <!-- Tree text size -->
+          <div class="flex items-center justify-between gap-3">
+            <span class="text-base text-[var(--text)]">Text size</span>
+            <SegmentedControl
+              :options="fontScales"
+              :model-value="store.treeFontScale"
+              @update:model-value="store.setTreeFontScale($event as number)"
+            />
           </div>
 
           <!-- Reset overrides button (only when overrides exist) -->
