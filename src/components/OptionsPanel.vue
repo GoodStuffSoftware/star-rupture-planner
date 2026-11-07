@@ -366,17 +366,8 @@ function selectedBuildingId(chain: { baseId: string; upgradedId: string }): stri
             />
           </div>
 
-          <!-- Totals placement -->
-          <div class="flex items-center justify-between gap-3">
-            <span class="text-base text-[var(--text)]">Totals position</span>
-            <SegmentedControl
-              :options="totalsOptions"
-              :model-value="store.totalsPlacement"
-              @update:model-value="store.setTotalsPlacement($event as 'side' | 'bottom')"
-            />
-          </div>
-
-          <!-- Default for new targets -->
+          <!-- Default for new targets. Order matters: in the two-column grid the even items are the
+               right column, so this (6th) and Text size (8th) stack there, Text size below. -->
           <div class="flex items-center justify-between gap-3">
             <div class="min-w-0">
               <span class="text-base text-[var(--text)]">Default for new targets</span>
@@ -434,6 +425,16 @@ function selectedBuildingId(chain: { baseId: string; upgradedId: string }): stri
                 }}</span>
               </div>
             </div>
+          </div>
+
+          <!-- Totals placement -->
+          <div class="flex items-center justify-between gap-3">
+            <span class="text-base text-[var(--text)]">Totals position</span>
+            <SegmentedControl
+              :options="totalsOptions"
+              :model-value="store.totalsPlacement"
+              @update:model-value="store.setTotalsPlacement($event as 'side' | 'bottom')"
+            />
           </div>
 
           <!-- Tree text size -->
