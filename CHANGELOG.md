@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Right-click tab menu**: Right-click a recipe tab (or long-press it, or press the menu key or Shift+F10) for New tab, Pin/Unpin, Close tab, Close other tabs, Close tabs to the right and Reopen closed tab. The + and Σ All buttons offer New tab and Reopen. Right-click again within a moment (or while the menu is open) for the browser's own menu. The tab strip now also shows with a single pinned tab or a closed tab to reopen. The header rate field fits at least 5 digits.
 - **New-tab behaviour and tab actions (model)**: The + button now opens an empty "New tab" and puts the cursor in a cleared item search, so you can type straight away; picking an item fills that tab at the "Default for new targets" rate. Tabs can be pinned (kept at the left, no close button), the store can close the other or right-hand unpinned tabs, and every closed tab goes on a persisted, cross-tab-synced stack of the last 10 so it can be reopened at its old position. The right-click menu for these comes next.
 
 ### Fixed

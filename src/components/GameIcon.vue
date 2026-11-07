@@ -2,12 +2,16 @@
 import { ref, watch, onUnmounted } from 'vue'
 import { usePlannerStore } from '../stores/plannerStore'
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     kind: 'building' | 'item'
     id: string
     name: string
     size?: number
+    // Size from the parent box (100% x 100%, square, object-contain) instead of `size` px
+    fill?: boolean
+    // Leave the browser's context menu alone (a parent wants to decide what a right-click does)
+    nativeContextMenu?: boolean
   }>(),
   { size: 24 },
 )
@@ -88,6 +92,13 @@ function clearAutoDismissTimer() {
   }
 }
 
+// Suppress the browser menu (long-press image menu on touch) unless a parent asked to keep it
+function guardMenu(e: Event) {
+  // Only a mouse right-click may reach the browser menu; a touch long-press never does.
+  const mouse = (e as MouseEvent).button === 2 || (e as MouseEvent).ctrlKey
+  if (!(props.nativeContextMenu && mouse)) e.preventDefault()
+}
+
 // Touch / press-and-hold
 function onTouchStart(e: TouchEvent) {
   lastTouchTimestamp = Date.now()
@@ -158,7 +169,12 @@ onUnmounted(() => {
   <span
     v-else-if="failed"
     class="inline-flex items-center justify-center rounded bg-[var(--panel-2)] text-[var(--muted)] font-bold select-none shrink-0"
-    :style="{ width: `${size}px`, height: `${size}px`, fontSize: `${Math.max(8, size * 0.45)}px` }"
+    :class="fill ? 'w-full h-full text-[10px]' : undefined"
+    :style="
+      fill
+        ? undefined
+        : { width: `${size}px`, height: `${size}px`, fontSize: `${Math.max(8, size * 0.45)}px` }
+    "
     :title="name"
   >
     {{ fallbackLabel(name) }}
@@ -167,10 +183,11 @@ onUnmounted(() => {
   <!-- Normal image with hover-zoom -->
   <span
     v-else
+    data-game-icon
     class="inline-flex shrink-0 select-none"
+    :class="fill ? 'w-full h-full' : undefined"
     :style="{
-      width: `${size}px`,
-      height: `${size}px`,
+      ...(fill ? {} : { width: `${size}px`, height: `${size}px` }),
       WebkitTouchCallout: 'none',
       WebkitUserSelect: 'none',
       userSelect: 'none',
@@ -182,19 +199,19 @@ onUnmounted(() => {
     @touchmove.passive="onTouchMove"
     @touchend.passive="onTouchEnd"
     @touchcancel.passive="onTouchEnd"
-    @contextmenu.prevent
+    @contextmenu="guardMenu"
   >
     <img
       :src="`/icons/${kind}s/${id}.webp`"
       :alt="name"
-      :width="size"
-      :height="size"
+      :width="fill ? undefined : size"
+      :height="fill ? undefined : size"
       loading="lazy"
       draggable="false"
       class="rounded object-contain w-full h-full pointer-events-none select-none"
       style="-webkit-touch-callout: none; -webkit-user-select: none; user-select: none"
       @error="onError"
-      @contextmenu.prevent
+      @contextmenu="guardMenu"
     />
 
     <!-- Teleport zoom preview to body so it's never clipped -->

@@ -792,6 +792,13 @@ export const usePlannerStore = defineStore('planner', () => {
   const isPinned = (tid: string) => targets.value.some((t) => t.tid === tid && t.pinned)
   /** True when "Reopen last closed tab" has something to reopen. */
   const canReopen = computed(() => closedTabs.value.length > 0)
+  /**
+   * Is the tab strip shown? With 2+ tabs as before, and also with a pinned tab or something to
+   * reopen, so a lone tab can still be right-clicked.
+   */
+  const showTabStrip = computed(
+    () => targets.value.length > 1 || pinnedCount.value > 0 || canReopen.value,
+  )
   /** Is there an unpinned tab other than `tid` for "Close other tabs" to close? */
   function canCloseOthers(tid: string): boolean {
     return targets.value.some((t) => t.tid !== tid && !t.pinned)
@@ -1374,6 +1381,7 @@ export const usePlannerStore = defineStore('planner', () => {
     isEmptyTab,
     hasEmptyTab,
     canReopen,
+    showTabStrip,
     canCloseOthers,
     canCloseToRight,
     canCloseTab,
