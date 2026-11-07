@@ -1,0 +1,182 @@
+name: Publish game data from the CI extract
+
+# Pulls the sr-data-<buildid> artifact that msantoro12/starrupture-ci (sr-data-extract.yml) uploads for each new
+# Steam build, converts it (scripts/publish-game-data.mjs), and publishes it: commit to main, deploy, Discord.
+# No secret besides the repo's own GITHUB_TOKEN and DISCORD_WEBHOOK_URL: starrupture-ci is public, and the
+# GITHUB_TOKEN of this repo can download its artifacts (proved with a throwaway workflow, see the PR).
+#
+# A build is skipped when a SOURCE.json already holds it, or when a tag srdata-<buildid> exists. The tag is the
+# record that a build was handled: published, unchanged, or reported to Discord (gate failed, no name, bad artifact).
+# So a build that changes nothing, or that fails the gate, is not downloaded and announced every 30 minutes.
+# To retry a build: delete its tag, or dispatch with its buildid (that ignores the tag).
+#
+# Nothing is committed when the name cannot be decided or the gate fails: Discord gets the notice, main is untouched.
+
+on:
+  schedule:
+    - cron: '23,53 * * * *' # off the hour, every 30 minutes
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'starrupture-ci run id: process the sr-data artifact(s) of this run (empty: discover)'
+        type: string
+        default: ''
+      buildid:
+        description: 'Steam build id: process sr-data-<buildid> even if it was handled before (empty: discover)'
+        type: string
+        default: ''
+      dry_run:
+        description: 'Plan only: no commit, no tag, no deploy, no Discord'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write # commit to main, record handled builds as srdata-<buildid> tags
+  actions: write # lets a step dispatch deploy.yml
+
+# One group with update-game-data.yml so two jobs never commit to main at once. A queued run waits (it is not cancelled).
+concurrency:
+  group: game-data-main
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Pull and publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI_REPO: msantoro12/starrupture-ci
+      DRY_RUN: ${{ inputs.dry_run && 'true' || 'false' }}
+      INPUT_RUN_ID: ${{ inputs.run_id }}
+      INPUT_BUILDID: ${{ inputs.buildid }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      REF: ${{ github.ref_name }}
+      REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+    steps:
+      - name: Only main may publish
+        if: env.DRY_RUN != 'true' && github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::A real publish commits to main: run this workflow from main, or tick dry_run."
+          exit 1
+
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Find builds to publish
+        id: plan
+        run: |
+          set -euo pipefail
+          [[ "$INPUT_RUN_ID" =~ ^[0-9]*$ ]] || { echo "::error::run_id must be a number"; exit 1; }
+          [[ "$INPUT_BUILDID" =~ ^[0-9]*$ ]] || { echo "::error::buildid must be a number"; exit 1; }
+          : > artifacts.json
+          if [ -n "$INPUT_RUN_ID" ]; then
+            gh api "repos/$CI_REPO/actions/runs/$INPUT_RUN_ID/artifacts?per_page=100" > artifacts.json
+          elif [ -n "$INPUT_BUILDID" ]; then
+            gh api "repos/$CI_REPO/actions/artifacts?name=sr-data-$INPUT_BUILDID&per_page=10" > artifacts.json
+          else
+            # newest first; the sr-data-* artifacts are a few of the many (plugins, checks) each run uploads
+            for page in 1 2 3 4 5; do
+              gh api "repos/$CI_REPO/actions/artifacts?per_page=100&page=$page" >> artifacts.json
+            done
+          fi
+          git ls-remote --tags origin 'refs/tags/srdata-*' | sed 's|.*refs/tags/srdata-||' > seen.txt || true
+          [ -n "$INPUT_RUN_ID" ] && : > seen.txt # a run id is a request to process that run
+          node scripts/plan-game-pull.mjs candidates --artifacts artifacts.json --seen seen.txt ${INPUT_BUILDID:+--buildid "$INPUT_BUILDID"} > candidates.json
+          count=$(jq length candidates.json)
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          echo "$count build(s) to publish:"; jq -c '.[]' candidates.json
+
+      - name: Install dependencies
+        if: steps.plan.outputs.count != '0'
+        run: npm ci
+
+      - name: Download, convert and publish
+        if: steps.plan.outputs.count != '0'
+        run: |
+          set -euo pipefail
+          curl -fsS --retry 3 --max-time 30 "https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=1631270&count=50&maxlength=200" -o news.json
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          say() { # post to Discord (never in a dry run), always print
+            echo "$1"
+            if [ "$DRY_RUN" != 'true' ]; then node scripts/notify-discord.mjs "$1" || true; fi
+          }
+          handled() { # record the build as handled (a tag on the current commit)
+            if [ "$DRY_RUN" != 'true' ]; then git tag -f "srdata-$1" && { git push origin "refs/tags/srdata-$1" || echo "tag srdata-$1 is already on the remote"; }; fi
+          }
+
+          while read -r cand; do
+            buildid=$(jq -r .buildid <<<"$cand"); artifact=$(jq -r .artifactId <<<"$cand"); built=$(jq -r .createdAt <<<"$cand")
+            echo "::group::build $buildid (artifact $artifact)"
+            rm -rf art art.zip result.json
+            gh api "repos/$CI_REPO/actions/artifacts/$artifact/zip" > art.zip
+            unzip -q art.zip -d art
+
+            if [ "$(jq -r .status art/pipeline.json)" != 'ok' ] || [ "$(jq -r .buildid art/pipeline.json)" != "$buildid" ]; then
+              say "Game data NOT published: the sr-data-$buildid artifact is not usable (pipeline.json status $(jq -r .status art/pipeline.json), build $(jq -r .buildid art/pipeline.json)). This run: $RUN_URL"
+              handled "$buildid"; echo '::endgroup::'; continue
+            fi
+            branch=$(jq -r .branch art/pipeline.json)
+
+            if ! title=$(node scripts/plan-game-pull.mjs title --news news.json --branch "$branch" --built-at "$built"); then
+              say "Game data NOT published: no Steam news post names Steam $branch build $buildid (artifact made $built). Publish by hand, or dispatch this workflow with buildid $buildid once the post is up. $RUN_URL"
+              handled "$buildid"; echo '::endgroup::'; continue
+            fi
+            echo "news title: $title"
+
+            rc=0
+            args=(--extract art --branch "$branch" --buildid "$buildid" --title "$title" --result result.json)
+            if [ "$DRY_RUN" = 'true' ]; then args+=(--dry-run); fi
+            node scripts/publish-game-data.mjs "${args[@]}" || rc=$?
+            outcome=$(jq -r '.outcome // "none"' result.json 2>/dev/null || echo none)
+            echo "publish-game-data: exit $rc, outcome $outcome"
+
+            case "$outcome" in
+              published)
+                if [ "$DRY_RUN" = 'true' ]; then
+                  node scripts/plan-game-pull.mjs notice --result result.json --link "run=$RUN_URL"
+                else
+                  version=$(jq -r .versionId result.json)
+                  git add -A public src scripts/data
+                  git commit -q -m "feat(data): publish $version from Steam $branch build $buildid" -m "$(jq -r .changelog result.json)" -m "Source: $CI_REPO sr-data-$buildid. $RUN_URL"
+                  git pull -q --rebase origin "$REF"
+                  git push origin "HEAD:refs/heads/$REF"
+                  handled "$buildid"
+                  for attempt in 1 2 3; do
+                    if gh workflow run deploy.yml --ref "$REF"; then break; fi
+                    echo "deploy dispatch attempt $attempt failed"
+                    if [ "$attempt" -lt 3 ]; then sleep $((attempt * 10)); else echo '::error::could not dispatch deploy.yml'; exit 1; fi
+                  done
+                  msg=$(node scripts/plan-game-pull.mjs notice --result result.json --link "commit=$REPO_URL/commit/$(git rev-parse HEAD)" --link "deploy runs=$REPO_URL/actions/workflows/deploy.yml" --link "run=$RUN_URL")
+                  node scripts/notify-discord.mjs "$msg" || true
+                fi
+                ;;
+              unchanged | already-published)
+                handled "$buildid"
+                ;;
+              gate-failed | name-undecided)
+                handled "$buildid" # publish-game-data.mjs already told Discord; nothing was written
+                ;;
+              *)
+                say "Game data NOT published: publish-game-data.mjs failed for Steam $branch build $buildid (exit $rc, outcome $outcome). $RUN_URL"
+                handled "$buildid"
+                ;;
+            esac
+            echo '::endgroup::'
+          done < <(jq -c '.[]' candidates.json)
+
+      - name: Notify Discord (run failed)
+        if: (failure() || cancelled()) && steps.plan.outputs.count != '0' && env.DRY_RUN != 'true'
+        run: |
+          node scripts/notify-discord.mjs "The game data publish run failed or was cancelled. A data commit may already be on main without a deploy: if the run log shows it was pushed, run: gh workflow run deploy.yml --ref main
+          This run: $RUN_URL" || true
