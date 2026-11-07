@@ -39,6 +39,7 @@ jobs:
       - name: Check game version
         env:
           GH_TOKEN: ${{ github.token }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
           args=()

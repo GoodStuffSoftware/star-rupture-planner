@@ -5,13 +5,23 @@
 //   node scripts/check-game-version.mjs [--dry-run] [--now <ISO date>]
 //
 // Env: CHECK_REPO (owner/name, default GITHUB_REPOSITORY, else the gh current repo),
-//      GRACE_DAYS_LIVE (3), GRACE_DAYS_PTB (10), CHECK_LABEL (game-update).
+//      GRACE_DAYS_LIVE (3), GRACE_DAYS_PTB (10), CHECK_LABEL (game-update, put on new issues),
+//      DISCORD_WEBHOOK_URL (optional: a short notice is posted when an issue is opened or
+//      commented on; a dry run never posts).
 // Needs a full-history checkout (git log is used for when each version's data last changed)
 // and an authenticated gh CLI (GH_TOKEN in Actions) with issues: write.
 import { execFileSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { decideAll, DEFAULT_GRACE_DAYS, LIVE, PTB, isoDate } from './lib/versionCheck.mjs'
+import {
+  decideAll,
+  DEFAULT_GRACE_DAYS,
+  LIVE,
+  PTB,
+  isoDate,
+  renderNotice,
+  trustedIssues,
+} from './lib/versionCheck.mjs'
 
 const APPID = 1631270
 const root = fileURLToPath(new URL('..', import.meta.url))
@@ -103,12 +113,27 @@ function dataChangedTimes(versions) {
   return out
 }
 
+// Discord notice through scripts/notify-discord.mjs (always exits 0; no webhook set = no post).
+// Only called outside dry runs.
+function notify(text) {
+  try {
+    const out = run(process.execPath, [`${root}scripts/notify-discord.mjs`, text])
+    console.log(`  ${out.trim()}`)
+  } catch (err) {
+    console.warn(`  could not run notify-discord: ${err.message}`)
+  }
+}
+
 function targetRepo() {
   if (process.env.CHECK_REPO) return process.env.CHECK_REPO
   if (process.env.GITHUB_REPOSITORY) return process.env.GITHUB_REPOSITORY
   return run('gh', ['repo', 'view', '--json', 'nameWithOwner', '--jq', '.nameWithOwner']).trim()
 }
 
+// Every issue, not just the labelled ones: the hidden marker in the text is what identifies
+// ours, so removing the label cannot cause a duplicate. Only text from the workflow or from
+// people with write access is kept (see trustedIssues; gh gives an association for comments
+// only, so an issue counts when the workflow's github-actions account wrote it).
 function listIssues(repo) {
   try {
     const out = run('gh', [
@@ -116,16 +141,14 @@ function listIssues(repo) {
       'list',
       '--repo',
       repo,
-      '--label',
-      label,
       '--state',
       'all',
       '--limit',
-      '200',
+      '1000',
       '--json',
-      'number,state,body,comments',
+      'number,state,body,comments,createdAt,author',
     ])
-    return JSON.parse(out)
+    return trustedIssues(JSON.parse(out))
   } catch (err) {
     if (!dryRun) fail(`gh issue list failed: ${err.stderr || err.message}`)
     console.warn(`(dry run) could not list issues, assuming none: ${err.stderr || err.message}`)
@@ -197,6 +220,7 @@ for (const d of decisions) {
       d.body,
     ).trim()
     console.log(`  opened ${url}`)
+    notify(renderNotice(d, url))
   } else {
     run(
       'gh',
@@ -204,5 +228,6 @@ for (const d of decisions) {
       d.comment,
     )
     console.log(`  commented on #${d.issueNumber}`)
+    notify(renderNotice(d, `https://github.com/${repo}/issues/${d.issueNumber}`))
   }
 }

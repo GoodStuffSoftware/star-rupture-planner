@@ -12,11 +12,16 @@ export interface NewsItem {
   date: number
   url?: string
 }
-export interface IssueRecord {
+export interface Authored {
+  author?: { login?: string } | null
+  authorAssociation?: string
+}
+export interface IssueRecord extends Authored {
   number: number
   state: string
   body?: string
-  comments?: { body?: string }[]
+  createdAt?: string
+  comments?: ({ body?: string } & Authored)[]
 }
 export interface Decision {
   branch: string
@@ -46,8 +51,11 @@ export interface DecideContext {
 }
 
 export function classifyAnnouncement(title: string): 'public' | 'public_test_branch' | null
-export function marker(branch: string, buildid: string | number): string
-export function parseMarkers(text?: string): { branch: string; build: string }[]
+export function escapeMarkdown(text: unknown, max?: number): string
+export function marker(branch: string, buildid: string | number, updated?: string | number): string
+export function parseMarkers(text?: string): { branch: string; build: string; updated?: number }[]
+export function isTrustedAuthor(item: Authored | null | undefined): boolean
+export function trustedIssues<T extends IssueRecord>(issues: T[]): T[]
 export function isoDate(seconds: number): string
 export function coverage(
   branch: string,
@@ -59,3 +67,4 @@ export function decideAll(ctx: DecideContext): Decision[]
 export function renderTitle(d: Decision): string
 export function renderBody(d: Decision): string
 export function renderComment(d: Decision): string
+export function renderNotice(d: Decision, issueUrl: string): string
