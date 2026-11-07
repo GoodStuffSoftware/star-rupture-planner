@@ -66,7 +66,7 @@ describe('selector order', () => {
   it('lists newest first without mutating VERSIONS', () => {
     const before = VERSIONS.map((v) => v.id)
     expect(newestFirst(VERSIONS).map((v) => v.id)).toEqual([...before].reverse())
-    expect(newestFirst(VERSIONS)[0].id).toBe('update2_QoL')
+    expect(newestFirst(VERSIONS)[0].id).toBe(sortVersions(before).at(-1))
     expect(VERSIONS.map((v) => v.id)).toEqual(before)
   })
 
