@@ -1,0 +1,4 @@
+# Line endings: LF in the repo and in every checkout, so a shebang line never gets a CR (a CRLF "#!" line is a
+# SyntaxError in node) and the CI and Windows agree on bytes. Git leaves files that are stored with CRLF alone
+# (upstream game data: converter output is CRLF too, the publisher compares line-ending-insensitively).
+* text=auto eol=lf

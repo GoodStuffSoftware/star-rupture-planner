@@ -38,3 +38,6 @@ tools/**/bin/
 tools/**/obj/
 *.usmap
 extract-out/
+
+# publish-game-data.mjs staging dir (removed when the script ends)
+.publish-stage-*/
