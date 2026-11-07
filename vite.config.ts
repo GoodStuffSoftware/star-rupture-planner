@@ -19,6 +19,7 @@ function buildCommit(): string {
     })
       .toString()
       .trim()
+      .slice(0, 7)
   } catch {
     return ''
   }

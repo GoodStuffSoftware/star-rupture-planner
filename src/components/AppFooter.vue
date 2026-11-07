@@ -61,8 +61,8 @@ const link =
                 rel="noopener noreferrer"
                 title="View the changelog"
                 data-testid="app-version"
-                class="chamfer-sm inline-block px-2 py-0.5 text-[var(--accent)] transition-colors [--cf-border:var(--accent-soft-border)] [--cf-fill:var(--panel-2)] hover:text-[var(--accent-hover)]"
-                >v{{ version }}</a
+                class="chamfer-sm inline-block px-2 py-0.5 text-[var(--accent)] transition-colors [--cf-border:var(--accent-soft-border)] [--cf-fill:var(--panel-2)] hover:text-[var(--accent-hover)] focus-visible:text-[var(--accent-hover)] focus-visible:[--cf-border:var(--accent)]"
+                ><span class="sr-only">Changelog, </span>v{{ version }}</a
               >
               <span v-if="commit" data-testid="app-commit"
                 ><span class="sr-only">build </span>{{ commit }}</span
