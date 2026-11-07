@@ -13,6 +13,11 @@ import { usePlannerStore } from '../../stores/plannerStore'
 import { createWheelStepper } from '../../lib/wheelStep'
 import RateStepButton from './RateStepButton.vue'
 
+// The look of an editable rate that reads as plain inline text until hovered or clicked; shared by
+// the root row and the child rows (each adds its own size, colour and focus cue).
+const INLINE_RATE_CLASS =
+  'm-0 border-0 bg-transparent font-mono text-right cursor-text outline-none underline decoration-transparent decoration-dotted underline-offset-4 hover:decoration-[var(--accent)]/60 transition-colors'
+
 const props = defineProps<{
   node: CraftNode
   depth: number
@@ -250,12 +255,15 @@ const rootStepTitle = computed(() =>
         {{ fmt(node.overage ?? 0) }}
       </span>
 
-      <!-- Stepper buttons & input -->
-      <div
-        class="chamfer-sm [--cf-fill:var(--panel-2)] flex items-center p-px gap-px overflow-hidden"
-        @click.stop
-      >
-        <RateStepButton :dir="-1" :label="`−${stepTitle}`" @click.stop="stepOutput(-1)" />
+      <!-- Stepper buttons & input: plain inline number with ghost -/+, like the root row -->
+      <div class="flex items-center gap-0.5" @click.stop>
+        <RateStepButton
+          ghost
+          small
+          :dir="-1"
+          :label="`−${stepTitle}`"
+          @click.stop="stepOutput(-1)"
+        />
         <input
           v-model.number="outputInput"
           type="number"
@@ -263,19 +271,22 @@ const rootStepTitle = computed(() =>
           step="1"
           :title="'Output items/min — raise above demand to overproduce, lower below it for a deficit'"
           :style="{ '--amount-ch': outputCh }"
-          class="amount-input bg-[var(--panel-2)] text-[var(--text)] text-sm px-1 py-0.5 text-right font-mono focus:outline-none"
+          class="amount-input px-1 py-0.5 text-sm text-[var(--text)] rounded-sm focus:bg-[var(--panel-2)] focus:ring-1 focus:ring-[var(--accent)]"
+          :class="INLINE_RATE_CLASS"
           @change="onOutputChange"
           @wheel="onOutputWheel"
           @click.stop
         />
-        <RateStepButton :dir="1" :label="`+${stepTitle}`" @click.stop="stepOutput(1)" />
+        <RateStepButton ghost small :dir="1" :label="`+${stepTitle}`" @click.stop="stepOutput(1)" />
+        <span
+          class="ml-0.5 text-sm font-mono"
+          :class="isDeficit ? 'text-red-400' : 'text-slate-400'"
+          :title="
+            isDeficit ? `Producing below the ${fmt(baseDemand)}/min required here` : undefined
+          "
+          >/min</span
+        >
       </div>
-      <span
-        class="text-sm font-mono"
-        :class="isDeficit ? 'text-red-400' : 'text-slate-400'"
-        :title="isDeficit ? `Producing below the ${fmt(baseDemand)}/min required here` : undefined"
-        >/min</span
-      >
     </template>
     <!-- depth=0 root: large orange rate (replaces old header); ghost -/+ show it can go up and down -->
     <template v-else-if="depth === 0">
@@ -296,7 +307,8 @@ const rootStepTitle = computed(() =>
           aria-label="Target output per minute"
           title="Target output — click to edit"
           :style="{ width: `${Math.max(rootDraft.length, 1)}ch` }"
-          class="m-0 px-0.5 border-0 bg-transparent text-xl font-bold font-mono text-[var(--accent)] text-right cursor-text outline-none underline decoration-transparent decoration-dotted underline-offset-4 hover:decoration-[var(--accent)]/60 focus:decoration-[var(--accent)] transition-colors box-content"
+          class="px-0.5 text-xl font-bold text-[var(--accent)] box-content focus:decoration-[var(--accent)]"
+          :class="INLINE_RATE_CLASS"
           @focus="onRootFocus"
           @input="onRootInput"
           @keydown="onRootKey"
@@ -305,7 +317,7 @@ const rootStepTitle = computed(() =>
           @click.stop
         />
         <RateStepButton ghost :dir="1" :label="`+${rootStepTitle}`" @click.stop="stepRoot(1)" />
-        <span class="ml-1 text-xl font-bold font-mono text-[var(--accent)]">/min</span>
+        <span class="ml-0.5 text-xl font-bold font-mono text-[var(--accent)]">/min</span>
       </div>
     </template>
     <!-- depth>0 non-overage nodes -->
