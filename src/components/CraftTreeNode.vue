@@ -247,6 +247,9 @@ function isV2Building(buildingId: string): boolean {
         <NodeBuildingPicker :node="node" />
       </template>
 
+      <!-- Phones, root row: a line break so the sticky rate controls sit under the name -->
+      <div v-if="depth === 0" class="hidden max-sm:block basis-full h-0" />
+
       <!-- Modular Rate & Overage Stepper Component -->
       <NodeOverageInput :node="node" :depth="depth" />
     </div>
