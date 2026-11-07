@@ -1,23 +1,14 @@
 <script setup lang="ts">
-import { computed } from 'vue'
 import SupportButton from './SupportButton.vue'
-import { usePlannerStore } from '../stores/plannerStore'
-import { VERSIONS } from '../data/versions'
 
 const REPO = 'https://github.com/GoodStuffSoftware/star-rupture-planner'
 const CHANGELOG_URL = `${REPO}/blob/main/CHANGELOG.md`
 const FEEDBACK_URL = `${REPO}/issues/new?labels=feedback&template=feedback.md&title=%5BFeedback%5D+`
 
-const store = usePlannerStore()
-
-// Served from public/ (a copy of the company's dark-mode logo mark).
-const LOGO_SRC = '/gss-logo.svg'
+// Served from public/: the studio's mark + wordmark lockup (dark-surface colours, text outlined).
+const LOGO_SRC = '/gss-lockup.svg'
 const year = 2026
 const version = __APP_VERSION__
-const commit = __APP_COMMIT__
-const gameVersionLabel = computed(
-  () => VERSIONS.find((v) => v.id === store.version)?.label ?? store.version,
-)
 
 // Shared look for every text link in the footer.
 const link =
@@ -25,40 +16,32 @@ const link =
 </script>
 
 <template>
-  <footer class="px-2 py-2 sm:px-4">
-    <!-- One spacing unit (p-2.5) on all four sides and around the divider. -->
-    <div class="chamfer mx-auto max-w-screen-xl text-xs text-[var(--muted)]">
-      <!-- Main row: brand + links | coffee (dead centre) | build identity -->
+  <!-- Sits directly on the page background: no panel, border or fill. Same horizontal inset and
+       max width as <main>; equal top and bottom padding. -->
+  <footer class="px-2 py-4 sm:px-4">
+    <div class="mx-auto flex max-w-screen-xl flex-col gap-4 text-xs text-[var(--muted)]">
+      <!-- Main row: logo + links | coffee (dead centre) | version -->
       <div
-        class="grid grid-cols-1 items-center justify-items-center gap-2.5 p-2.5 lg:grid-cols-[1fr_auto_1fr] lg:justify-items-stretch"
+        class="grid grid-cols-1 items-center justify-items-center gap-4 lg:grid-cols-[1fr_auto_1fr] lg:justify-items-stretch"
       >
-        <div class="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 lg:justify-start">
-          <div class="flex items-center gap-2">
-            <a
-              href="https://goodstuffsoftware.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="inline-flex"
-              data-testid="gss-logo"
-            >
-              <img
-                :src="LOGO_SRC"
-                alt="Good Stuff Software"
-                width="20"
-                height="20"
-                class="h-5 w-5"
-              />
-            </a>
-            <span class="text-sm font-semibold text-[var(--text-strong)]">Good Stuff Software</span>
-          </div>
-          <nav aria-label="Footer links" class="flex flex-wrap items-center gap-x-4 gap-y-2">
-            <a
-              href="https://goodstuffsoftware.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              :class="link"
-              >goodstuffsoftware.com</a
-            >
+        <div class="flex flex-col items-center gap-2 lg:items-start">
+          <a
+            href="https://goodstuffsoftware.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Good Stuff Software"
+            class="inline-flex rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
+            data-testid="gss-logo"
+          >
+            <img
+              :src="LOGO_SRC"
+              alt="Good Stuff Software"
+              width="129"
+              height="36"
+              class="h-9 w-auto"
+            />
+          </a>
+          <nav aria-label="Footer links" class="flex items-center gap-x-4">
             <a :href="REPO" target="_blank" rel="noopener noreferrer" :class="link">GitHub</a>
             <a :href="FEEDBACK_URL" target="_blank" rel="noopener noreferrer" :class="link"
               >Feedback</a
@@ -68,59 +51,38 @@ const link =
 
         <SupportButton />
 
-        <dl class="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 lg:justify-end">
-          <dt class="sr-only">App version</dt>
-          <dd class="flex items-center gap-3 font-mono">
-            <a
-              :href="CHANGELOG_URL"
-              target="_blank"
-              rel="noopener noreferrer"
-              title="View the changelog"
-              data-testid="app-version"
-              class="chamfer-sm inline-flex h-6 items-center px-2.5 text-[var(--accent)] transition-colors [--cf-border:var(--accent-soft-border)] [--cf-fill:var(--panel-2)] hover:text-[var(--accent-hover)] focus-visible:text-[var(--accent-hover)] focus-visible:[--cf-border:var(--accent)]"
-              ><span class="sr-only">Changelog, </span>v{{ version }}</a
-            >
-            <a
-              v-if="commit"
-              :href="`${REPO}/commit/${commit}`"
-              target="_blank"
-              rel="noopener noreferrer"
-              title="View this build's commit"
-              data-testid="app-commit"
-              :class="link"
-              ><span class="sr-only">build </span>{{ commit }}</a
-            >
-          </dd>
-          <dt>Game data</dt>
-          <dd class="-ml-1.5 font-mono text-[var(--text-2)]" data-testid="game-data-version">
-            {{ gameVersionLabel }}
-          </dd>
-        </dl>
+        <a
+          :href="CHANGELOG_URL"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="View the changelog"
+          data-testid="app-version"
+          class="font-mono text-[var(--accent)] transition-colors hover:text-[var(--accent-hover)] focus-visible:text-[var(--accent-hover)] lg:justify-self-end"
+          ><span class="sr-only">Changelog, </span>v{{ version }}</a
+        >
       </div>
 
-      <!-- Bottom: disclaimer + attribution -->
-      <div class="border-t border-[var(--border)] p-2.5 text-center leading-tight lg:text-left">
-        <p>
-          Unofficial fan tool, not affiliated with or endorsed by Creepy Jar. Free to use; donations
-          welcome. Game data &amp; icons from
-          <a
-            href="https://github.com/flexsurfer/starrupture-planner"
-            target="_blank"
-            rel="noopener noreferrer"
-            :class="link"
-            >flexsurfer/starrupture-planner</a
-          >
-          (MIT) and the
-          <a
-            href="https://starrupture.wiki.gg"
-            target="_blank"
-            rel="noopener noreferrer"
-            :class="link"
-            >Star Rupture Wiki</a
-          >
-          (CC BY-SA 4.0). &copy; {{ year }} Good Stuff Software LLC.
-        </p>
-      </div>
+      <!-- Fine print: disclaimer + attribution (licence terms require the credits) -->
+      <p class="mx-auto max-w-screen-xl text-balance text-center text-[0.6875rem] leading-snug">
+        Unofficial fan tool, not affiliated with or endorsed by Creepy Jar. Game data &amp; icons
+        from
+        <a
+          href="https://github.com/flexsurfer/starrupture-planner"
+          target="_blank"
+          rel="noopener noreferrer"
+          :class="link"
+          >flexsurfer/starrupture-planner</a
+        >
+        (MIT) and the
+        <a
+          href="https://starrupture.wiki.gg"
+          target="_blank"
+          rel="noopener noreferrer"
+          :class="link"
+          >Star Rupture Wiki</a
+        >
+        (CC BY-SA 4.0). &copy; {{ year }} Good Stuff Software LLC.
+      </p>
     </div>
   </footer>
 </template>
