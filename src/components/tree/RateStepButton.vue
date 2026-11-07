@@ -8,6 +8,8 @@ defineProps<{
   ghost?: boolean
   /** Ghost at the size of the row text (child rows) rather than the larger root size. */
   small?: boolean
+  /** Ghost on a child row: turns the normal text colour on hover, not the accent. */
+  neutral?: boolean
 }>()
 </script>
 
@@ -19,7 +21,9 @@ defineProps<{
     :class="
       ghost
         ? (small ? 'px-1 py-0.5 text-sm' : 'px-1 py-0.5 text-lg') +
-          ' leading-none text-[var(--muted)] hover:text-[var(--accent)] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-[var(--muted)] transition-colors'
+          ' leading-none text-[var(--muted)] ' +
+          (neutral ? 'hover:text-[var(--text)]' : 'hover:text-[var(--accent)]') +
+          ' disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-[var(--muted)] transition-colors'
         : 'px-1 py-0.5 bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[var(--panel-2)] disabled:hover:text-[var(--muted)] transition-colors text-sm leading-none'
     "
   >
