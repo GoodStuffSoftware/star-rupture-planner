@@ -16,6 +16,10 @@ import {
   consumeLongPressClick,
 } from '../lib/tabMenu'
 
+// Art fill inside the tab's icon box (chip height minus 3px each side): the art sits ~5px from
+// the chip edge at the default Text size. Relative, so it scales with Text size.
+const TAB_ART_FILL = 0.85
+
 const store = usePlannerStore()
 
 function labelFor(itemId: string | null): string {
@@ -137,7 +141,7 @@ function onChipClick(tid: string) {
               kind="item"
               :name="labelFor(t.targetItemId)"
               fill
-              trim
+              :art-fill="TAB_ART_FILL"
               native-context-menu
             />
             <!-- Icons off: the name's first letters stand in -->

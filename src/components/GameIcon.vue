@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, onUnmounted, computed } from 'vue'
-import { cachedTrim, loadTrim } from '../lib/iconTrim'
+import { cachedTrim, loadTrim, trimTransform, ICON_ART_FILL } from '../lib/iconTrim'
+import type { InkBox } from '../lib/iconTrim'
 import { usePlannerStore } from '../stores/plannerStore'
 
 const props = withDefaults(
@@ -13,10 +14,12 @@ const props = withDefaults(
     fill?: boolean
     // Leave the browser's context menu alone (a parent wants to decide what a right-click does)
     nativeContextMenu?: boolean
-    // Centre the visible art in the box and scale its larger side to fill it (opt-in)
+    // Centre the visible art in the box and scale it to `artFill` (on by default)
     trim?: boolean
+    // Share of the box side the art's larger side fills (0-1)
+    artFill?: number
   }>(),
-  { size: 24 },
+  { size: 24, trim: true, artFill: ICON_ART_FILL },
 )
 
 const store = usePlannerStore()
@@ -24,22 +27,25 @@ const failed = ref(false)
 
 const imgSrc = computed(() => `/icons/${props.kind}s/${props.id}.webp`)
 // undefined = still measuring (image hidden so it never jumps); null = untrimmed
-const trimCss = ref<string | null | undefined>(undefined)
+const inkBox = ref<InkBox | null | undefined>(undefined)
+const trimCss = computed(() =>
+  inkBox.value ? trimTransform(inkBox.value, props.artFill) : inkBox.value,
+)
 watch(
   [() => props.trim, imgSrc],
   ([on, src]) => {
     if (!on) {
-      trimCss.value = null
+      inkBox.value = null
       return
     }
     const hit = cachedTrim(src)
     if (hit !== undefined) {
-      trimCss.value = hit
+      inkBox.value = hit
       return
     }
-    trimCss.value = undefined
+    inkBox.value = undefined
     loadTrim(src).then((t) => {
-      if (imgSrc.value === src) trimCss.value = t
+      if (imgSrc.value === src) inkBox.value = t
     })
   },
   { immediate: true },
