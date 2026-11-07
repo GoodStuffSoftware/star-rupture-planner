@@ -97,8 +97,8 @@ Key fields:
 
 ## The guard
 
-A wrong usmap does not throw, it makes fields vanish (with a usmap from an older build, 0 of 186 recipes kept
-`BuildTime`, `OutputItem` and `NeededResources`). Two checks stop that, both exit non-zero unless `--allow-mismatch`:
+A wrong usmap does not throw, it makes fields vanish (with the CL118258 usmap on a CL127004 build, none of the 257
+recipes kept `OutputItem` and none kept `BuildTime`). Two checks stop that, both exit non-zero unless `--allow-mismatch`:
 
 1. **Usmap vs. build (exit 2), before any asset is read.**
    - Usmap changelist: from the file name (`5.6.1-<CL>+++<branch>-...usmap`), else a `CL<digits>` in the file name, else in
