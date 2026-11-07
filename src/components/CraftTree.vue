@@ -56,10 +56,18 @@ const store = usePlannerStore()
         />
       </svg>
       <div>
-        <p class="text-slate-400 font-medium">Select a target item</p>
-        <p class="text-slate-600 text-sm mt-1">
-          Use the search above to pick an item and set a rate
-        </p>
+        <template v-if="!store.targetItemId">
+          <p class="text-slate-400 font-medium">New tab</p>
+          <p class="text-slate-600 text-sm mt-1">
+            Search for an item above to start a recipe in this tab
+          </p>
+        </template>
+        <template v-else>
+          <p class="text-slate-400 font-medium">Select a target item</p>
+          <p class="text-slate-600 text-sm mt-1">
+            Use the search above to pick an item and set a rate
+          </p>
+        </template>
       </div>
     </div>
 

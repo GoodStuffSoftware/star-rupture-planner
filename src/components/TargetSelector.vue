@@ -8,7 +8,8 @@ import type { Item } from '../types/game'
 const store = usePlannerStore()
 
 const searchText = ref('')
-const rateInput = ref(store.targetRate)
+// '' while the active tab is empty (nothing to set a rate on)
+const rateInput = ref<number | ''>(store.targetItemId ? store.targetRate : '')
 const showDropdown = ref(false)
 const inputRef = ref<HTMLInputElement | null>(null)
 const dropdownEl = ref<HTMLElement | null>(null)
@@ -24,9 +25,28 @@ watch(
       if (item) {
         searchText.value = item.name
       }
+      rateInput.value = store.targetRate
+    } else {
+      // An empty tab: nothing to show in the search box, no rate yet
+      searchText.value = ''
+      rateInput.value = ''
     }
   },
   { immediate: true },
+)
+
+// A new tab was opened: clear the search box, put the cursor in it and open the list, so the
+// user can type at once.
+watch(
+  () => store.searchFocusTick,
+  () => {
+    searchText.value = ''
+    activeIndex.value = 0
+    nextTick(() => {
+      inputRef.value?.focus()
+      openDropdown()
+    })
+  },
 )
 
 // While this field is focused and the user has typed, its draft is theirs: a debounced commit of
@@ -46,7 +66,7 @@ watch(
   () => store.targetRate,
   (newRate) => {
     if (rateFocused && rateDirty) return
-    rateInput.value = newRate
+    rateInput.value = store.targetItemId ? newRate : ''
   },
 )
 
@@ -116,7 +136,8 @@ function onSearchFocus() {
 function onSearchBlur() {
   // Delay to allow click on dropdown item
   setTimeout(() => {
-    showDropdown.value = false
+    // Focus may have come straight back (the + button clicked within the delay).
+    if (document.activeElement !== inputRef.value) showDropdown.value = false
   }, 150)
 }
 
@@ -197,7 +218,7 @@ function onRateChange() {
     store.setTarget(store.targetItemId, rate)
     rateInput.value = rate
   } else {
-    rateInput.value = store.targetRate
+    rateInput.value = store.targetItemId ? store.targetRate : ''
   }
 }
 
@@ -208,7 +229,7 @@ function onRateBlur() {
   onRateChange()
   rateFocused = false
   rateDirty = false
-  rateInput.value = store.targetRate
+  rateInput.value = store.targetItemId ? store.targetRate : ''
 }
 
 // Escape: back to the rate the field had on focus, undoing debounced commits made during this edit.
@@ -327,7 +348,8 @@ function onRateEnter(e: KeyboardEvent) {
         <button
           type="button"
           :title="machineStep ? `−${machineStep}/min (one machine)` : 'decrease'"
-          class="px-1.5 sm:px-2 py-1 sm:py-1.5 bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)] transition-colors text-xs sm:text-base leading-none"
+          :disabled="!store.targetItemId"
+          class="px-1.5 sm:px-2 py-1 sm:py-1.5 bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)] transition-colors text-xs sm:text-base leading-none disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[var(--panel-2)] disabled:hover:text-[var(--muted)]"
           @click="stepRate(-1)"
         >
           &minus;
@@ -338,7 +360,9 @@ function onRateEnter(e: KeyboardEvent) {
           inputmode="numeric"
           min="1"
           step="1"
-          class="bg-[var(--panel-2)] text-[var(--text)] text-xs sm:text-sm px-0.5 sm:px-1 py-1 sm:py-1.5 w-10 sm:w-12 focus:outline-none transition-colors text-right"
+          :disabled="!store.targetItemId"
+          placeholder="–"
+          class="bg-[var(--panel-2)] text-[var(--text)] text-xs sm:text-sm px-0.5 sm:px-1 py-1 sm:py-1.5 w-10 sm:w-12 focus:outline-none transition-colors text-right disabled:opacity-40 disabled:cursor-not-allowed"
           @focus="onRateFocus"
           @input="onRateInput"
           @change="onRateChange"
@@ -349,7 +373,8 @@ function onRateEnter(e: KeyboardEvent) {
         <button
           type="button"
           :title="machineStep ? `+${machineStep}/min (one machine)` : 'increase'"
-          class="px-1.5 sm:px-2 py-1 sm:py-1.5 bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)] transition-colors text-xs sm:text-base leading-none"
+          :disabled="!store.targetItemId"
+          class="px-1.5 sm:px-2 py-1 sm:py-1.5 bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)] transition-colors text-xs sm:text-base leading-none disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[var(--panel-2)] disabled:hover:text-[var(--muted)]"
           @click="stepRate(1)"
         >
           +
