@@ -117,11 +117,10 @@ function revertRoot() {
   rootDraft.value = fmt(store.targetRate)
 }
 
-function onRootFocus(e: FocusEvent) {
+function onRootFocus() {
   rootFocused = true
   rootDirty = false
   rootFocusRate = store.targetRate
-  ;(e.target as HTMLInputElement).select()
 }
 
 // Typing commits a valid value once the user pauses; an empty or half-typed draft ("", "1.", "abc")
@@ -256,7 +255,7 @@ const rootStepTitle = computed(() =>
       </span>
 
       <!-- Stepper buttons & input: plain inline number with ghost -/+, like the root row -->
-      <div class="flex items-center gap-0.5" @click.stop>
+      <div class="flex items-center" @click.stop>
         <RateStepButton
           ghost
           small
@@ -272,7 +271,7 @@ const rootStepTitle = computed(() =>
           step="1"
           :title="'Output items/min — raise above demand to overproduce, lower below it for a deficit'"
           :style="{ '--amount-ch': outputCh }"
-          class="amount-input px-0 py-0.5 text-sm text-[var(--text)] hover:decoration-[var(--muted)] focus:decoration-[var(--text)]/60 focus:bg-[var(--panel-2)]"
+          class="amount-input px-0 py-0.5 text-base text-[var(--text)] hover:decoration-[var(--muted)] focus:decoration-[var(--text)]/60 focus:bg-[var(--panel-2)]"
           :class="INLINE_RATE_CLASS"
           @change="onOutputChange"
           @wheel="onOutputWheel"
@@ -298,7 +297,7 @@ const rootStepTitle = computed(() =>
     </template>
     <!-- depth=0 root: large orange rate (replaces old header); ghost -/+ show it can go up and down -->
     <template v-else-if="depth === 0">
-      <div class="flex items-center gap-0.5" @click.stop>
+      <div class="flex items-center" @click.stop>
         <RateStepButton
           ghost
           :dir="-1"

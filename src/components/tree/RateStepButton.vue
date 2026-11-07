@@ -20,7 +20,9 @@ defineProps<{
     :aria-label="label"
     :class="
       ghost
-        ? (small ? 'px-1 py-0.5 text-sm' : 'px-1 py-0.5 text-lg') +
+        ? 'py-0.5 ' +
+          (dir < 0 ? (small ? 'pl-1 pr-0.5' : 'pl-1 pr-0') : 'pl-0 pr-0.5') +
+          (small ? ' text-base' : ' text-lg') +
           ' leading-none text-[var(--muted)] ' +
           (neutral ? 'hover:text-[var(--text)]' : 'hover:text-[var(--accent)]') +
           ' disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-[var(--muted)] transition-colors'
