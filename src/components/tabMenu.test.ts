@@ -543,7 +543,7 @@ describe('chip layout', () => {
     await nextTick()
     for (const chip of chips()) {
       const box = chip.querySelector<HTMLElement>('[data-testid="tab-icon"]')!
-      expect(box.className).toMatch(/self-stretch/)
+      expect(box.className).toMatch(/\bh-full\b/)
       expect(box.className).toMatch(/aspect-square/)
       const img = box.querySelector<HTMLElement>('img')!
       expect(img.className).toMatch(/object-contain/)

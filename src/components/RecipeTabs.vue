@@ -101,7 +101,7 @@ function onChipClick(tid: string) {
             ? `${t.targetItemId ? `${labelFor(t.targetItemId)}, ${fmt(t.targetRate)}/min` : 'New tab'}, pinned`
             : undefined
         "
-        class="chamfer-sm group flex items-center gap-1.5 py-1.5 shrink-0 cursor-grab active:cursor-grabbing transition-colors select-none"
+        class="chamfer-sm group flex items-center gap-1.5 h-[calc(1lh+0.75rem)] text-sm shrink-0 cursor-grab active:cursor-grabbing transition-colors select-none"
         :class="[
           t.tid === store.activeTargetId
             ? '[--cf-fill:var(--accent)] text-[var(--accent-on)]'
@@ -122,12 +122,12 @@ function onChipClick(tid: string) {
         @drop="onDrop(t.tid)"
         @dragend="onDragEnd"
       >
-        <!-- The icon sizes itself from the chip: it stretches to the chip's full height (the
-             -my cancels the chip's vertical padding, so the text still sets that height), is
-             square, and keeps an even 3px of padding. No px/em size anywhere. -->
+        <!-- The chip's height comes from its text (one line of text plus the usual padding). The
+             icon takes its size only from that box: full height, square, an even 3px of padding
+             inside, object-contain. Nothing on it is a px/em size or tied to the text size. -->
         <span
           v-if="hasIcon(t)"
-          class="relative self-stretch aspect-square shrink-0 -my-1.5"
+          class="relative h-full aspect-square shrink-0"
           data-testid="tab-icon"
         >
           <span class="absolute inset-[3px]">
@@ -163,15 +163,8 @@ function onChipClick(tid: string) {
             </svg>
           </span>
         </span>
-        <!-- Pinned: the icon alone (this zero-width strut keeps the text-driven chip height) -->
-        <span
-          v-if="t.pinned"
-          class="w-0 overflow-hidden text-sm"
-          aria-hidden="true"
-          data-testid="pinned-strut"
-          >&#8203;</span
-        >
-        <template v-else>
+        <!-- Pinned: the icon alone, nothing else -->
+        <template v-if="!t.pinned">
           <!-- Mobile: only the first 3 letters -->
           <span class="sm:hidden text-sm font-medium whitespace-nowrap">
             {{ labelFor(t.targetItemId).slice(0, 3) }}
