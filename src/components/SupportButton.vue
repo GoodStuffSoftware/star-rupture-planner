@@ -135,7 +135,7 @@ function handleCustom() {
 <template>
   <!-- ── Trigger button ──────────────────────────────────────────────────────── -->
   <button
-    class="chamfer-sm flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors [--cf-fill:var(--panel-2)] hover:[--cf-fill:var(--border)] text-[var(--muted)] hover:text-[var(--text)]"
+    class="chamfer-sm inline-flex h-6 items-center gap-1.5 px-3 text-xs font-medium transition-colors [--cf-fill:var(--panel-2)] hover:[--cf-fill:var(--border)] text-[var(--muted)] hover:text-[var(--text)]"
     title="Buy us a coffee"
     @click="openModal"
   >
