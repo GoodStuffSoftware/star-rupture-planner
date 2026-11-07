@@ -1,4 +1,4 @@
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick, onScopeDispose } from 'vue'
 import { defineStore } from 'pinia'
 import type {
   CraftNode,
@@ -883,16 +883,33 @@ export const usePlannerStore = defineStore('planner', () => {
     if (_saveTimer !== null) clearTimeout(_saveTimer)
     _saveTimer = setTimeout(() => {
       _saveTimer = null
-      // Mid-adoption (a sibling's other game version is still loading) the
-      // memory copy is the old one and the stored plan is the one being taken.
-      if (_adopting) return
-      // A sibling saved since this tab last read storage and its `storage`
-      // event has not been handled yet: writing now would replace its newer
-      // plan with this older one. Take the newer one instead; an edit made in
-      // the last moments before is dropped, theirs never is.
-      if (hasNewerSave() && _adoptNewerSave()) return
-      save(_planState(), prefsStore.getPrefs())
+      _writeSave()
     }, 300)
+  }
+
+  /** The one guarded write behind both the debounced save and the flush on leaving. */
+  function _writeSave() {
+    // Mid-adoption (a sibling's other game version is still loading) the
+    // memory copy is the old one and the stored plan is the one being taken.
+    if (_adopting) return
+    // A sibling saved since this tab last read storage and its `storage`
+    // event has not been handled yet: writing now would replace its newer
+    // plan with this older one. Take the newer one instead; an edit made in
+    // the last moments before is dropped, theirs never is.
+    if (hasNewerSave() && _adoptNewerSave()) return
+    save(_planState(), prefsStore.getPrefs())
+  }
+
+  /**
+   * Write a save still waiting out its debounce, right now. Called as the page is
+   * hidden or closed, when the timer might never fire. Nothing pending means nothing
+   * written, so two events in a row write once.
+   */
+  function _flushPendingSave() {
+    if (_saveTimer === null) return
+    clearTimeout(_saveTimer)
+    _saveTimer = null
+    _writeSave()
   }
 
   // ─── Cross-tab sync ────────────────────────────────────────────────────────
@@ -989,6 +1006,21 @@ export const usePlannerStore = defineStore('planner', () => {
     window.addEventListener('storage', (e) => {
       if (e.key !== null && e.key !== LS_KEY) return
       void _adoptFromStorage(e.key === null ? localStorage.getItem(LS_KEY) : e.newValue)
+    })
+  }
+
+  // `visibilitychange` to hidden is the last dependable moment (tab close, switch, mobile
+  // background); `pagehide` covers navigation and reload. Not `unload`/`beforeunload`: they
+  // are going away and block the back/forward cache. localStorage writes are synchronous.
+  if (typeof window !== 'undefined') {
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') _flushPendingSave()
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('pagehide', _flushPendingSave)
+    onScopeDispose(() => {
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('pagehide', _flushPendingSave)
     })
   }
 
