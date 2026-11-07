@@ -16,10 +16,6 @@ import {
   consumeLongPressClick,
 } from '../lib/tabMenu'
 
-// Art fill inside the tab's icon box (chip height minus 3px each side): the art sits ~5px from
-// the chip edge at the default Text size. Relative, so it scales with Text size.
-const TAB_ART_FILL = 0.85
-
 const store = usePlannerStore()
 
 function labelFor(itemId: string | null): string {
@@ -131,22 +127,30 @@ function onChipClick(tid: string) {
              inside, object-contain. Nothing on it is a px/em size or tied to the text size. -->
         <span
           v-if="hasIcon(t)"
-          class="relative h-full aspect-square shrink-0"
+          class="relative h-full shrink-0 [--pad:calc((1lh+0.75rem)*0.16)]"
+          :class="
+            t.targetItemId && store.showIcons
+              ? t.pinned
+                ? 'flex p-[var(--pad)]'
+                : 'flex py-[var(--pad)] pl-[var(--pad)]'
+              : 'aspect-square'
+          "
           data-testid="tab-icon"
         >
-          <span class="absolute inset-[3px]">
-            <GameIcon
-              v-if="t.targetItemId && store.showIcons"
-              :id="t.targetItemId"
-              kind="item"
-              :name="labelFor(t.targetItemId)"
-              fill
-              :art-fill="TAB_ART_FILL"
-              native-context-menu
-            />
+          <!-- With an icon: its art's height fills the chip minus the padding (~5px at the
+               default Text size, relative to the chip); its width follows the art's aspect. -->
+          <GameIcon
+            v-if="t.targetItemId && store.showIcons"
+            :id="t.targetItemId"
+            kind="item"
+            :name="labelFor(t.targetItemId)"
+            fit-height
+            native-context-menu
+          />
+          <span v-else class="absolute inset-[3px]">
             <!-- Icons off: the name's first letters stand in -->
             <span
-              v-else-if="t.targetItemId"
+              v-if="t.targetItemId"
               class="flex w-full h-full items-center justify-center text-[10px] font-bold"
               >{{ labelFor(t.targetItemId).slice(0, 2) }}</span
             >

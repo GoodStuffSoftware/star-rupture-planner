@@ -544,14 +544,16 @@ describe('chip layout', () => {
     for (const chip of chips()) {
       const box = chip.querySelector<HTMLElement>('[data-testid="tab-icon"]')!
       expect(box.className).toMatch(/\bh-full\b/)
-      expect(box.className).toMatch(/aspect-square/)
+      // The art's height fills the box; the width follows the art's aspect (square until measured)
+      expect(box.className).not.toMatch(/aspect-square/)
+      const icon = box.firstElementChild as HTMLElement
+      expect(icon.className).toMatch(/h-full/)
+      expect(parseFloat(icon.style.aspectRatio)).toBe(1)
       const img = box.querySelector<HTMLElement>('img')!
       expect(img.className).toMatch(/object-contain/)
-      expect(img.className).toMatch(/w-full/)
-      expect(img.className).toMatch(/h-full/)
       expect(img.getAttribute('width')).toBeNull()
       expect(img.getAttribute('height')).toBeNull()
-      expect((box.firstElementChild as HTMLElement).style.width).toBe('')
+      expect(icon.style.width).toBe('')
     }
   })
 })
