@@ -9,6 +9,7 @@ import {
   decideVersionId,
   classifyBranch,
   parseUpdateNumber,
+  isLiveReleaseTitle,
 } from '../../scripts/lib/versionLogic.mjs'
 import {
   readSource,
@@ -140,9 +141,6 @@ describe('decideVersionId (naming a new Steam build)', () => {
 
   it('returns null when the name cannot be decided', () => {
     expect(
-      decideVersionId({ branch: 'public', title: 'Hotfix 2 notes', existingIds: existing }),
-    ).toBeNull()
-    expect(
       decideVersionId({
         branch: 'public',
         title: 'Update 2 and Update 3 roadmap',
@@ -153,17 +151,79 @@ describe('decideVersionId (naming a new Steam build)', () => {
       decideVersionId({ branch: 'mystery_branch', title: 'Update 3 now available' }),
     ).toBeNull()
     expect(decideVersionId({ branch: '', title: 'Update 3 now available' })).toBeNull()
-    expect(decideVersionId({ branch: 'public', title: '' })).toBeNull()
+    expect(decideVersionId({ branch: 'public', title: '' })).toBeNull() // a hotfix, but no live version exists to update
+    expect(
+      decideVersionId({
+        branch: 'public',
+        title: 'Update 2 and Update 3 roadmap',
+        existingIds: existing,
+      }),
+    ).toBeNull()
     // live build, but the post announces the test branch: conflict
     expect(decideVersionId({ branch: 'public', title: PTB_POST, existingIds: existing })).toBeNull()
     // two live folders of one update and none exactly named update2
     expect(
       decideVersionId({
         branch: 'public',
-        title: 'Update 2 hotfix',
+        title: 'Update 2 is now available',
         existingIds: ['update2_QoL', 'update2_Other'],
       }),
     ).toBeNull()
+  })
+
+  it('maps a live build without a live-release title (a hotfix) to the current live version', () => {
+    for (const title of [
+      'Hotfix 0.3.5 - now available!',
+      'Hotfix 2 notes',
+      'Update 2 Hotfix 1',
+      'Update 2 hotfix',
+      '',
+      'Patch notes 0.3.5',
+    ]) {
+      expect(decideVersionId({ branch: 'public', title, existingIds: existing })).toBe(
+        'update2_QoL',
+      )
+    }
+    // the current live version is the newest non-test folder, whatever PTB folders exist
+    expect(
+      decideVersionId({
+        branch: 'public',
+        title: 'Hotfix',
+        existingIds: [...existing, 'update3_PTB'],
+      }),
+    ).toBe('update2_QoL')
+    expect(
+      decideVersionId({ branch: 'public', title: 'Hotfix', existingIds: [...existing, 'update3'] }),
+    ).toBe('update3')
+  })
+
+  it('only a live-release title creates a new live version', () => {
+    for (const title of [
+      'StarRupture Update 3 is now available',
+      'Update 3 now live',
+      'Update 3 is out now',
+      'Update 3 released',
+    ]) {
+      expect(decideVersionId({ branch: 'public', title, existingIds: existing })).toBe('update3')
+    }
+    expect(isLiveReleaseTitle('Update 3 Hotfix 1')).toBe(false)
+    expect(isLiveReleaseTitle('Update 3 and Update 4 now available')).toBe(false)
+  })
+
+  it('an announcement or teaser never names a live build: it never creates a version', () => {
+    for (const title of [
+      'Update 4 Announcement: coming soon',
+      'Update 4 preview',
+      'Update 4 - available soon',
+      'Update 4 roadmap',
+      'Announcing Update 4',
+      'Update 4 teaser trailer now available', // a release verb, but a teaser
+      'Update 4 devlog now live',
+    ]) {
+      const id = decideVersionId({ branch: 'public', title, existingIds: existing })
+      expect(id, title).toBe('update2_QoL') // the live hotfix lands on the current version, not on update4
+      expect(isLiveReleaseTitle(title), title).toBe(false)
+    }
   })
 
   it('agrees with isTestVersion and pickDefaultVersion: a PTB is never the default', () => {

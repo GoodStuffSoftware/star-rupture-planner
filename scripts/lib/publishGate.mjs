@@ -59,7 +59,8 @@ export function checkInvariants({ result, prev, manifest, buildid }) {
       if (!itemIds.has(r.output.id)) problems.push(`${where}: output item "${r.output.id}" is not in the item catalog`)
       for (const i of r.inputs) if (!itemIds.has(i.id)) problems.push(`${where}: input item "${i.id}" is not in the item catalog`)
       const rates = [r.output.amount_per_minute, ...r.inputs.map((i) => i.amount_per_minute)]
-      if (rates.some((x) => typeof x !== 'number' || !Number.isFinite(x) || x < 0)) problems.push(`${where}: a rate is not a finite, non-negative number`)
+      // > 0: the resolver turns a zero rate into zero buildings, silently (src/lib/resolver.ts), so 0 is as wrong as NaN
+      if (rates.some((x) => typeof x !== 'number' || !Number.isFinite(x) || x <= 0)) problems.push(`${where}: a rate is not a finite, positive number`)
     }
   }
 

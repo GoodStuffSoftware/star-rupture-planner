@@ -1,16 +1,33 @@
 name: Publish game data from the CI extract
 
-# Pulls the sr-data-<buildid> artifact that msantoro12/starrupture-ci (sr-data-extract.yml) uploads for each new
-# Steam build, converts it (scripts/publish-game-data.mjs), and publishes it: commit to main, deploy, Discord.
+# Pulls the sr-data-<steam branch>-<buildid> artifact that msantoro12/starrupture-ci (sr-data-extract.yml) uploads for
+# each new Steam build, converts it (scripts/publish-game-data.mjs), and publishes it: commit to main, deploy, Discord.
 # No secret besides the repo's own GITHUB_TOKEN and DISCORD_WEBHOOK_URL: starrupture-ci is public, and the
 # GITHUB_TOKEN of this repo can download its artifacts (proved with a throwaway workflow, see the PR).
 #
-# A build is skipped when a SOURCE.json already holds it, or when a tag srdata-<buildid> exists. The tag is the
-# record that a build was handled: published, unchanged, or reported to Discord (gate failed, no name, bad artifact).
-# So a build that changes nothing, or that fails the gate, is not downloaded and announced every 30 minutes.
+# TRUST. starrupture-ci is public and what we pull goes to production, so an artifact is used only when its run is
+# in that repo itself (no fork), on its main branch, started by schedule / workflow_dispatch / push / workflow_call,
+# from sr-watch.yml or sr-data-extract.yml, and finished with success (scripts/lib/pullPlan.mjs: artifactProblems,
+# runProblems). The artifact's own pipeline.json must repeat its branch, build id and run id (pipelineProblems).
+# The same checks run on the manual run_id and buildid paths: those only skip the "already handled" filter.
+#
+# DEDUPE is on Steam branch plus build id: a test build promoted to public keeps its build id and is published
+# again, to the live version. A build is skipped when a SOURCE.json already holds it (or a newer one of its branch),
+# or when a tag srdata-<branch>-<buildid> exists. The tag is the record that a build was handled: published,
+# unchanged, or reported to Discord (gate failed, no name, bad artifact). So a build that changes nothing, or that
+# fails the gate, is not downloaded and announced every 30 minutes.
 # To retry a build: delete its tag, or dispatch with its buildid (that ignores the tag).
 #
+# A test-branch build with no news post yet is NOT tagged as handled while a post can still appear (a day): the tag
+# srnonews-<branch>-<buildid> only records that Discord was told. A live build with no live-release post is a hotfix
+# and updates the current live version in place. A build you can name yourself: dispatch with buildid, branch, title.
+#
+# A bad artifact (not a zip, unsafe members, mismatching pipeline.json) is reported and skipped; the queue moves on.
 # Nothing is committed when the name cannot be decided or the gate fails: Discord gets the notice, main is untouched.
+#
+# Limits: GitHub keeps one pending run per concurrency group, so a cron tick can replace a pending manual dispatch
+# (and its inputs): re-dispatch if a manual run did not start. If all three deploy dispatches fail after the commit
+# is pushed, only the generic failure notice goes out (it says how to start the deploy by hand).
 
 on:
   schedule:
@@ -22,7 +39,15 @@ on:
         type: string
         default: ''
       buildid:
-        description: 'Steam build id: process sr-data-<buildid> even if it was handled before (empty: discover)'
+        description: 'Steam build id: process sr-data-<branch>-<buildid> even if it was handled before (empty: discover)'
+        type: string
+        default: ''
+      branch:
+        description: 'Steam branch (public, public_test_branch ...): narrows buildid; required with title'
+        type: string
+        default: ''
+      title:
+        description: 'News title to name the build with, skipping the Steam news lookup (needs buildid and branch; max 200 characters)'
         type: string
         default: ''
       dry_run:
@@ -31,7 +56,7 @@ on:
         default: false
 
 permissions:
-  contents: write # commit to main, record handled builds as srdata-<buildid> tags
+  contents: write # commit to main, record handled builds as srdata-<branch>-<buildid> tags
   actions: write # lets a step dispatch deploy.yml
 
 # One group with update-game-data.yml so two jobs never commit to main at once. A queued run waits (it is not cancelled).
@@ -45,10 +70,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
+      HUSKY: 0 # npm ci runs "husky" (prepare): without this the data commit and every push would run the pre-commit/pre-push hooks
       CI_REPO: msantoro12/starrupture-ci
       DRY_RUN: ${{ inputs.dry_run && 'true' || 'false' }}
       INPUT_RUN_ID: ${{ inputs.run_id }}
       INPUT_BUILDID: ${{ inputs.buildid }}
+      INPUT_BRANCH: ${{ inputs.branch }}
+      INPUT_TITLE: ${{ inputs.title }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_REPO: ${{ github.repository }}
       DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
@@ -77,20 +105,27 @@ jobs:
           set -euo pipefail
           [[ "$INPUT_RUN_ID" =~ ^[0-9]*$ ]] || { echo "::error::run_id must be a number"; exit 1; }
           [[ "$INPUT_BUILDID" =~ ^[0-9]*$ ]] || { echo "::error::buildid must be a number"; exit 1; }
+          [[ "$INPUT_BRANCH" =~ ^[A-Za-z0-9_-]*$ ]] || { echo "::error::branch may only hold letters, digits, _ and -"; exit 1; }
+          [ "${#INPUT_TITLE}" -le 200 ] || { echo "::error::title is longer than 200 characters"; exit 1; }
+          if [ -n "$INPUT_TITLE" ]; then
+            [[ "$INPUT_TITLE" != *[[:cntrl:]]* ]] || { echo "::error::title must not hold control characters"; exit 1; }
+            { [ -n "$INPUT_BUILDID" ] && [ -n "$INPUT_BRANCH" ]; } || { echo "::error::title needs buildid and branch"; exit 1; }
+          fi
           : > artifacts.json
           if [ -n "$INPUT_RUN_ID" ]; then
             gh api "repos/$CI_REPO/actions/runs/$INPUT_RUN_ID/artifacts?per_page=100" > artifacts.json
-          elif [ -n "$INPUT_BUILDID" ]; then
-            gh api "repos/$CI_REPO/actions/artifacts?name=sr-data-$INPUT_BUILDID&per_page=10" > artifacts.json
           else
-            # newest first; the sr-data-* artifacts are a few of the many (plugins, checks) each run uploads
+            # newest first; the sr-data-* artifacts are a few of the many (plugins, checks) each run uploads.
+            # Only these 500 are looked at: if the CI repo ever uploads far more, sr-data-* ones can fall off page 5.
             for page in 1 2 3 4 5; do
               gh api "repos/$CI_REPO/actions/artifacts?per_page=100&page=$page" >> artifacts.json
             done
           fi
-          git ls-remote --tags origin 'refs/tags/srdata-*' | sed 's|.*refs/tags/srdata-||' > seen.txt || true
+          git ls-remote --tags origin 'refs/tags/srdata-*' | sed 's|.*refs/tags/srdata-||' > seen.txt
+          git ls-remote --tags origin 'refs/tags/srnonews-*' | sed 's|.*refs/tags/srnonews-||' > nonews.txt
           [ -n "$INPUT_RUN_ID" ] && : > seen.txt # a run id is a request to process that run
-          node scripts/plan-game-pull.mjs candidates --artifacts artifacts.json --seen seen.txt ${INPUT_BUILDID:+--buildid "$INPUT_BUILDID"} > candidates.json
+          node scripts/plan-game-pull.mjs candidates --artifacts artifacts.json --seen seen.txt \
+            ${INPUT_BUILDID:+--buildid "$INPUT_BUILDID"} ${INPUT_BRANCH:+--branch "$INPUT_BRANCH"} > candidates.json
           count=$(jq length candidates.json)
           echo "count=$count" >> "$GITHUB_OUTPUT"
           echo "$count build(s) to publish:"; jq -c '.[]' candidates.json
@@ -103,7 +138,11 @@ jobs:
         if: steps.plan.outputs.count != '0'
         run: |
           set -euo pipefail
-          curl -fsS --retry 3 --max-time 30 "https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=1631270&count=50&maxlength=200" -o news.json
+          # A Steam news outage must not fail the run (and post a failure notice every 30 minutes): the builds stay queued.
+          if ! curl -fsS --retry 3 --max-time 30 "https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=1631270&count=50&maxlength=200" -o news.json; then
+            echo "::warning::Steam news is unreachable; nothing is published in this run, the builds stay queued."
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
@@ -111,28 +150,63 @@ jobs:
             echo "$1"
             if [ "$DRY_RUN" != 'true' ]; then node scripts/notify-discord.mjs "$1" || true; fi
           }
-          handled() { # record the build as handled (a tag on the current commit)
-            if [ "$DRY_RUN" != 'true' ]; then git tag -f "srdata-$1" && { git push origin "refs/tags/srdata-$1" || echo "tag srdata-$1 is already on the remote"; }; fi
+          mark() { # mark <tag prefix> <branch> <buildid>: record in a tag on the current commit
+            if [ "$DRY_RUN" != 'true' ]; then git tag -f "$1-$2-$3" && { git push origin "refs/tags/$1-$2-$3" || echo "tag $1-$2-$3 is already on the remote"; }; fi
+          }
+          handled() { mark srdata "$1" "$2"; } # handled <branch> <buildid>
+          clean() { # drop anything a failed build left in the tree, so the next build never commits it
+            git checkout -- . && git clean -fdq public src scripts/data
           }
 
           while read -r cand; do
-            buildid=$(jq -r .buildid <<<"$cand"); artifact=$(jq -r .artifactId <<<"$cand"); built=$(jq -r .createdAt <<<"$cand")
-            echo "::group::build $buildid (artifact $artifact)"
-            rm -rf art art.zip result.json
-            gh api "repos/$CI_REPO/actions/artifacts/$artifact/zip" > art.zip
-            unzip -q art.zip -d art
+            branch=$(jq -r .branch <<<"$cand"); buildid=$(jq -r .buildid <<<"$cand"); artifact=$(jq -r .artifactId <<<"$cand")
+            run=$(jq -r .runId <<<"$cand"); built=$(jq -r .createdAt <<<"$cand")
+            echo "::group::Steam $branch build $buildid (artifact $artifact, run $run)"
+            rm -rf art art.zip result.json run.json
 
-            if [ "$(jq -r .status art/pipeline.json)" != 'ok' ] || [ "$(jq -r .buildid art/pipeline.json)" != "$buildid" ]; then
-              say "Game data NOT published: the sr-data-$buildid artifact is not usable (pipeline.json status $(jq -r .status art/pipeline.json), build $(jq -r .buildid art/pipeline.json)). This run: $RUN_URL"
-              handled "$buildid"; echo '::endgroup::'; continue
+            # 1. the run behind the artifact must be ours (not recorded as handled: a refused run is not "done")
+            if ! gh api "repos/$CI_REPO/actions/runs/$run" > run.json || ! node scripts/plan-game-pull.mjs verify-run --run run.json --run-id "$run"; then
+              echo "::warning::refused sr-data-$branch-$buildid: its run $run is not a trusted starrupture-ci run (see above)"
+              echo '::endgroup::'; continue
             fi
-            branch=$(jq -r .branch art/pipeline.json)
 
-            if ! title=$(node scripts/plan-game-pull.mjs title --news news.json --branch "$branch" --built-at "$built"); then
-              say "Game data NOT published: no Steam news post names Steam $branch build $buildid (artifact made $built). Publish by hand, or dispatch this workflow with buildid $buildid once the post is up. $RUN_URL"
-              handled "$buildid"; echo '::endgroup::'; continue
+            # 2. download and unpack; a bad zip is reported once and skipped, never a stall
+            members_bad=
+            if gh api "repos/$CI_REPO/actions/artifacts/$artifact/zip" > art.zip && unzip -Z1 art.zip > members.txt 2>/dev/null; then
+              # no absolute, drive or parent-directory members
+              if grep -Eq '^/|^[A-Za-z]:|(^|/)\.\.(/|$)' members.txt; then members_bad=1; fi
+            else
+              members_bad=1
             fi
-            echo "news title: $title"
+            if [ -n "$members_bad" ] || ! unzip -q art.zip -d art; then
+              say "Game data NOT published: the sr-data-$branch-$buildid artifact could not be downloaded or unpacked safely (skipped; dispatch with buildid $buildid to retry). This run: $RUN_URL"
+              rm -rf art; handled "$branch" "$buildid"; echo '::endgroup::'; continue
+            fi
+            find art -type l -delete # a symlink in the artifact must never be followed
+
+            # 3. its pipeline.json must repeat the branch, build id and run id of its name and run
+            if ! node scripts/plan-game-pull.mjs verify-pipeline --pipeline art/pipeline.json --branch "$branch" --buildid "$buildid" --run-id "$run"; then
+              say "Game data NOT published: the sr-data-$branch-$buildid artifact is not usable (its pipeline.json does not match its name or run, or its status is not ok). This run: $RUN_URL"
+              handled "$branch" "$buildid"; echo '::endgroup::'; continue
+            fi
+
+            # 4. the name: a title given by hand, else the Steam news (a live build without a release post is a hotfix: empty title)
+            if [ -n "$INPUT_TITLE" ]; then
+              title="$INPUT_TITLE"
+            elif ! title=$(node scripts/plan-game-pull.mjs title --news news.json --branch "$branch" --built-at "$built"); then
+              if [ "$(node scripts/plan-game-pull.mjs no-news-action --built-at "$built")" = 'wait' ]; then
+                # a post may still appear: leave the build unhandled so the next run looks again; tell Discord once
+                if ! grep -qx "$branch-$buildid" nonews.txt; then
+                  say "Game data not published yet: no Steam news post names Steam $branch build $buildid (artifact made $built). It is retried every run for a day; to name it yourself, dispatch with buildid $buildid, branch $branch and title. $RUN_URL"
+                  mark srnonews "$branch" "$buildid"
+                fi
+              else
+                say "Game data NOT published: no Steam news post names Steam $branch build $buildid (artifact made $built). Dispatch this workflow with buildid $buildid, branch $branch and title. $RUN_URL"
+                handled "$branch" "$buildid"
+              fi
+              echo '::endgroup::'; continue
+            fi
+            echo "news title: ${title:-<none: live hotfix>}"
 
             rc=0
             args=(--extract art --branch "$branch" --buildid "$buildid" --title "$title" --result result.json)
@@ -148,10 +222,10 @@ jobs:
                 else
                   version=$(jq -r .versionId result.json)
                   git add -A public src scripts/data
-                  git commit -q -m "feat(data): publish $version from Steam $branch build $buildid" -m "$(jq -r .changelog result.json)" -m "Source: $CI_REPO sr-data-$buildid. $RUN_URL"
+                  git commit -q -m "feat(data): publish $version from Steam $branch build $buildid" -m "$(jq -r .changelog result.json)" -m "Source: $CI_REPO sr-data-$branch-$buildid, run $run. $RUN_URL"
                   git pull -q --rebase origin "$REF"
                   git push origin "HEAD:refs/heads/$REF"
-                  handled "$buildid"
+                  handled "$branch" "$buildid"
                   for attempt in 1 2 3; do
                     if gh workflow run deploy.yml --ref "$REF"; then break; fi
                     echo "deploy dispatch attempt $attempt failed"
@@ -162,14 +236,16 @@ jobs:
                 fi
                 ;;
               unchanged | already-published)
-                handled "$buildid"
+                handled "$branch" "$buildid"
                 ;;
               gate-failed | name-undecided)
-                handled "$buildid" # publish-game-data.mjs already told Discord; nothing was written
+                clean
+                handled "$branch" "$buildid" # publish-game-data.mjs already told Discord; nothing was written
                 ;;
               *)
+                clean
                 say "Game data NOT published: publish-game-data.mjs failed for Steam $branch build $buildid (exit $rc, outcome $outcome). $RUN_URL"
-                handled "$buildid"
+                handled "$branch" "$buildid"
                 ;;
             esac
             echo '::endgroup::'

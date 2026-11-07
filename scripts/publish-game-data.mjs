@@ -30,6 +30,7 @@ import { buildChangelog, checkInvariants, formatChangelog } from './lib/publishG
 import { alreadyPublished, publishedBuilds } from './lib/pullPlan.mjs'
 import { decideVersionId, isTestVersion } from './lib/versionLogic.mjs'
 import { renderVersionsTs } from './lib/versionsFile.mjs'
+import { swapIn } from './lib/swapIn.mjs'
 import { readExtract, readPlannerVersion } from './convert-game-data.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
@@ -57,7 +58,8 @@ function parseArgs(argv) {
     else throw new Error(`unknown argument ${a}`)
   }
   for (const k of ['extract', 'branch', 'buildid', 'title']) {
-    if (!out[k]) throw new Error(`missing --${k}. usage: publish-game-data.mjs --extract <dir> --branch <b> --buildid <n> --title <news title> [--dry-run] [--result <file>]`)
+    // an empty title is valid for the live branch: no live-release post means a hotfix of the current live version
+    if (out[k] === undefined || (k !== 'title' && !out[k])) throw new Error(`missing --${k}. usage: publish-game-data.mjs --extract <dir> --branch <b> --buildid <n> --title <news title> [--dry-run] [--result <file>]`)
   }
   if (!/^\d+$/.test(out.buildid)) throw new Error(`--buildid must be a number, got ${JSON.stringify(out.buildid)}`)
   return out
@@ -68,6 +70,8 @@ function notify(message, dryRun) {
   spawnSync(process.execPath, [path.join(here, 'notify-discord.mjs'), message], { stdio: 'inherit', windowsHide: true })
 }
 
+// The converter writes CRLF (as upstream's files are), git may store LF: compare line-ending-insensitively.
+const lf = (text) => text.replace(/\r\n/g, '\n')
 const readJson = (file) => JSON.parse(fs.readFileSync(file, 'utf8'))
 
 /** The artifact keeps the extractor output in extract/; a plain extractor output dir has manifest.json at the top. */
@@ -152,7 +156,8 @@ async function main() {
     corporations: toPlannerJson(result.corporations),
   }
   const unchanged =
-    targetExists && Object.entries(FILES).every(([k, file]) => fs.readFileSync(path.join(DATA_ROOT, versionId, file), 'utf8') === outputs[k])
+    targetExists &&
+    Object.entries(FILES).every(([k, file]) => lf(fs.readFileSync(path.join(DATA_ROOT, versionId, file), 'utf8')) === lf(outputs[k]))
   const log = buildChangelog(prev, result)
   const changelog = formatChangelog(log)
   console.log(`${tag}data vs ${prevId}: ${unchanged ? 'all 3 files identical (no data change)' : targetExists ? 'CHANGED' : 'NEW folder'}`)
@@ -188,15 +193,41 @@ async function main() {
     console.log('[dry-run] nothing written')
     return done('published', { versionId, changelog, dryRun: true })
   }
-  fs.mkdirSync(targetDir, { recursive: true })
-  for (const [k, file] of Object.entries(FILES)) fs.writeFileSync(path.join(targetDir, file), outputs[k])
-  writeSource(targetDir, source)
-  if (mapChanged) fs.writeFileSync(ID_MAP, `${JSON.stringify(result.idMap, null, 2)}\n`)
-  const res = await writeIcons({ plan: { icons: newIcons, missing: [] }, extractDir, outDir: ICON_ROOT })
-  for (const m of res.noPng) console.warn(`icon PNG not found: ${m.src}`)
-  fs.writeFileSync(VERSIONS_TS, versions.text)
-  console.log(`published ${versionId}: 3 data files, SOURCE.json, ${res.written.length} new icons, versions.ts`)
-  return done('published', { versionId, changelog })
+  // Atomic publish: everything is built in a temp directory first (a throw while converting an icon leaves the
+  // project untouched), then moved into place; a failure while moving rolls back what was moved.
+  const stage = fs.mkdtempSync(path.join(ROOT, '.publish-stage-'))
+  try {
+    const staged = {
+      data: path.join(stage, 'data'),
+      icons: path.join(stage, 'icons'),
+      idMap: path.join(stage, 'id-map.json'),
+      versionsTs: path.join(stage, 'versions.ts'),
+    }
+    fs.mkdirSync(staged.data, { recursive: true })
+    for (const [k, file] of Object.entries(FILES)) fs.writeFileSync(path.join(staged.data, file), outputs[k])
+    writeSource(staged.data, source)
+    if (mapChanged) fs.writeFileSync(staged.idMap, `${JSON.stringify(result.idMap, null, 2)}\n`)
+    const res = await writeIcons({ plan: { icons: newIcons, missing: [] }, extractDir, outDir: staged.icons })
+    for (const m of res.noPng) console.warn(`icon PNG not found: ${m.src}`)
+    fs.writeFileSync(staged.versionsTs, versions.text)
+
+    swapIn({
+      stage,
+      targetDir,
+      staged,
+      iconRoot: ICON_ROOT,
+      idMapFile: mapChanged ? ID_MAP : null,
+      versionsFile: VERSIONS_TS,
+    })
+    console.log(`published ${versionId}: 3 data files, SOURCE.json, ${res.written.length} new icons, versions.ts`)
+    return done('published', { versionId, changelog })
+  } catch (e) {
+    console.error(`publish failed, nothing was changed: ${e.stack ?? e.message}`)
+    fs.rmSync(stage, { recursive: true, force: true }) // done() exits, which skips the finally below
+    return done('publish-failed', { versionId, error: e.message }, 2)
+  } finally {
+    fs.rmSync(stage, { recursive: true, force: true })
+  }
 }
 
 await main()
