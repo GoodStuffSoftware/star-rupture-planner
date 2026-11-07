@@ -11,16 +11,22 @@ name: Publish game data from the CI extract
 # runProblems). The artifact's own pipeline.json must repeat its branch, build id and run id (pipelineProblems).
 # The same checks run on the manual run_id and buildid paths: those only skip the "already handled" filter.
 #
+# COVERAGE TAGS (rules and tests: scripts/lib/coverageTags.mjs). The mod CI's reconcile (starrupture-ci sr-watch.yml)
+# reads them with `git ls-remote --tags` to find a playable build that has no planner data:
+#   srdata-<branch>-<buildid>         COVERED: published, or converted and verified unchanged. Nothing else.
+#   srdata-failed-<branch>-<buildid>  FAILED: the planner could not cover the build (gate, no version name, bad
+#                                     artifact, publish error, news post still missing after a day). Discord is told.
+#                                     Never the covered tag. Reconcile treats it as handled.
+#   (no tag)                          a test build waiting for its news post: retried every run, for a day.
+#   srnonews-<branch>-<buildid>       only records that Discord was told about that wait; not a coverage record.
+#
 # DEDUPE is on Steam branch plus build id: a test build promoted to public keeps its build id and is published
 # again, to the live version. A build is skipped when a SOURCE.json already holds it (or a newer one of its branch),
-# or when a tag srdata-<branch>-<buildid> exists. The tag is the record that a build was handled: published,
-# unchanged, or reported to Discord (gate failed, no name, bad artifact). So a build that changes nothing, or that
-# fails the gate, is not downloaded and announced every 30 minutes.
-# To retry a build: delete its tag, or dispatch with its buildid (that ignores the tag).
+# or when it has a covered or failed tag, so a build that changes nothing, or that fails, is not downloaded and
+# announced every 30 minutes. To retry a build: delete its tag, or dispatch with its buildid (that ignores the tags).
 #
-# A test-branch build with no news post yet is NOT tagged as handled while a post can still appear (a day): the tag
-# srnonews-<branch>-<buildid> only records that Discord was told. A live build with no live-release post is a hotfix
-# and updates the current live version in place. A build you can name yourself: dispatch with buildid, branch, title.
+# A live build with no live-release post is a hotfix and updates the current live version in place.
+# A build you can name yourself: dispatch with buildid, branch, title.
 #
 # A bad artifact (not a zip, unsafe members, mismatching pipeline.json) is reported and skipped; the queue moves on.
 # Nothing is committed when the name cannot be decided or the gate fails: Discord gets the notice, main is untouched.
@@ -56,7 +62,7 @@ on:
         default: false
 
 permissions:
-  contents: write # commit to main, record handled builds as srdata-<branch>-<buildid> tags
+  contents: write # commit to main, record coverage as srdata-[failed-]<branch>-<buildid> tags
   actions: write # lets a step dispatch deploy.yml
 
 # One group with update-game-data.yml so two jobs never commit to main at once. A queued run waits (it is not cancelled).
@@ -121,7 +127,7 @@ jobs:
               gh api "repos/$CI_REPO/actions/artifacts?per_page=100&page=$page" >> artifacts.json
             done
           fi
-          git ls-remote --tags origin 'refs/tags/srdata-*' | sed 's|.*refs/tags/srdata-||' > seen.txt
+          git ls-remote --tags origin 'refs/tags/srdata-*' | sed 's|.*refs/tags/||' > seen.txt # covered and failed tags
           git ls-remote --tags origin 'refs/tags/srnonews-*' | sed 's|.*refs/tags/srnonews-||' > nonews.txt
           [ -n "$INPUT_RUN_ID" ] && : > seen.txt # a run id is a request to process that run
           node scripts/plan-game-pull.mjs candidates --artifacts artifacts.json --seen seen.txt \
@@ -153,7 +159,11 @@ jobs:
           mark() { # mark <tag prefix> <branch> <buildid>: record in a tag on the current commit
             if [ "$DRY_RUN" != 'true' ]; then git tag -f "$1-$2-$3" && { git push origin "refs/tags/$1-$2-$3" || echo "tag $1-$2-$3 is already on the remote"; }; fi
           }
-          handled() { mark srdata "$1" "$2"; } # handled <branch> <buildid>
+          record() { # record <outcome> <branch> <buildid>: the coverage tag the outcome earns (scripts/lib/coverageTags.mjs), if any
+            local name
+            name=$(node scripts/plan-game-pull.mjs coverage-tag --outcome "$1" --branch "$2" --buildid "$3")
+            if [ -n "$name" ] && [ "$DRY_RUN" != 'true' ]; then git tag -f "$name" && { git push origin "refs/tags/$name" || echo "tag $name is already on the remote"; }; fi
+          }
           clean() { # drop anything a failed build left in the tree, so the next build never commits it
             git checkout -- . && git clean -fdq public src scripts/data
           }
@@ -180,14 +190,14 @@ jobs:
             fi
             if [ -n "$members_bad" ] || ! unzip -q art.zip -d art; then
               say "Game data NOT published: the sr-data-$branch-$buildid artifact could not be downloaded or unpacked safely (skipped; dispatch with buildid $buildid to retry). This run: $RUN_URL"
-              rm -rf art; handled "$branch" "$buildid"; echo '::endgroup::'; continue
+              rm -rf art; record bad-artifact "$branch" "$buildid"; echo '::endgroup::'; continue
             fi
             find art -type l -delete # a symlink in the artifact must never be followed
 
             # 3. its pipeline.json must repeat the branch, build id and run id of its name and run
             if ! node scripts/plan-game-pull.mjs verify-pipeline --pipeline art/pipeline.json --branch "$branch" --buildid "$buildid" --run-id "$run"; then
               say "Game data NOT published: the sr-data-$branch-$buildid artifact is not usable (its pipeline.json does not match its name or run, or its status is not ok). This run: $RUN_URL"
-              handled "$branch" "$buildid"; echo '::endgroup::'; continue
+              record bad-artifact "$branch" "$buildid"; echo '::endgroup::'; continue
             fi
 
             # 4. the name: a title given by hand, else the Steam news (a live build without a release post is a hotfix: empty title)
@@ -195,14 +205,14 @@ jobs:
               title="$INPUT_TITLE"
             elif ! title=$(node scripts/plan-game-pull.mjs title --news news.json --branch "$branch" --built-at "$built"); then
               if [ "$(node scripts/plan-game-pull.mjs no-news-action --built-at "$built")" = 'wait' ]; then
-                # a post may still appear: leave the build unhandled so the next run looks again; tell Discord once
+                # a post may still appear: no coverage tag (no-news-wait), so the next run looks again; tell Discord once
                 if ! grep -qx "$branch-$buildid" nonews.txt; then
                   say "Game data not published yet: no Steam news post names Steam $branch build $buildid (artifact made $built). It is retried every run for a day; to name it yourself, dispatch with buildid $buildid, branch $branch and title. $RUN_URL"
                   mark srnonews "$branch" "$buildid"
                 fi
               else
                 say "Game data NOT published: no Steam news post names Steam $branch build $buildid (artifact made $built). Dispatch this workflow with buildid $buildid, branch $branch and title. $RUN_URL"
-                handled "$branch" "$buildid"
+                record no-news-final "$branch" "$buildid"
               fi
               echo '::endgroup::'; continue
             fi
@@ -225,7 +235,7 @@ jobs:
                   git commit -q -m "feat(data): publish $version from Steam $branch build $buildid" -m "$(jq -r .changelog result.json)" -m "Source: $CI_REPO sr-data-$branch-$buildid, run $run. $RUN_URL"
                   git pull -q --rebase origin "$REF"
                   git push origin "HEAD:refs/heads/$REF"
-                  handled "$branch" "$buildid"
+                  record published "$branch" "$buildid"
                   for attempt in 1 2 3; do
                     if gh workflow run deploy.yml --ref "$REF"; then break; fi
                     echo "deploy dispatch attempt $attempt failed"
@@ -236,16 +246,16 @@ jobs:
                 fi
                 ;;
               unchanged | already-published)
-                handled "$branch" "$buildid"
+                record "$outcome" "$branch" "$buildid" # covered: the planner data already is this build's
                 ;;
               gate-failed | name-undecided)
                 clean
-                handled "$branch" "$buildid" # publish-game-data.mjs already told Discord; nothing was written
+                record "$outcome" "$branch" "$buildid" # failed tag; publish-game-data.mjs already told Discord; nothing was written
                 ;;
               *)
                 clean
                 say "Game data NOT published: publish-game-data.mjs failed for Steam $branch build $buildid (exit $rc, outcome $outcome). $RUN_URL"
-                handled "$branch" "$buildid"
+                record "$outcome" "$branch" "$buildid" # failed tag: any other outcome (unknown included) is never covered
                 ;;
             esac
             echo '::endgroup::'
