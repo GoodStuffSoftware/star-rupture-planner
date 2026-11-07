@@ -41,6 +41,8 @@ export interface ClosedTabState {
   index: number
   /** As on PlanTargetState: the item is not in the game version saved with it. */
   missing?: boolean
+  /** As on PlanTargetState: keep the rate unrounded on reload. */
+  exactRate?: boolean
 }
 
 /** The closed-tab stack never holds more than this many tabs (newest first). */
@@ -377,7 +379,11 @@ export function decodePlanFromUrl(): PlanState | null {
           : {}) as VersionOverrides,
         overages: (typeof o.overages === 'object' && o.overages ? o.overages : {}) as Overages,
         targets: Array.isArray(o.targets)
-          ? (o.targets.filter((t) => t && typeof t === 'object') as PlanTargetState[])
+          ? // A link never carries our save-only flags (missing, exactRate).
+            (o.targets.filter((t) => t && typeof t === 'object') as PlanTargetState[]).map(
+              // eslint-disable-next-line @typescript-eslint/no-unused-vars
+              ({ missing, exactRate, ...rest }) => rest,
+            )
           : undefined,
         activeTargetIndex:
           typeof o.activeTargetIndex === 'number' ? o.activeTargetIndex : undefined,

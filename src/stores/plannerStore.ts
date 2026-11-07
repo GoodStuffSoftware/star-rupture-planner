@@ -459,7 +459,7 @@ export const usePlannerStore = defineStore('planner', () => {
           typeof s.targetRate === 'number' && isFinite(s.targetRate) && s.targetRate > 0
         const rate =
           validItem && rateOk
-            ? carry || kept || s.exactRate === true
+            ? carry || kept || (s.exactRate === true && s.targetRate >= 1)
               ? // The rate is what the user set (the store normalized it then). It stays that
                 // through a version switch, even where the machine output differs.
                 normalizeTargetRate(s.targetRate, true)
@@ -518,7 +518,10 @@ export const usePlannerStore = defineStore('planner', () => {
           targetItemId: c.targetItemId,
           targetRate: normalizeTargetRate(
             c.targetRate,
-            carry || !cKnown || isMachineMultiple(c.targetRate, defaultRateForItem(c.targetItemId)),
+            carry ||
+              !cKnown ||
+              (c.exactRate === true && c.targetRate >= 1) ||
+              isMachineMultiple(c.targetRate, defaultRateForItem(c.targetItemId)),
           ),
           overages: validateOverages(c.overages, cKnown),
           expandLevel:
@@ -786,8 +789,20 @@ export const usePlannerStore = defineStore('planner', () => {
    */
   async function setVersion(v: string) {
     if (v === dataStore.version && dataStore.items.length > 0 && !dataStore.error) return
-    const carried: PlanState = { ..._planState(), version: v }
-    await load(v, carried, true)
+    // Before the first load has finished there is no plan on screen to carry (it is still being
+    // read); picking then would replace the saved plan with a blank one.
+    if (dataStore.items.length === 0 && dataStore.loading) return
+    // With no data loaded (a failed first load) the saved plan is the one to carry.
+    const stored = dataStore.items.length === 0 ? (loadSaved()?.plan ?? null) : null
+    let data
+    try {
+      data = await dataStore.loadData(v)
+    } catch {
+      return // surfaced by dataStore; the plan on screen stays
+    }
+    // The plan is read AFTER the data arrives, so whatever the user did in the tab strip while
+    // it loaded is carried too. Flags a save computes against the new data are ignored on carry.
+    _applyPlan(v, { ...(stored ?? _planState()), version: v }, data, true)
     if (dataStore.version !== v || dataStore.error) return
     const missing = targets.value.filter((t) => isMissingItem(t.targetItemId)).length
     if (missing > 0) {
@@ -1085,11 +1100,9 @@ export const usePlannerStore = defineStore('planner', () => {
   }
 
   /** A fractional rate that is not a whole number of this version's machines (see exactRate). */
-  function _hasOddRate(t: PlanTarget): boolean {
-    if (!t.targetItemId || isMissingItem(t.targetItemId) || Number.isInteger(t.targetRate)) {
-      return false
-    }
-    return !isMachineMultiple(t.targetRate, defaultRateForItem(t.targetItemId))
+  function _hasOddRate(itemId: string | null, rate: number): boolean {
+    if (!itemId || isMissingItem(itemId) || Number.isInteger(rate)) return false
+    return !isMachineMultiple(rate, defaultRateForItem(itemId))
   }
 
   function _planState(): PlanState {
@@ -1109,7 +1122,7 @@ export const usePlannerStore = defineStore('planner', () => {
       pinned: t.pinned,
       // Only written when true, so a plan with every item present keeps its old shape.
       ...(isMissingItem(t.targetItemId) ? { missing: true } : {}),
-      ...(_hasOddRate(t) ? { exactRate: true } : {}),
+      ...(_hasOddRate(t.targetItemId, t.targetRate) ? { exactRate: true } : {}),
     }))
     return {
       version: dataStore.version,
@@ -1121,9 +1134,11 @@ export const usePlannerStore = defineStore('planner', () => {
       tier: tier.value,
       overrides: overrides.value,
       recipeOverrides: recipeOverrides.value,
-      closedTabs: closedTabs.value.map((c) =>
-        isMissingItem(c.targetItemId) ? { ...c, missing: true } : c,
-      ),
+      closedTabs: closedTabs.value.map((c) => ({
+        ...c,
+        ...(isMissingItem(c.targetItemId) ? { missing: true } : {}),
+        ...(_hasOddRate(c.targetItemId, c.targetRate) ? { exactRate: true } : {}),
+      })),
     }
   }
 

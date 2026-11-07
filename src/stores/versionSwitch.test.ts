@@ -17,10 +17,14 @@ import { DEFAULT_TARGET_PREF } from '../lib/format'
 // `laser_emitter`, `rotor` and `glass` exist in all of them. `glass_v2` is a recipe only update2_QoL has.
 
 let fetchCount = 0
+// While set, every fetch waits for it: a game-data load held open.
+let gate: Promise<void> | null = null
 function stubFetch() {
   fetchCount = 0
+  gate = null
   vi.stubGlobal('fetch', async (url: string) => {
     fetchCount++
+    await gate
     const body = readFileSync(
       resolve(import.meta.dirname, '../../public', url.replace(/^\//, '')),
       'utf-8',
@@ -262,5 +266,76 @@ describe('a tab whose item the new version lacks', () => {
     await flush()
     expect(s.targets.some((t) => t.targetItemId === 'aerogel')).toBe(false)
     expect(s.targets.every((t) => !s.isMissingItem(t.targetItemId))).toBe(true)
+  })
+
+  it('keeps a closed tab unrounded rate after a reload in the other version', async () => {
+    const plan = bigPlan()
+    plan.closedTabs = [{ ...closedOf('laser_emitter', 0), targetRate: 22.5 }]
+    const s = await openTab(plan)
+    await s.setVersion('earlyaccess')
+    await flush()
+
+    setActivePinia(createPinia())
+    const again = usePlannerStore()
+    await again.init()
+    await flush()
+    expect(again.closedTabs.map((c) => c.targetRate)).toEqual([22.5])
+  })
+
+  it('ignores the save-only flags in a legacy-format link', async () => {
+    localStorage.clear()
+    const { decodePlanFromUrl } = await import('../lib/persistState')
+    const legacy = {
+      version: 'earlyaccess',
+      targetItemId: 'zzz_fake',
+      targetRate: 5,
+      targets: [{ targetItemId: 'zzz_fake', targetRate: 0.3, missing: true, exactRate: true }],
+    }
+    const b64 = btoa(JSON.stringify(legacy))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=/g, '')
+    history.replaceState(null, '', `/?p=${b64}`)
+    const plan = decodePlanFromUrl()
+    expect(plan?.targets?.[0]).toEqual({ targetItemId: 'zzz_fake', targetRate: 0.3 })
+    setActivePinia(createPinia())
+    const s = usePlannerStore()
+    await s.init()
+    await flush()
+    expect(s.targets.some((t) => t.targetItemId === 'zzz_fake')).toBe(false)
+  })
+})
+
+describe('while a version is loading', () => {
+  it('carries tabs the user changed during the load', async () => {
+    const s = await openTab(bigPlan())
+    let release!: () => void
+    gate = new Promise<void>((res) => (release = res))
+    const switching = s.setVersion('earlyaccess')
+    s.addTargetItem('glass')
+    s.targets[1].targetRate = 99
+    release()
+    await switching
+    await flush()
+    expect(ids(s)).toEqual(['aerogel', 'laser_emitter', 'rotor', null, 'glass'])
+    expect(s.targets[1].targetRate).toBe(99)
+  })
+
+  it('a pick made before the first load finishes does not replace the saved plan', async () => {
+    localStorage.clear()
+    save(bigPlan(), prefs)
+    history.replaceState(null, '', '/')
+    setActivePinia(createPinia())
+    const s = usePlannerStore()
+    let release!: () => void
+    gate = new Promise<void>((res) => (release = res))
+    const initing = s.init()
+    await nextTick()
+    const pick = s.setVersion('update1')
+    release()
+    await Promise.all([initing, pick])
+    await flush()
+    expect(ids(s)).toEqual(['aerogel', 'laser_emitter', 'rotor', null])
+    expect(s.closedTabs).toHaveLength(2)
   })
 })
