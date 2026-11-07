@@ -14,6 +14,7 @@ jobs:
   update:
     name: Refresh game data
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # a hung fetch is reported (failure() or cancelled()) instead of running 6 h
 
     steps:
       - name: Checkout
@@ -36,7 +37,8 @@ jobs:
 
       - name: Refresh game data and icons
         env:
-          # Authenticates the version-discovery API call (an Actions token gets about 1000 req/h per repo instead of 60).
+          # Authenticates the version-discovery API call (an Actions token gets about 1000
+          # req/h per repo instead of 60).
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run refresh-data
 
@@ -73,12 +75,13 @@ jobs:
           for attempt in 1 2 3; do
             if gh workflow run deploy.yml --ref "$REF"; then exit 0; fi
             echo "deploy dispatch attempt $attempt failed"
-            sleep $((attempt * 10))
+            if [ "$attempt" -lt 3 ]; then sleep $((attempt * 10)); fi
           done
           exit 1
 
       - name: Notify Discord (data deployed)
         if: steps.diff.outputs.changed == 'true'
+        continue-on-error: true # never turn a good deploy dispatch into a red run
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           REPO_URL: ${{ github.server_url }}/${{ github.repository }}
@@ -95,10 +98,10 @@ jobs:
           This run: $RUN_URL"
 
       - name: Notify Discord (run failed)
-        if: failure()
+        if: failure() || cancelled()
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          node scripts/notify-discord.mjs "The daily game data refresh failed. Nothing may have been deployed.
+          node scripts/notify-discord.mjs "The daily game data refresh failed or was cancelled. A data commit may already be on main without a deploy: if the run log shows the commit was pushed, run: gh workflow run deploy.yml --ref main
           This run: $RUN_URL"
