@@ -21,9 +21,9 @@ defineProps<{
     :class="
       ghost
         ? 'py-0.5 ' +
-          (dir < 0 ? (small ? 'pl-1 pr-0.5' : 'pl-1 pr-0') : 'pl-0 pr-0.5') +
+          (dir < 0 ? 'pl-1 pr-0' : small ? 'pl-0.5 pr-0.5' : 'pl-0 pr-0.5') +
           (small ? ' text-base' : ' text-lg') +
-          ' leading-none text-[var(--muted)] ' +
+          ' font-mono leading-none text-[var(--muted)] ' +
           (neutral ? 'hover:text-[var(--text)]' : 'hover:text-[var(--accent)]') +
           ' disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-[var(--muted)] transition-colors'
         : 'px-1 py-0.5 bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[var(--panel-2)] disabled:hover:text-[var(--muted)] transition-colors text-sm leading-none'

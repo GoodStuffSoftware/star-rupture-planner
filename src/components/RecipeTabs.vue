@@ -84,7 +84,7 @@ function onChipClick(tid: string) {
     <!-- Tab chips (scroll horizontally when they overflow). No bottom padding so
          there's no dead space without a scrollbar; the header's bottom padding
          gives the scrollbar even room below it when it does appear. -->
-    <div class="flex items-center gap-1.5 overflow-x-auto pt-0.5 pb-0 min-w-0">
+    <div class="flex items-center gap-1.5 overflow-x-auto overflow-y-hidden pt-0.5 pb-0 min-w-0">
       <div
         v-for="t in store.targets"
         :key="t.tid"
