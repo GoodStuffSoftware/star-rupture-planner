@@ -137,6 +137,7 @@ function onChipClick(tid: string) {
               kind="item"
               :name="labelFor(t.targetItemId)"
               fill
+              trim
               native-context-menu
             />
             <!-- Icons off: the name's first letters stand in -->
