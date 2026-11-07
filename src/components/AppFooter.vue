@@ -20,11 +20,14 @@ const link =
        max width as <main>; equal top and bottom padding. -->
   <footer class="w-full max-w-screen-xl mx-auto px-2 py-4 sm:px-4 text-xs text-[var(--muted)]">
     <div>
-      <!-- Main row: logo + links | coffee (dead centre) | version -->
+      <!-- Main row: logo + links | coffee (dead centre) | version. Below 440px the three stack,
+           centred, in that order. -->
       <div
-        class="grid grid-cols-[1fr_auto] min-[320px]:grid-cols-[1fr_auto_1fr] items-center gap-x-3 gap-y-3"
+        class="grid grid-cols-1 justify-items-center items-center gap-x-3 gap-y-3 min-[440px]:grid-cols-[1fr_auto_1fr]"
       >
-        <div class="col-start-1 row-start-1 flex flex-col items-start gap-2 justify-self-start">
+        <div
+          class="flex flex-col items-center gap-2 min-[440px]:items-start min-[440px]:justify-self-start"
+        >
           <a
             href="https://goodstuffsoftware.com"
             target="_blank"
@@ -41,7 +44,7 @@ const link =
               class="h-9 w-auto max-w-full"
             />
           </a>
-          <nav aria-label="Footer links" class="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <nav aria-label="Footer links" class="flex items-center gap-x-3">
             <a :href="REPO" target="_blank" rel="noopener noreferrer" :class="link">GitHub</a>
             <a :href="FEEDBACK_URL" target="_blank" rel="noopener noreferrer" :class="link"
               >Feedback</a
@@ -49,9 +52,7 @@ const link =
           </nav>
         </div>
 
-        <div
-          class="col-span-2 row-start-2 justify-self-center min-[320px]:col-span-1 min-[320px]:col-start-2 min-[320px]:row-start-1"
-        >
+        <div class="justify-self-center">
           <SupportButton />
         </div>
 
@@ -61,7 +62,7 @@ const link =
           rel="noopener noreferrer"
           title="View the changelog"
           data-testid="app-version"
-          class="font-mono text-[var(--accent)] transition-colors hover:text-[var(--accent-hover)] focus-visible:text-[var(--accent-hover)] col-start-2 row-start-1 justify-self-end min-[320px]:col-start-3"
+          class="font-mono text-[var(--accent)] transition-colors hover:text-[var(--accent-hover)] focus-visible:text-[var(--accent-hover)] justify-self-center min-[440px]:justify-self-end"
           ><span class="sr-only">Changelog, </span>v{{ version }}</a
         >
       </div>
