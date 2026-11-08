@@ -112,8 +112,9 @@ export function convertGameData({ extract, idMap, prev }) {
   }
   // Available on this build: the BD the config places (its CrMassBuildingTrait PlacementData; else the first BD)
   // is not uiType Test. The game cooks the next update's buildings into the paks early as Test stubs with
-  // placeholder recipes (Smelter v2 in live build 25646882); its _Variant BDs keep their normal uiType, so they
-  // do not count. This applies to mapped buildings too: the id map is shared by every version and only grows.
+  // placeholder recipes (Smelter v2 in live build 25646882); its _Variant BD keeps uiType Producing, so the
+  // placed BD is looked up rather than trusting extract order. This applies to mapped buildings too: the id map
+  // is shared by every version and only grows. A dropped mapped building also shows as "removed" in the changelog.
   const availableConfig = (config) => {
     const first = buildingByConfig.get(config)
     if (!first) return false
