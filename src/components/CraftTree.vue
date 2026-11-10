@@ -42,6 +42,29 @@ const store = usePlannerStore()
       </div>
     </div>
 
+    <!-- A tab kept from another game version whose item this version lacks -->
+    <div
+      v-else-if="store.activeTargetMissing"
+      class="min-h-48 flex flex-col items-center justify-center gap-3 text-center px-6"
+      data-testid="missing-item"
+    >
+      <svg class="w-12 h-12 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="1.5"
+          d="M12 9v2m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4c-.77-1.33-2.69-1.33-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z"
+        />
+      </svg>
+      <div>
+        <p class="text-slate-400 font-medium">Not in this game version</p>
+        <p class="text-slate-600 text-sm mt-1">
+          {{ store.targetItemId }} isn't in the version you're viewing. The tab is kept and works
+          again when you switch to a version that has it.
+        </p>
+      </div>
+    </div>
+
     <!-- Empty / no target state -->
     <div
       v-else-if="!store.targetItemId || !store.tree"
