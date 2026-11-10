@@ -63,7 +63,9 @@ function sectionKey(s: string): string {
       </div>
     </div>
 
-    <div v-if="!store.totals" class="text-[var(--muted-2)] text-sm italic">No target selected</div>
+    <div v-if="!store.totals" class="text-[var(--muted-2)] text-sm italic">
+      {{ store.activeTargetMissing ? 'Not in this game version' : 'No target selected' }}
+    </div>
 
     <template v-else>
       <!-- Power & Heat -->

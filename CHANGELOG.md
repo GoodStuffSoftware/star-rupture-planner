@@ -18,6 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.6.1] - 2026-11-10
+
+### Fixed
+- **Switching game version keeps your tabs**: Picking the version you are already on does nothing, and switching to another one keeps every tab (order, pins, item, rate) and your closed-tab list. A tab whose item is not in the other version stays, shown as "Not in this game version", and works again when you switch back.
+
+---
+
 ## [1.6.0] - 2026-11-07
 
 ### Added
