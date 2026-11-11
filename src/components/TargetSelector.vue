@@ -16,14 +16,18 @@ const dropdownEl = ref<HTMLElement | null>(null)
 const dropdownStyle = ref<Record<string, string>>({})
 const activeIndex = ref(0)
 
-// Sync search text when store's targetItemId changes externally
+// Sync search text when store's targetItemId changes externally (or the game version changes
+// under it, which can make the item missing or present again)
 watch(
-  () => store.targetItemId,
-  (newId) => {
+  [() => store.targetItemId, () => store.activeTargetMissing],
+  ([newId, missing]) => {
     if (newId) {
-      const item = store.itemsById.get(newId)
+      const item = store.itemsById.get(newId as string)
       if (item) {
         searchText.value = item.name
+      } else if (missing) {
+        // A tab kept from another version: nothing to name, the rate is shown but locked
+        searchText.value = ''
       }
       rateInput.value = store.targetRate
     } else {
@@ -374,7 +378,7 @@ function onRateEnter(e: KeyboardEvent) {
         <button
           type="button"
           :title="machineStep ? `−${machineStep}/min (one machine)` : 'decrease'"
-          :disabled="!store.targetItemId"
+          :disabled="!store.targetItemId || store.activeTargetMissing"
           class="px-1.5 sm:px-2 py-1 sm:py-1.5 bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)] transition-colors text-xs sm:text-base leading-none disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[var(--panel-2)] disabled:hover:text-[var(--muted)]"
           @click="stepRate(-1)"
         >
@@ -386,7 +390,7 @@ function onRateEnter(e: KeyboardEvent) {
           inputmode="numeric"
           min="1"
           step="1"
-          :disabled="!store.targetItemId"
+          :disabled="!store.targetItemId || store.activeTargetMissing"
           placeholder="–"
           :style="{ width: rateWidth }"
           class="bg-[var(--panel-2)] text-[var(--text)] text-xs sm:text-sm px-0.5 sm:px-1 py-1 sm:py-1.5 min-w-[calc(5ch+0.75rem)] max-w-[calc(9ch+0.75rem)] focus:outline-none transition-colors text-right disabled:opacity-40 disabled:cursor-not-allowed [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
@@ -402,7 +406,7 @@ function onRateEnter(e: KeyboardEvent) {
         <button
           type="button"
           :title="machineStep ? `+${machineStep}/min (one machine)` : 'increase'"
-          :disabled="!store.targetItemId"
+          :disabled="!store.targetItemId || store.activeTargetMissing"
           class="px-1.5 sm:px-2 py-1 sm:py-1.5 bg-[var(--panel-2)] text-[var(--muted)] hover:bg-[var(--border)] hover:text-[var(--text)] transition-colors text-xs sm:text-base leading-none disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[var(--panel-2)] disabled:hover:text-[var(--muted)]"
           @click="stepRate(1)"
         >
