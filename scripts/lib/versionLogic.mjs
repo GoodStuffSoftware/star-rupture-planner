@@ -1,5 +1,11 @@
 // Pure version-ordering helpers shared by scripts/refresh-data.mjs and its tests.
 
+// Versions nobody can play any more (Steam serves only the live and test builds). They stay in
+// versions.ts, marked `hidden: true`, so a share link or saved plan on them still loads, but the
+// selector does not list them. Anything not named here is listed, so a pipeline-added version shows up
+// by default. To retire another version, add its id here and re-run the generator.
+export const HIDDEN_VERSION_IDS = ['playtest', 'earlyaccess', 'update1', 'update1_PTB']
+
 // Sort key: playtest, earlyaccess, then updates by number (update1 < update1_PTB < update2_QoL).
 export function versionSortKey(name) {
   if (name === 'playtest') return '0_playtest'

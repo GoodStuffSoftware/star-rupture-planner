@@ -2,7 +2,7 @@
 import { ref, computed, nextTick } from 'vue'
 import { usePlannerStore } from '../stores/plannerStore'
 import { VERSIONS } from '../data/versions'
-import { newestFirst } from '../data/versionOrder'
+import { selectableVersions } from '../data/versionOrder'
 
 const store = usePlannerStore()
 const open = ref(false)
@@ -86,7 +86,7 @@ const currentLabel = computed(
           class="bg-[var(--panel)] border border-[var(--border)] rounded-lg shadow-xl overflow-hidden flex flex-col min-w-[140px]"
         >
           <button
-            v-for="v in newestFirst(VERSIONS)"
+            v-for="v in selectableVersions(VERSIONS, store.version)"
             :key="v.id"
             class="w-full text-left px-3 py-1.5 text-sm transition-colors whitespace-nowrap"
             :class="

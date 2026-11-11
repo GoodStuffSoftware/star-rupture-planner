@@ -4,13 +4,15 @@
 export interface VersionInfo {
   id: string
   label: string
+  /** Not listed in the version selector; still loads from a share link or saved plan. Absent = listed. */
+  hidden?: true
 }
 
 export const VERSIONS: VersionInfo[] = [
-  { id: 'playtest', label: 'Playtest' },
-  { id: 'earlyaccess', label: 'Early Access' },
-  { id: 'update1', label: 'Update 1' },
-  { id: 'update1_PTB', label: 'Update 1 PTB' },
+  { id: 'playtest', label: 'Playtest', hidden: true },
+  { id: 'earlyaccess', label: 'Early Access', hidden: true },
+  { id: 'update1', label: 'Update 1', hidden: true },
+  { id: 'update1_PTB', label: 'Update 1 PTB', hidden: true },
   { id: 'update2_QoL', label: 'Update 2 QoL' },
   { id: 'update3_PTB', label: 'Update 3 PTB' },
 ]
