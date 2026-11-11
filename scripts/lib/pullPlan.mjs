@@ -16,13 +16,15 @@ export const ALLOWED_WORKFLOW_PATHS = ['.github/workflows/sr-watch.yml', '.githu
 
 export const ARTIFACT_PREFIX = 'sr-data-'
 // sr-data-<steam branch>-<buildid>; the branch is validated the same way the CI validates it.
-const ARTIFACT_NAME = /^sr-data-([A-Za-z0-9_-]+)-(\d+)$/
+// A Steam branch name holds no hyphen (public, public_test_branch): the CI's other artifact, sr-data-tools-<runid>-<branch>-<buildid>,
+// would otherwise parse with branch "tools-<runid>-<branch>" and be taken for a data build.
+const ARTIFACT_NAME = /^sr-data-([A-Za-z][A-Za-z0-9_]*)-(\d+)$/
 const DAY = 86400
 
 /** "sr-data-public_test_branch-26461198" -> { branch, buildid }. Anything else (map-mode-*, sr-data-tools-*, legacy sr-data-<id>) -> null. */
 export function parseArtifactName(name) {
   const m = ARTIFACT_NAME.exec(String(name ?? ''))
-  if (!m || !classifyBranch(m[1])) return null
+  if (!m || m[1] === 'tools' || !classifyBranch(m[1])) return null
   return { branch: m[1], buildid: m[2] }
 }
 

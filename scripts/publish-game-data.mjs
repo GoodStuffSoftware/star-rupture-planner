@@ -168,6 +168,8 @@ async function main() {
   }
   const mapChanged = JSON.stringify(result.idMap) !== JSON.stringify(idMap)
   console.log(`  id map: ${mapChanged ? 'WOULD CHANGE (new ids)' : 'unchanged'}`)
+  for (const u of result.report.unavailable) console.log(`  not available on this build (left out): ${u.kind} ${u.id} (${u.asset})`)
+  for (const d of result.report.derived) console.log(`  derived from the game: ${d.kind} ${d.id} ${d.field} = ${d.value}`)
   for (const u of result.report.uncurated) console.log(`  NO CURATED VALUE: ${u.kind} ${u.id} ${u.field}`)
 
   const plan = planIcons({ extract, idMap: result.idMap, ids: catalogIds(result) })

@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 // Thin command line over scripts/lib/pullPlan.mjs for .github/workflows/publish-game-data.yml.
 //
-//   plan-game-pull.mjs candidates --artifacts <api.json> --seen <file, one git tag suffix "<branch>-<buildid>" per line> [--buildid N] [--branch b] [--limit N]
+//   plan-game-pull.mjs coverage-tag --outcome <outcome> --branch b --buildid N
+//       prints the coverage tag to record for the outcome (srdata-<b>-<id>, srdata-failed-<b>-<id>) or an empty line
+//       when none is recorded (rules: scripts/lib/coverageTags.mjs).
+//   plan-game-pull.mjs candidates --artifacts <api.json> --seen <file, one srdata-* git tag name per line, covered or failed> [--buildid N] [--branch b] [--limit N]
 //       prints a JSON array of { key, branch, buildid, artifactId, runId, createdAt }, oldest build first.
 //       --artifacts is the JSON of GET /repos/msantoro12/starrupture-ci/actions/artifacts (or a run's artifacts),
 //       one or several pages concatenated as JSON values. Only artifacts named sr-data-<branch>-<buildid> from a
@@ -23,10 +26,10 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { coverageTagFor, taggedKeys } from './lib/coverageTags.mjs'
 import { readSource } from './lib/provenance.mjs'
 import { classifyBranch } from './lib/versionLogic.mjs'
 import {
-  keyOfTagSuffix,
   noNewsAction,
   pickCandidates,
   pickNewsTitle,
@@ -90,13 +93,15 @@ function main() {
   if (cmd === 'candidates') {
     const artifacts = readJsonDocs(f.artifacts).flatMap((d) => (Array.isArray(d) ? d : (d.artifacts ?? [])))
     const tags = fs.existsSync(f.seen ?? '') ? fs.readFileSync(f.seen, 'utf8').split(/\s+/).filter(Boolean) : []
-    const seen = new Set(tags.map(keyOfTagSuffix).filter(Boolean))
+    const seen = taggedKeys(tags) // covered and failed builds are both handled (scripts/lib/coverageTags.mjs)
     for (const k of publishedFromDisk().keys) seen.add(k)
     const limit = f.limit ? Number(f.limit) : undefined
     for (const r of screenArtifacts(artifacts).rejected) {
       console.error(`::warning::refused artifact ${r.name} (id ${r.id}, run ${r.runId}): ${r.problems.join('; ')}`)
     }
     console.log(JSON.stringify(pickCandidates({ artifacts, seen, buildid: f.buildid, branch: f.branch, limit })))
+  } else if (cmd === 'coverage-tag') {
+    console.log(coverageTagFor(f.outcome, f.branch, f.buildid) ?? '')
   } else if (cmd === 'verify-run') {
     const problems = runProblems(JSON.parse(fs.readFileSync(f.run, 'utf8')), { runId: f['run-id'] })
     if (problems.length) {

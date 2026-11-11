@@ -287,19 +287,30 @@ describe('convertGameData', () => {
       'recipes',
     ])
     expect(assembler.power).toBe(60) // game numbers always win
-    // names come from the game; types are curated and default to component when unknown
+    // names come from the game; a curated type wins, a new item's type is derived from the game
     expect(items.find((i) => i.id === 'gear')).toEqual({
       id: 'gear',
       name: 'Gear',
       type: 'component',
     })
     expect(items.find((i) => i.id === 'plate')?.type).toBe('component')
-    expect(report.uncurated.some((u) => u.kind === 'item' && u.id === 'plate')).toBe(true)
+    // a new item's type comes from the game (deriveTypes.mjs), not from a manual follow-up
+    expect(report.derived).toContainEqual({
+      kind: 'item',
+      id: 'plate',
+      field: 'type',
+      value: 'component',
+    })
+    expect(report.uncurated.some((u) => u.kind === 'item')).toBe(false)
+    // a curated type is never overwritten
+    expect(report.derived.some((d) => d.id === 'gear')).toBe(false)
   })
 
   it('falls back to the previous name when the game name is a missing string table entry', () => {
     const prev = { items: [{ id: 'cut', name: 'Cut Item', type: 'material' }] }
-    const { items } = convertGameData({ extract: fixtureExtract(), idMap: fixtureMap(), prev })
+    const extract = fixtureExtract()
+    extract.recipes[0].inputs.push({ item: I('Cut'), count: 1 })
+    const { items } = convertGameData({ extract, idMap: fixtureMap(), prev })
     expect(items.find((i) => i.id === 'cut')).toEqual({
       id: 'cut',
       name: 'Cut Item',
@@ -323,6 +334,88 @@ describe('convertGameData', () => {
       kind: 'item',
       id: 'plate',
       asset: 'I_Plate',
+    })
+  })
+
+  describe('available on this build', () => {
+    // The next update's building cooked into this build as a Test stub with a placeholder recipe
+    // (Smelter v2 in live build 25646882), already in the shared id map from a test-branch publish.
+    function withStub(placedUiType: string, variantUiType = 'ECrBuildingUIType::Producing') {
+      const extract = fixtureExtract()
+      extract.recipes.push({
+        id: 'CR_Soil',
+        output: { item: I('Soil'), count: 1 },
+        inputs: [{ item: I('Ore'), count: 1 }],
+        buildTimeEffective: 5,
+      })
+      extract.collections.push({ id: 'CRC_SmelterTier2', recipes: ['/x/CR_Soil'] })
+      extract.items.push({ id: 'I_Soil', displayName: 'Soil' })
+      const bd = (id: string, uiType: string) => ({
+        id,
+        asset: `/b/${id}`,
+        configAsset: '/b/DA_SmelterTier2',
+        displayName: 'Smelter v2',
+        type: 'ECrBuildingType::RawMaterialProcessing',
+        uiType,
+        isExtractor: false,
+        power: { electricityValue: 5 },
+        heat: 3,
+        crafting: { RecipeCollection: '/x/CRC_SmelterTier2' },
+        recipeCollections: ['/x/CRC_SmelterTier2'],
+        traits: [
+          {
+            type: 'CrMassBuildingTrait',
+            properties: { Parameters: { PlacementData: '/b/BD_SmelterTier2' } },
+          },
+        ],
+      })
+      // the variant is listed first, so "first BD per config" alone would read the wrong uiType
+      extract.buildings.push(
+        bd('BD_SmelterTier2_Variant', variantUiType),
+        bd('BD_SmelterTier2', placedUiType),
+      )
+      const idMap = fixtureMap()
+      idMap.buildings.DA_SmelterTier2 = 'smeltertier2'
+      idMap.buildingOrder.push('smeltertier2')
+      idMap.items.I_Soil = 'soil'
+      return { extract, idMap }
+    }
+
+    it('leaves out a mapped building whose placed BD is Test, and the items only it uses', () => {
+      const { extract, idMap } = withStub('ECrBuildingUIType::Test')
+      const { buildings, items, report } = convertGameData({ extract, idMap })
+      expect(buildings.some((b) => b.id === 'smeltertier2')).toBe(false)
+      expect(items.some((i) => i.id === 'soil')).toBe(false)
+      expect(items.some((i) => i.id === 'ore_x')).toBe(true) // still used by the drill
+      expect(report.unavailable.filter((u) => u.id !== 'cut')).toEqual([
+        { kind: 'building', id: 'smeltertier2', asset: 'DA_SmelterTier2' },
+        { kind: 'item', id: 'soil', asset: 'I_Soil' },
+      ])
+      expect(report.missingFromExtract).toEqual([])
+    })
+
+    it('keeps the same building once the build places it (no longer Test)', () => {
+      const { extract, idMap } = withStub('ECrBuildingUIType::Producing', 'ECrBuildingUIType::Test')
+      const { buildings, items, report } = convertGameData({ extract, idMap })
+      const smelter = buildings.find((b) => b.id === 'smeltertier2')
+      expect(smelter?.recipes?.map((r) => r.output.id)).toEqual(['soil'])
+      expect(items.some((i) => i.id === 'soil')).toBe(true)
+      expect(report.unavailable.filter((u) => u.id !== 'cut')).toEqual([])
+    })
+
+    it('does not add an unmapped Test-stub building or give its items ids', () => {
+      const { extract } = withStub('ECrBuildingUIType::Test')
+      const { buildings, idMap, report } = convertGameData({ extract, idMap: fixtureMap() })
+      expect(idMap.buildings.DA_SmelterTier2).toBeUndefined()
+      expect(idMap.items.I_Soil).toBeUndefined()
+      expect(buildings.some((b) => b.id === 'smeltertier2')).toBe(false)
+      expect(report.skippedCraftingBuildings).toContain('BD_SmelterTier2_Variant')
+    })
+
+    it('leaves out a mapped item nothing available uses', () => {
+      const { report, items } = convertGameData({ extract: fixtureExtract(), idMap: fixtureMap() })
+      expect(items.some((i) => i.id === 'cut')).toBe(false)
+      expect(report.unavailable).toContainEqual({ kind: 'item', id: 'cut', asset: 'I_Cut' })
     })
   })
 

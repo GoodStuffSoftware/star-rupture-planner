@@ -1,6 +1,7 @@
 // Pure conversion of the game-extract raw output into the planner's game-data JSON.
 // No file or network access here: the CLI (scripts/convert-game-data.mjs) does the I/O.
 // See tools/game-extract/README.md for the raw layout and scripts/data/id-map.json for the id map.
+import { deriveBuildingType, deriveItemType, itemFacts } from './deriveTypes.mjs'
 
 /** Last path segment of an asset path ("/Game/Chimera/Items/I_Foo" -> "I_Foo"). */
 export function assetName(path) {
@@ -32,17 +33,6 @@ export function uniqueSlug(raw, taken) {
 export function ratePerMinute(count, buildTime) {
   if (!(buildTime > 0)) throw new Error(`invalid build time ${buildTime}`)
   return Math.round(((count * 60) / buildTime) * 1e4) / 1e4
-}
-
-const GAME_TYPE_TO_PLANNER = {
-  'ECrBuildingType::Crafting': 'production',
-  'ECrBuildingType::RawMaterialProcessing': 'production',
-  'ECrBuildingType::Extraction': 'production',
-  'ECrBuildingType::Power': 'generator',
-  'ECrBuildingType::Defensive': 'defense',
-  'ECrBuildingType::Habitat': 'habitat',
-  'ECrBuildingType::Transport': 'transport',
-  'ECrBuildingType::TemperatureManagement': 'temperature',
 }
 
 function corpColumn(corpAsset) {
@@ -95,8 +85,10 @@ export function convertGameData({ extract, idMap, prev }) {
   const report = {
     newItemIds: [],
     newBuildingIds: [],
-    uncurated: [], // { kind, id, field, note }: new thing with no curated value
+    uncurated: [], // { kind, id, field, note }: new thing with no curated value and nothing in the game to derive it from
+    derived: [], // { kind, id, field, value }: new thing whose value came from game fields (deriveTypes.mjs)
     missingFromExtract: [], // map entries whose asset is not in the extract
+    unavailable: [], // map entries cooked into this build but not available in it (uiType Test): left out
     extractorRateFallbacks: [],
     defaultedBuildTimes: [],
     skippedCraftingBuildings: [], // have a recipe collection but are not production buildings (food processor, item printer ...)
@@ -109,12 +101,26 @@ export function convertGameData({ extract, idMap, prev }) {
   const recipeById = new Map(extract.recipes.map((r) => [r.id, r]))
   const collectionById = new Map(extract.collections.map((c) => [c.id, c]))
   const itemById = new Map(extract.items.map((i) => [i.id, i]))
+  const facts = itemFacts(extract)
   const buildingByAsset = new Map(extract.buildings.map((b) => [b.asset, b]))
+  const buildingByName = new Map(extract.buildings.map((b) => [assetName(b.asset), b]))
   // first BD per DA config (several BDs share one DA)
   const buildingByConfig = new Map()
   for (const b of extract.buildings) {
     const key = assetName(b.configAsset)
     if (key && !buildingByConfig.has(key)) buildingByConfig.set(key, b)
+  }
+  // Available on this build: the BD the config places (its CrMassBuildingTrait PlacementData; else the first BD)
+  // is not uiType Test. The game cooks the next update's buildings into the paks early as Test stubs with
+  // placeholder recipes (Smelter v2 in live build 25646882); its _Variant BD keeps uiType Producing, so the
+  // placed BD is looked up rather than trusting extract order. This applies to mapped buildings too: the id map
+  // is shared by every version and only grows. A dropped mapped building also shows as "removed" in the changelog.
+  const availableConfig = (config) => {
+    const first = buildingByConfig.get(config)
+    if (!first) return false
+    const placement = (first.traits ?? []).find((t) => t.type === 'CrMassBuildingTrait')?.properties?.Parameters?.PlacementData
+    const placed = buildingByName.get(assetName(placement)) ?? first
+    return placed.uiType !== 'ECrBuildingUIType::Test'
   }
 
   // ---- ids -------------------------------------------------------------------------------
@@ -138,7 +144,7 @@ export function convertGameData({ extract, idMap, prev }) {
     const timed = recs.length > 0 && recs.every((r) => r && r.buildTimeEffective > 0)
     const producing = b.isExtractor || ['ECrBuildingType::Crafting', 'ECrBuildingType::RawMaterialProcessing', 'ECrBuildingType::Extraction'].includes(b.type)
     // test/cut content has uiType Test and no corporation unlock; Tier2 variants have no unlock data either
-    const released = b.uiType !== 'ECrBuildingUIType::Test' && ((b.unlockedBy ?? []).length > 0 || /Tier\d/.test(config))
+    const released = availableConfig(config) && ((b.unlockedBy ?? []).length > 0 || /Tier\d/.test(config))
     if (timed && producing && released) newConfigs.push(config)
     else report.skippedCraftingBuildings.push(assetName(b.id))
   }
@@ -181,6 +187,10 @@ export function convertGameData({ extract, idMap, prev }) {
       report.missingFromExtract.push({ kind: 'building', id, asset: config })
       continue
     }
+    if (!availableConfig(config)) {
+      report.unavailable.push({ kind: 'building', id, asset: config })
+      continue
+    }
     // base_core style entries (no power/heat/recipes in the planner file) are curated whole
     if (before && before.power === undefined && before.heat === undefined) {
       buildingsOut.push(structuredClone(before))
@@ -189,10 +199,11 @@ export function convertGameData({ extract, idMap, prev }) {
 
     const out = { id, name: before?.name ?? bd.displayName }
     if (!before) {
-      report.uncurated.push({ kind: 'building', id, field: 'name,type,upgrade', note: `new building, name from the game: "${bd.displayName}"` })
+      report.uncurated.push({ kind: 'building', id, field: 'upgrade', note: `new building, name and type come from the game ("${bd.displayName}"); an upgrade link to a Tier2 building is not derived` })
     }
     if (before?.upgrade) out.upgrade = before.upgrade
-    out.type = before?.type ?? GAME_TYPE_TO_PLANNER[bd.type] ?? 'production'
+    out.type = before?.type ?? deriveBuildingType(bd)
+    if (!before?.type) report.derived.push({ kind: 'building', id, field: 'type', value: out.type })
     out.power = bd.power?.electricityValue ?? 0
     out.heat = bd.heat ?? 0
     if (before?.coreHeatCapacity !== undefined) out.coreHeatCapacity = before.coreHeatCapacity
@@ -269,6 +280,13 @@ export function convertGameData({ extract, idMap, prev }) {
   }
 
   // ---- items (after buildings and corporations so every referenced item has an id) -------
+  // An item is available on this build when an available recipe or a corporation table uses it; a mapped item
+  // that only unavailable content uses (a recipe of a Test stub building) is left out like that building.
+  const usedItems = new Set()
+  for (const b of buildingsOut) {
+    for (const r of b.recipes ?? []) for (const io of [r.output, ...r.inputs]) usedItems.add(io.id)
+  }
+  for (const c of Object.values(corporations)) for (const l of c.levels) for (const k of l.components) usedItems.add(k.id)
   const assetById = Object.fromEntries(Object.entries(map.items).map(([a, id]) => [id, a]))
   const itemsOut = []
   for (const id of Object.keys(assetById).sort()) {
@@ -279,11 +297,14 @@ export function convertGameData({ extract, idMap, prev }) {
       if (before) itemsOut.push({ ...before })
       continue
     }
-    const gameName = game.displayName && !game.displayName.includes('MISSING STRING TABLE') ? game.displayName : undefined
-    if (!before) {
-      report.uncurated.push({ kind: 'item', id, field: 'type', note: `new item "${gameName ?? id}", type defaulted to "component"` })
+    if (!usedItems.has(id)) {
+      report.unavailable.push({ kind: 'item', id, asset: assetById[id] })
+      continue
     }
-    itemsOut.push({ id, name: gameName ?? before?.name ?? id, type: before?.type ?? 'component' })
+    const gameName = game.displayName && !game.displayName.includes('MISSING STRING TABLE') ? game.displayName : undefined
+    const type = before?.type ?? deriveItemType(game, facts)
+    if (!before?.type) report.derived.push({ kind: 'item', id, field: 'type', value: type })
+    itemsOut.push({ id, name: gameName ?? before?.name ?? id, type })
   }
 
   // the committed catalog order is hand-kept: previous order first, new items after it by display name
