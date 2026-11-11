@@ -13,6 +13,18 @@ export interface PlanTargetState {
   expandLevel?: number // per-tab expand scope
   expanded?: NodeExpansion // per-tab manual caret toggles (deviations from expandLevel)
   pinned?: boolean // pinned tabs sit at the left; absent in older saves (= not pinned)
+  /**
+   * Set by a save when the tab's item is not in the game version saved with it (a tab kept across
+   * a version switch). Tells a reload to keep it instead of swapping in a default item. Absent
+   * otherwise, and ignored by older clients.
+   */
+  missing?: boolean
+  /**
+   * Set by a save when the rate is a fraction that is not a whole number of this version's
+   * machines (carried over from a version where it was): a reload keeps it as it is instead of
+   * rounding it. Absent otherwise.
+   */
+  exactRate?: boolean
 }
 
 /**
@@ -27,6 +39,10 @@ export interface ClosedTabState {
   expanded: NodeExpansion
   pinned: boolean
   index: number
+  /** As on PlanTargetState: the item is not in the game version saved with it. */
+  missing?: boolean
+  /** As on PlanTargetState: keep the rate unrounded on reload. */
+  exactRate?: boolean
 }
 
 /** The closed-tab stack never holds more than this many tabs (newest first). */
@@ -363,7 +379,11 @@ export function decodePlanFromUrl(): PlanState | null {
           : {}) as VersionOverrides,
         overages: (typeof o.overages === 'object' && o.overages ? o.overages : {}) as Overages,
         targets: Array.isArray(o.targets)
-          ? (o.targets.filter((t) => t && typeof t === 'object') as PlanTargetState[])
+          ? // A link never carries our save-only flags (missing, exactRate).
+            (o.targets.filter((t) => t && typeof t === 'object') as PlanTargetState[]).map(
+              // eslint-disable-next-line @typescript-eslint/no-unused-vars
+              ({ missing, exactRate, ...rest }) => rest,
+            )
           : undefined,
         activeTargetIndex:
           typeof o.activeTargetIndex === 'number' ? o.activeTargetIndex : undefined,

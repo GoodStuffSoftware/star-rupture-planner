@@ -80,15 +80,16 @@ public/
 
 ## Deploy Pipeline
 
-**Trunk-based. Push `main` → production. No staging branch, no preview environment.**
+**Trunk-based. Push `main` → production. No staging branch. Previews are wrangler branch deploys (see Ship).**
 
 | Branch | Environment | URL |
 |--------|-------------|-----|
 | `main` | Production | https://starrupture.goodstuff.software |
+| any other branch | Preview (manual) | `<branch-slug>.star-rupture-planner.pages.dev` |
 
 **Workflows:**
 - `.github/workflows/deploy.yml` — fires on push to `main`. Runs `npm ci`, `npm run build`, then `cloudflare/wrangler-action@v3` with `pages deploy dist --project-name=star-rupture-planner --branch=${{ github.ref_name }}`.
-- `.github/workflows/ci.yml` — fires on PRs targeting `main`. Runs lint → typecheck → build. Must pass before merge.
+- `.github/workflows/ci.yml` — fires on PRs targeting `main`. Runs lint → typecheck → build (no unit tests). Normal flow merges without a PR, so the local pass in Ship is the full pass.
 
 **Secrets** (GitHub repo encrypted secrets — do NOT hardcode):
 - `CLOUDFLARE_API_TOKEN` — "GSS Pages Deploy" token (all-zones, Pages:Edit + DNS:Edit). Shared across Good Stuff Software apps; do not rotate without coordinating.
@@ -102,13 +103,13 @@ Trunk-based. `main` is the single integration branch and deploys directly to pro
 
 ```
 main             → production (auto-deploy on push)
-feat/<scope>     → optional, for larger changes; merge to main
+feat/<scope>     → one working branch per request
 fix/<scope>
 chore/<scope>
 docs/<scope>
 ```
 
-For small changes, commit directly to `main` (husky gate enforces quality). Feature branches are optional — use them for larger multi-commit work, then merge to `main`.
+One working branch per request. Workers commit straight to it, with no sub-PRs into it. Small changes may still go straight to `main` (husky gate enforces quality).
 
 ---
 
@@ -119,6 +120,8 @@ Broken code cannot reach git. The hooks enforce this:
 **Pre-commit:** `lint-staged` (ESLint `--fix` + Prettier `--write` on staged `src/**/*.{ts,vue}`) + project-wide `vue-tsc -b --noEmit` typecheck.
 
 **Pre-push:** Full `npm run build` (typecheck + Vite build). Build must pass before push reaches remote.
+
+The hooks are the per-commit and per-push gates; the single full pass (lint, typecheck, `npx vitest run`, build) happens once at ship time.
 
 Mid-feature escape hatch: `git commit --no-verify` (use sparingly; state the reason in the commit message).
 
@@ -160,13 +163,28 @@ The main session orchestrates — it does not execute code-touching changes dire
 **Default routing:**
 - Read-only lookup, structure questions, "where is X" → `srp-explorer`
 - Feature builds, bug fixes, 1–3 file changes → `srp-builder`
-- Lint / typecheck / diff quality pass → `srp-reviewer`
+- Diff review for mid/high-risk changes → `srp-reviewer`
 
 **Unique team name per session:** `srp-YYYYMMDD-<slug>` (e.g. `srp-20260607-share-url`). Never reuse a bare team name across sessions — it accumulates ghost teammates and bleeds idle messages.
 
-**Reviewer pairing:** Every code-change teammate must pair with `srp-reviewer` before claiming done. Pipeline: builder → reviewer sign-off → user sign-off.
+**Review by risk** (agent-companion `risk` tier). The writer states RISK low, mid or high:
+- low (styling, copy, small layout): unit tests for the touched code, no reviewer.
+- mid (logic, state, persistence): one reviewer who only reads the diff.
+- high (risky state/persistence/sync, data pipeline): one reviewer reads, then checks the changed behaviour in the running app (`npm run dev`, or the preview).
+
+Always: one review, one fix round by the writer, no re-review. Reviewers never run lint, typecheck, build, the full suite, e2e or CI; they read the writer's raw output. Mike's sign-off on previews is unchanged.
 
 **Reports to files, not chat.** Long teammate reports go to `~/.claude/tasks/<team-name>/<batch-id>-<role>.md`. The teammate `SendMessage`s the lead a 1-line pointer.
+
+---
+
+## Ship
+
+1. **Preview:** `npm run build`, then `npx wrangler pages deploy dist --project-name=star-rupture-planner --branch=<branch>`. Alias: `<branch-slug>.star-rupture-planner.pages.dev`. Never `--branch=main`. Mike signs off on the preview.
+2. **On Mike's explicit "ship it":** bump the version, add the CHANGELOG entry and the annotated tag together (the release gate checks them; `npm run release` currently breaks on Windows quoting, so tag by hand).
+3. **One full local pass:** `npm run lint`, `npm run typecheck`, `npx vitest run`, `npm run build`.
+4. **Merge to `main` with no PR and push.** The pre-push hook builds again; production deploys.
+5. **Verify the live site by content** (not bundle filename).
 
 ---
 
@@ -179,7 +197,7 @@ Memory files live at `~/.claude/projects/<encoded-project-path>/memory/` (Window
 ## Agent Rules
 
 1. **Always read before editing.** Use Read tool to check file contents before any Edit/Write.
-2. **Run lint + typecheck before reporting done.** `npm run lint && npm run typecheck`.
+2. **Run the tests covering the code you touched before reporting done.** The commit hook already runs lint-staged and typecheck; the full pass happens once at ship time.
 3. **Meaningful commit messages.** Conventional format, describe the change.
 4. **BUILD_SPEC.md is the spec.** Check it before implementing any non-trivial feature.
 5. **User's manual changes set the contract; tests follow.** Never revert a user's deliberate change to satisfy a stale expectation.
@@ -187,4 +205,4 @@ Memory files live at `~/.claude/projects/<encoded-project-path>/memory/` (Window
 
 ---
 
-_Last updated: 2026-06-07_
+_Last updated: 2026-11-10_

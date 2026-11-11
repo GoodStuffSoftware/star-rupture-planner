@@ -36,9 +36,17 @@ const nameMaxWidth = computed(() => {
   return 38
 })
 
+// A tab kept from another game version whose item this version lacks: no art, a muted look and
+// a hint in its title.
+const isMissing = (t: { targetItemId: string | null }) => store.isMissingItem(t.targetItemId)
+const NOT_HERE = 'not in this game version'
+
+// The item's icon: there is an item this version has, and icons are on.
+const showsIcon = (t: { targetItemId: string | null }) =>
+  !!t.targetItemId && store.showIcons && !isMissing(t)
+
 // Pinned tabs always show an icon (a glyph when empty); others when there is an item and icons are on.
-const hasIcon = (t: { pinned?: boolean; targetItemId: string | null }) =>
-  !!t.pinned || (!!t.targetItemId && store.showIcons)
+const hasIcon = (t: { pinned?: boolean; targetItemId: string | null }) => !!t.pinned || showsIcon(t)
 
 // ─── Drag-to-reorder ────────────────────────────────────────────────────────
 const dragTid = ref<string | null>(null)
@@ -94,11 +102,13 @@ function onChipClick(tid: string) {
         aria-haspopup="menu"
         :aria-selected="t.tid === store.activeTargetId"
         :title="
-          t.targetItemId ? `${labelFor(t.targetItemId)} — ${fmt(t.targetRate)}/min` : 'New tab'
+          t.targetItemId
+            ? `${labelFor(t.targetItemId)} — ${fmt(t.targetRate)}/min${isMissing(t) ? ` (${NOT_HERE})` : ''}`
+            : 'New tab'
         "
         :aria-label="
-          t.pinned
-            ? `${t.targetItemId ? `${labelFor(t.targetItemId)}, ${fmt(t.targetRate)}/min` : 'New tab'}, pinned`
+          t.pinned || isMissing(t)
+            ? `${t.targetItemId ? `${labelFor(t.targetItemId)}, ${fmt(t.targetRate)}/min` : 'New tab'}${isMissing(t) ? `, ${NOT_HERE}` : ''}${t.pinned ? ', pinned' : ''}`
             : undefined
         "
         class="chamfer-sm group flex items-center gap-1.5 h-[calc(1lh+0.75rem)] text-sm shrink-0 cursor-grab active:cursor-grabbing transition-colors select-none"
@@ -107,7 +117,7 @@ function onChipClick(tid: string) {
             ? '[--cf-fill:var(--accent)] text-[var(--accent-on)]'
             : '[--cf-fill:var(--panel-2)] hover:[--cf-fill:var(--border)] text-[var(--muted)] hover:text-[var(--text)]',
           t.pinned ? 'px-0' : [hasIcon(t) ? 'pl-0' : 'pl-2', 'pr-2'],
-          dragTid === t.tid ? 'opacity-50' : '',
+          dragTid === t.tid ? 'opacity-50' : isMissing(t) ? 'opacity-60 italic' : '',
           overTid === t.tid ? 'ring-2 ring-[var(--accent)]' : '',
         ]"
         @click="onChipClick(t.tid)"
@@ -129,7 +139,7 @@ function onChipClick(tid: string) {
           v-if="hasIcon(t)"
           class="relative h-full shrink-0 [--pad:calc((1lh+0.75rem)*0.16)]"
           :class="
-            t.targetItemId && store.showIcons
+            showsIcon(t)
               ? t.pinned
                 ? 'flex p-[var(--pad)]'
                 : 'flex py-[var(--pad)] pl-[var(--pad)]'
@@ -140,8 +150,8 @@ function onChipClick(tid: string) {
           <!-- With an icon: its art's height fills the chip minus the padding (~5px at the
                default Text size, relative to the chip); its width follows the art's aspect. -->
           <GameIcon
-            v-if="t.targetItemId && store.showIcons"
-            :id="t.targetItemId"
+            v-if="showsIcon(t)"
+            :id="t.targetItemId ?? ''"
             kind="item"
             :name="labelFor(t.targetItemId)"
             fit-height
