@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Every playable build is covered, and the pipeline says so**: The publish workflow tags each build it covers (`srdata-<branch>-<buildid>`: published, or checked and unchanged) and each build it could not (`srdata-failed-<branch>-<buildid>`, with a Discord alert, never the covered tag), so the mod CI can tell which live and test builds still lack planner data. A test build waiting for its news post gets no tag and is retried.
 - **New items and buildings come out complete**: The converter now derives the type of a brand-new item (raw, processed, component, material, ammo) and building from the game files, so a new game version needs no manual follow-up. Hand-curated values still win. On the Update 2 data it reproduces 104 of 104 item types and 43 of 43 building types.
 
+### Changed
+- **Every playable version now takes its data and icons from the game**: Update 2 QoL, the live version, was the last one still using the upstream data repo's files. Its data is byte for byte the same as before (checked against the game build), and its icons now come from the game files too. The daily upstream refresh no longer touches it. A new `--adopt` option on the publish script does this for any version that is already covered.
+
 ### Fixed
 - **Game data publish ignores the CI tools artifact**: The scheduled publish no longer mistakes the extractor's tools artifact for a game build, so it stops posting a bogus "not usable" notice to Discord.
 - **Game data updates now go live**: When the scheduled job refreshes the game data, the site is redeployed automatically. Before, the new data sat in the repo until someone pushed. A Discord notice (when a webhook is configured) reports each deploy or failure, and a data refresh that cannot reach upstream now fails loudly instead of silently keeping the old files.

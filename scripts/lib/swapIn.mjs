@@ -17,14 +17,22 @@ export function swapIn({ stage, targetDir, staged, iconRoot, idMapFile, versions
     }
     fs.renameSync(staged.data, targetDir)
     undo.push(() => fs.rmSync(targetDir, { recursive: true, force: true }))
-    // new icons (existing WebPs are never replaced: they are not in the stage)
+    // icons: a publish stages only new icons; an adopt also stages replacements (an overwritten file is backed up
+    // in the stage and put back on failure)
     if (fs.existsSync(staged.icons)) {
       for (const kind of fs.readdirSync(staged.icons)) {
         fs.mkdirSync(path.join(iconRoot, kind), { recursive: true })
         for (const file of fs.readdirSync(path.join(staged.icons, kind))) {
           const dest = path.join(iconRoot, kind, file)
+          if (fs.existsSync(dest)) {
+            const backup = path.join(stage, 'old-icons', kind, file)
+            fs.mkdirSync(path.dirname(backup), { recursive: true })
+            fs.copyFileSync(dest, backup)
+            undo.push(() => fs.copyFileSync(backup, dest))
+          } else {
+            undo.push(() => fs.rmSync(dest, { force: true }))
+          }
           fs.renameSync(path.join(staged.icons, kind, file), dest)
-          undo.push(() => fs.rmSync(dest, { force: true }))
         }
       }
     }

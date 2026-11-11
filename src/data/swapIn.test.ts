@@ -121,4 +121,33 @@ describe('swapIn (atomic publish)', () => {
     ).toThrow()
     expect(fs.existsSync(project.targetDir)).toBe(false)
   })
+
+  it('replaces a committed icon (adopt) and puts the old bytes back when a late step fails', () => {
+    const ok = setup()
+    write(path.join(ok.project.iconRoot, 'items', 'new.webp'), 'upstream art')
+    swapIn({
+      stage: ok.stage,
+      targetDir: ok.project.targetDir,
+      staged: ok.staged,
+      iconRoot: ok.project.iconRoot,
+      idMapFile: null,
+      versionsFile: ok.project.versionsTs,
+    })
+    expect(read(path.join(ok.project.iconRoot, 'items', 'new.webp'))).toBe('new icon')
+
+    const bad = setup()
+    write(path.join(bad.project.iconRoot, 'items', 'new.webp'), 'upstream art')
+    const brokenVersions = path.join(bad.project.targetDir, '..', 'no-such-dir', 'versions.ts')
+    expect(() =>
+      swapIn({
+        stage: bad.stage,
+        targetDir: bad.project.targetDir,
+        staged: bad.staged,
+        iconRoot: bad.project.iconRoot,
+        idMapFile: null,
+        versionsFile: brokenVersions,
+      }),
+    ).toThrow()
+    expect(read(path.join(bad.project.iconRoot, 'items', 'new.webp'))).toBe('upstream art')
+  })
 })
