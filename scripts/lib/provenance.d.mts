@@ -24,4 +24,13 @@ export function gameExtractSource(args: {
   versionId: string
   generatedAt: string
 }): SourceInfo
+export function collectFolderIds(
+  rootDir: string,
+  folders: string[],
+): { buildings: Set<string>; items: Set<string> }
+export function planIconDownloads(
+  ids: Iterable<string>,
+  protectedIds: Set<string>,
+  iconExists: (id: string) => boolean,
+): { download: string[]; protected: string[] }
 export function writeSource(versionDir: string, body: SourceInfo): void

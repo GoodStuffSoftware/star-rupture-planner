@@ -15,7 +15,14 @@
 import { mkdir, writeFile, readFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { listSkippedFolders, partitionVersions, readSource } from './lib/provenance.mjs'
+import { existsSync } from 'node:fs'
+import {
+  collectFolderIds,
+  listSkippedFolders,
+  partitionVersions,
+  planIconDownloads,
+  readSource,
+} from './lib/provenance.mjs'
 import { renderVersionsTs } from './lib/versionsFile.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -189,14 +196,25 @@ async function downloadIcon(kind, id) {
 await mkdir(resolve(PUBLIC, 'icons', 'buildings'), { recursive: true })
 await mkdir(resolve(PUBLIC, 'icons', 'items'), { recursive: true })
 
-const bRes = await pool([...buildingIds], 8, (id) => downloadIcon('buildings', id))
-const iRes = await pool([...itemIds], 8, (id) => downloadIcon('items', id))
+// Icons of ids used by a game-extract folder come from the game: never overwrite them. The hidden
+// upstream versions keep refreshing and list the same ids, so they would otherwise put the upstream art back.
+const owned = collectFolderIds(OUT_ROOT, SKIPPED_VERSIONS)
+const iconPath = (kind, id) => resolve(PUBLIC, 'icons', kind, `${id}.webp`)
+const bPlan = planIconDownloads([...buildingIds], owned.buildings, (id) => existsSync(iconPath('buildings', id)))
+const iPlan = planIconDownloads([...itemIds], owned.items, (id) => existsSync(iconPath('items', id)))
+const protectedCount = bPlan.protected.length + iPlan.protected.length
+console.log(`\nIcons protected (game-extract, not overwritten): ${protectedCount}`)
+
+const bRes = await pool(bPlan.download, 8, (id) => downloadIcon('buildings', id))
+const iRes = await pool(iPlan.download, 8, (id) => downloadIcon('items', id))
 
 const bOk = bRes.filter((r) => r.ok).length
 const iOk = iRes.filter((r) => r.ok).length
 const missing = [...bRes, ...iRes].filter((r) => !r.ok)
 
-console.log(`\nIcons: ${bOk}/${buildingIds.size} buildings, ${iOk}/${itemIds.size} items.`)
+console.log(
+  `\nIcons: ${bOk}/${bPlan.download.length} buildings, ${iOk}/${iPlan.download.length} items downloaded; ${protectedCount} protected.`,
+)
 if (missing.length) {
   console.log(`  Missing icons (fallback glyph will be used): ${missing.map((m) => m.id).join(', ')}`)
 }

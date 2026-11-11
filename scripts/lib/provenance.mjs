@@ -69,6 +69,43 @@ export function gameExtractSource({ branch, buildid, extractorVersion, versionId
   }
 }
 
+/**
+ * Item and building ids listed by the given (game-extract) version folders. Their icons come from the game,
+ * so the upstream refresh must not overwrite them.
+ */
+export function collectFolderIds(rootDir, folders) {
+  const buildings = new Set()
+  const items = new Set()
+  const read = (folder, file, into) => {
+    try {
+      const rows = JSON.parse(fs.readFileSync(path.join(rootDir, folder, file), 'utf8'))
+      for (const row of rows) if (row?.id) into.add(row.id)
+    } catch {
+      // missing or unreadable file: that folder contributes no ids of this kind
+    }
+  }
+  for (const folder of folders) {
+    read(folder, 'buildings_and_recipes.json', buildings)
+    read(folder, 'items_catalog.json', items)
+  }
+  return { buildings, items }
+}
+
+/**
+ * Splits icon ids (of one kind) into those to download and those left alone. An icon is protected when its
+ * id belongs to a game-extract folder AND the file already exists. A missing icon is still downloaded, and
+ * ids used only by upstream-sourced versions always download.
+ */
+export function planIconDownloads(ids, protectedIds, iconExists) {
+  const download = []
+  const kept = []
+  for (const id of new Set(ids)) {
+    if (protectedIds.has(id) && iconExists(id)) kept.push(id)
+    else download.push(id)
+  }
+  return { download, protected: kept }
+}
+
 export function writeSource(versionDir, body) {
   fs.mkdirSync(versionDir, { recursive: true })
   fs.writeFileSync(path.join(versionDir, SOURCE_FILE), `${JSON.stringify(body, null, 2)}\n`)

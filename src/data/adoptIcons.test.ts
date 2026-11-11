@@ -6,7 +6,11 @@ import {
   classifyStagedIcons,
   iconsWithoutGameCounterpart,
 } from '../../scripts/lib/convertIcons.mjs'
-import { listSkippedFolders } from '../../scripts/lib/provenance.mjs'
+import {
+  collectFolderIds,
+  listSkippedFolders,
+  planIconDownloads,
+} from '../../scripts/lib/provenance.mjs'
 
 const write = (file: string, text: string) => {
   fs.mkdirSync(path.dirname(file), { recursive: true })
@@ -53,5 +57,47 @@ describe('update2_QoL is owned by the game extract', () => {
     expect(skipped).toContain('update3_PTB')
     // folders that still come from upstream are not skipped
     expect(skipped).not.toContain('earlyaccess')
+  })
+})
+
+describe('refresh: icons of game-extract folders are protected', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'srp-refresh-icons-'))
+  write(
+    path.join(root, 'update2_QoL', 'items_catalog.json'),
+    JSON.stringify([{ id: 'shared' }, { id: 'game_only' }]),
+  )
+  write(
+    path.join(root, 'update2_QoL', 'buildings_and_recipes.json'),
+    JSON.stringify([{ id: 'smelter' }]),
+  )
+  write(path.join(root, 'broken', 'items_catalog.json'), 'not json')
+
+  it('collects item and building ids of the given folders, ignoring unreadable files', () => {
+    const ids = collectFolderIds(root, ['update2_QoL', 'broken', 'absent'])
+    expect([...ids.items].sort()).toEqual(['game_only', 'shared'])
+    expect([...ids.buildings]).toEqual(['smelter'])
+  })
+
+  const owned = new Set(['shared', 'game_only'])
+  const existing = new Set(['shared', 'upstream_only'])
+
+  it('never overwrites an existing icon whose id belongs to a game-extract folder, even if a refreshed version lists it', () => {
+    const plan = planIconDownloads(['shared', 'upstream_only'], owned, (id) => existing.has(id))
+    expect(plan.protected).toEqual(['shared'])
+    expect(plan.download).not.toContain('shared')
+  })
+
+  it('still adds a missing icon for an owned id', () => {
+    const plan = planIconDownloads(['game_only'], owned, (id) => existing.has(id))
+    expect(plan.download).toEqual(['game_only'])
+    expect(plan.protected).toEqual([])
+  })
+
+  it('still updates icons for ids used only by upstream-sourced versions', () => {
+    const plan = planIconDownloads(['upstream_only', 'upstream_only'], owned, (id) =>
+      existing.has(id),
+    )
+    expect(plan.download).toEqual(['upstream_only'])
+    expect(plan.protected).toEqual([])
   })
 })

@@ -16,7 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **New items and buildings come out complete**: The converter now derives the type of a brand-new item (raw, processed, component, material, ammo) and building from the game files, so a new game version needs no manual follow-up. Hand-curated values still win. On the Update 2 data it reproduces 104 of 104 item types and 43 of 43 building types.
 
 ### Changed
-- **Every playable version now takes its data and icons from the game**: Update 2 QoL, the live version, was the last one still using the upstream data repo's files. Its data is byte for byte the same as before (checked against the game build), and its icons now come from the game files too. The daily upstream refresh no longer touches it. A new `--adopt` option on the publish script does this for any version that is already covered.
+- **Every playable version now takes its data and icons from the game**: Update 2 QoL, the live version, was the last one still using the upstream data repo's files. Its data is byte for byte the same as before (checked against the game build), and its icons now come from the game files too. The daily upstream refresh no longer touches it. A new `--adopt` option on the publish script does this for any version that is already covered. The daily upstream refresh also leaves those icons alone, and adds only icons that are missing.
+- **Unplayable versions are hidden from the version menu**: Early Access, Playtest, Update 1 and Update 1 PTB can no longer be played, so the menu lists only the current builds. They still open from share links and saved plans, and can come back to the menu if someone asks.
 
 ### Fixed
 - **Game data publish ignores the CI tools artifact**: The scheduled publish no longer mistakes the extractor's tools artifact for a game build, so it stops posting a bogus "not usable" notice to Discord.
