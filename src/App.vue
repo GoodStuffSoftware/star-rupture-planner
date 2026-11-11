@@ -166,14 +166,10 @@ onUnmounted(() => {
           </div>
         </section>
 
-        <!-- Totals: a sticky right sidebar when 'side', or a full-width panel below when 'bottom' -->
+        <!-- Totals: a right sidebar when 'side', or a full-width panel below when 'bottom' -->
         <aside
           class="w-full shrink-0 flex flex-col gap-4"
-          :class="
-            store.totalsPlacement === 'side'
-              ? 'md:w-80 md:sticky md:top-20 md:max-h-[calc(100vh-5.5rem)] md:overflow-y-auto'
-              : ''
-          "
+          :class="store.totalsPlacement === 'side' ? 'md:w-80' : ''"
         >
           <TotalsPanel />
         </aside>
