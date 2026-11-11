@@ -1,6 +1,6 @@
 // Generator of src/data/versions.ts. Shared by scripts/refresh-data.mjs (upstream refresh) and
 // scripts/publish-game-data.mjs (our own pipeline), so both always write the same file.
-import { sortVersions, pickDefaultVersion } from './versionLogic.mjs'
+import { sortVersions, pickDefaultVersion, HIDDEN_VERSION_IDS } from './versionLogic.mjs'
 
 export function humanLabel(dirName) {
   // Known labels for exact matches
@@ -41,10 +41,12 @@ export function renderVersionsTs(ids) {
 export interface VersionInfo {
   id: string
   label: string
+  /** Not listed in the version selector; still loads from a share link or saved plan. Absent = listed. */
+  hidden?: true
 }
 
 export const VERSIONS: VersionInfo[] = [
-${sorted.map((v) => `  { id: '${v}', label: '${humanLabel(v)}' },`).join('\n')}
+${sorted.map((v) => `  { id: '${v}', label: '${humanLabel(v)}'${HIDDEN_VERSION_IDS.includes(v) ? ', hidden: true' : ''} },`).join('\n')}
 ]
 
 export const DEFAULT_VERSION = '${defaultVersion}'

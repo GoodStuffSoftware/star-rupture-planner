@@ -20,7 +20,9 @@ import {
   writeSource,
 } from '../../scripts/lib/provenance.mjs'
 import { renderVersionsTs } from '../../scripts/lib/versionsFile.mjs'
-import { newestFirst } from './versionOrder'
+import { newestFirst, selectableVersions } from './versionOrder'
+import { encodePlan, decodePlanFromUrl, save, loadSaved } from '../lib/persistState'
+import type { PlanState, ViewPrefs } from '../lib/persistState'
 import { VERSIONS, DEFAULT_VERSION } from './versions'
 
 const label = (id: string) => ({ id, label: id })
@@ -306,5 +308,58 @@ describe('provenance: the refresh skips game-extract folders', () => {
     const { text, defaultVersion } = renderVersionsTs(['update1', 'update2_QoL', 'update3_PTB'])
     expect(defaultVersion).toBe('update2_QoL')
     expect(text).toContain("{ id: 'update3_PTB', label: 'Update 3 PTB' },")
+  })
+})
+
+describe('hidden versions', () => {
+  const HIDDEN = ['playtest', 'earlyaccess', 'update1', 'update1_PTB']
+
+  it('lists only the live and test builds in the selector', () => {
+    expect(selectableVersions(VERSIONS, DEFAULT_VERSION).map((v) => v.id)).toEqual([
+      'update3_PTB',
+      'update2_QoL',
+    ])
+    expect(VERSIONS.filter((v) => v.hidden).map((v) => v.id)).toEqual(HIDDEN)
+  })
+
+  it('shows a hidden active version as the current choice, so the user can switch away', () => {
+    const ids = selectableVersions(VERSIONS, 'update1').map((v) => v.id)
+    expect(ids).toEqual(['update3_PTB', 'update2_QoL', 'update1'])
+  })
+
+  it('lists a pipeline-written entry by default', () => {
+    const { text } = renderVersionsTs(['update1', 'update2_QoL', 'update3_PTB', 'update4'])
+    expect(text).toContain("{ id: 'update4', label: 'Update 4' },")
+    expect(text).toContain("{ id: 'update3_PTB', label: 'Update 3 PTB' },")
+    expect(text).toContain("{ id: 'update1', label: 'Update 1', hidden: true },")
+  })
+
+  it('generates exactly the checked-in versions.ts', () => {
+    const { text } = renderVersionsTs(VERSIONS.map((v) => v.id))
+    expect(text).toContain("{ id: 'playtest', label: 'Playtest', hidden: true },")
+    expect(text).toContain("{ id: 'update2_QoL', label: 'Update 2 QoL' },")
+  })
+
+  const plan = (version: string): PlanState => ({
+    version,
+    targetItemId: 'rotor',
+    targetRate: 30,
+    tier: {},
+    overrides: {},
+    overages: {},
+  })
+
+  it('still resolves a hidden version from a share URL', () => {
+    const url = new URL(encodePlan(plan('earlyaccess')), 'http://localhost/')
+    window.history.replaceState({}, '', `/${url.search}`)
+    expect(decodePlanFromUrl()?.version).toBe('earlyaccess')
+    window.history.replaceState({}, '', '/')
+  })
+
+  it('still resolves a hidden version from saved state', () => {
+    localStorage.clear()
+    save(plan('update1_PTB'), {} as ViewPrefs)
+    expect(loadSaved()?.plan?.version).toBe('update1_PTB')
+    localStorage.clear()
   })
 })

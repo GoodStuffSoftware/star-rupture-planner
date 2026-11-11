@@ -27,3 +27,9 @@ export function writeIcons(args: {
   outDir: string
   overwrite?: boolean
 }): Promise<{ written: IconPlanEntry[]; kept: IconPlanEntry[]; noPng: IconPlanEntry[] }>
+export function classifyStagedIcons(args: { stagedDir: string; iconRoot: string }): {
+  added: string[]
+  replaced: string[]
+  unchanged: string[]
+}
+export function iconsWithoutGameCounterpart(args: { plan: IconPlan; iconRoot: string }): string[]

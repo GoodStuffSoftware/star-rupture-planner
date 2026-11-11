@@ -76,3 +76,36 @@ export async function writeIcons({ plan, extractDir, outDir, overwrite = true })
   }
   return { written, kept, noPng }
 }
+
+const listWebp = (dir) => (fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.endsWith('.webp')).sort() : [])
+const ICON_KINDS = ['items', 'buildings']
+
+/**
+ * For --adopt: compares the freshly written icons in stagedDir with the committed ones in iconRoot and deletes
+ * every staged file whose bytes equal the committed one (nothing to replace). Returns the names (<kind>/<file>)
+ * of what is left: { added: no committed icon, replaced: differs, unchanged: identical (deleted from the stage) }.
+ */
+export function classifyStagedIcons({ stagedDir, iconRoot }) {
+  const out = { added: [], replaced: [], unchanged: [] }
+  for (const kind of ICON_KINDS) {
+    for (const file of listWebp(path.join(stagedDir, kind))) {
+      const staged = path.join(stagedDir, kind, file)
+      const dest = path.join(iconRoot, kind, file)
+      const name = `${kind}/${file}`
+      if (!fs.existsSync(dest)) out.added.push(name)
+      else if (fs.readFileSync(staged).equals(fs.readFileSync(dest))) {
+        out.unchanged.push(name)
+        fs.rmSync(staged)
+      } else out.replaced.push(name)
+    }
+  }
+  return out
+}
+
+/** Committed icons the plan has no game icon for (<kind>/<file>): an adopt keeps them as they are. */
+export function iconsWithoutGameCounterpart({ plan, iconRoot }) {
+  const planned = new Set(plan.icons.map((ic) => `${ic.kind}/${ic.id}.webp`))
+  const out = []
+  for (const kind of ICON_KINDS) for (const file of listWebp(path.join(iconRoot, kind))) if (!planned.has(`${kind}/${file}`)) out.push(`${kind}/${file}`)
+  return out
+}

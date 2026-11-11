@@ -1,3 +1,4 @@
+export const HIDDEN_VERSION_IDS: string[]
 export function versionSortKey(name: string): string
 export function sortVersions(ids: string[]): string[]
 export function isTestVersion(id: string, label?: string): boolean
