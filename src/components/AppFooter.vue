@@ -72,7 +72,7 @@ const link =
       <!-- Fine print: disclaimer + attribution (licence terms require the credits) -->
       <p class="text-center text-[0.6875rem] leading-snug">
         Unofficial fan tool, not affiliated with or endorsed by Creepy Jar. Free to use; donations
-        welcome. Game data &amp; icons from
+        welcome. Game data is extracted from the game files; original data and icons from
         <a
           href="https://github.com/flexsurfer/starrupture-planner"
           target="_blank"

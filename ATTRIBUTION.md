@@ -2,10 +2,14 @@
 
 ## Game data & icons — flexsurfer/starrupture-planner (MIT)
 
-The crafting data in [`public/game-data/`](public/game-data/) and the building/item icons in
-[`public/icons/`](public/icons/) are sourced from the open-source project
+Newer game data (Update 3 PTB onward) is extracted from the game build's own files by this
+project's pipeline (`SOURCE.json` records `"source": "game-extract"`). The original crafting data in
+[`public/game-data/`](public/game-data/) and the building/item icons in
+[`public/icons/`](public/icons/) come from the open-source project
 **[flexsurfer/starrupture-planner](https://github.com/flexsurfer/starrupture-planner)** and are
-used under the MIT License.
+used under the MIT License. The live version (Update 2 QoL) still ships those files, and older
+versions (earlyaccess, playtest, update1, update1_PTB) are upstream data only. Icons for older
+versions and part of the item/building id map also come from that repository.
 
 - **Source:** https://github.com/flexsurfer/starrupture-planner
 - **Files used:**
