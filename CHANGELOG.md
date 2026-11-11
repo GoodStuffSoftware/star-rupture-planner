@@ -10,8 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **New game build check**: A daily check compares the latest Steam build with the planner data and opens an issue when the game has been ahead for a few days (3 for live builds, 10 for test builds), so a new update does not go unnoticed. It sends a Discord notice when a webhook is configured.
+- **New game build check**: A daily check compares the latest Steam build with the planner data and opens an issue when the planner is still behind a day after the update was announced (live and test builds alike). The planner's own pipeline should cover a new build within hours, so an issue means something is stuck. It sends a Discord notice when a webhook is configured.
 - **Game data straight from the game files**: A new extractor reads the game build itself and a publish workflow turns it into planner data and icons, so a new game version can appear in the version picker without waiting on the upstream data repo.
+- **Every playable build is covered, and the pipeline says so**: The publish workflow tags each build it covers (`srdata-<branch>-<buildid>`: published, or checked and unchanged) and each build it could not (`srdata-failed-<branch>-<buildid>`, with a Discord alert, never the covered tag), so the mod CI can tell which live and test builds still lack planner data. A test build waiting for its news post gets no tag and is retried.
+- **New items and buildings come out complete**: The converter now derives the type of a brand-new item (raw, processed, component, material, ammo) and building from the game files, so a new game version needs no manual follow-up. Hand-curated values still win. On the Update 2 data it reproduces 104 of 104 item types and 43 of 43 building types.
 
 ### Fixed
 - **Game data publish ignores the CI tools artifact**: The scheduled publish no longer mistakes the extractor's tools artifact for a game build, so it stops posting a bogus "not usable" notice to Discord.

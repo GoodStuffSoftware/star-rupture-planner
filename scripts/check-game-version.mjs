@@ -5,7 +5,7 @@
 //   node scripts/check-game-version.mjs [--dry-run] [--now <ISO date>]
 //
 // Env: CHECK_REPO (owner/name, default GITHUB_REPOSITORY, else the gh current repo),
-//      GRACE_DAYS_LIVE (3), GRACE_DAYS_PTB (10), CHECK_LABEL (game-update, put on new issues),
+//      GRACE_DAYS_LIVE (1), GRACE_DAYS_PTB (1), CHECK_LABEL (game-update, put on new issues),
 //      DISCORD_WEBHOOK_URL (optional: a short notice is posted when an issue is opened or
 //      commented on; a dry run never posts).
 // Needs a full-history checkout (git log is used for when each version's data last changed)

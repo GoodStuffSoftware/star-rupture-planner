@@ -73,6 +73,7 @@ async function main() {
   console.log(`id map ${mapChanged ? 'UPDATED: commit it' : 'unchanged'}; new items ${r.newItemIds.length}, new buildings ${r.newBuildingIds.length}`)
   if (r.defaultedBuildTimes.length) console.log(`build time defaulted for ${r.defaultedBuildTimes.length} recipes`)
   for (const m of r.missingFromExtract) console.warn(`MISSING from extract: ${m.kind} ${m.id} (${m.asset})`)
+  for (const d of r.derived) console.log(`derived from the game: ${d.kind} ${d.id} ${d.field} = ${d.value}`)
   for (const u of r.uncurated) console.warn(`NO CURATED VALUE: ${u.kind} ${u.id} ${u.field}: ${u.note}`)
   for (const f of r.extractorRateFallbacks) console.warn(`extractor rate fallback: ${f.building} ${f.recipe}`)
   if (args.icons) {

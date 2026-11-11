@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  DEFAULT_GRACE_DAYS,
   LIVE,
   PTB,
   classifyAnnouncement,
@@ -80,8 +81,8 @@ describe('live branch', () => {
     ],
   }
 
-  it('uncovered hotfix inside the 3-day grace period does nothing', () => {
-    const d = decide(LIVE, { ...hotfix, now: t('2026-11-10T12:00:00Z') })
+  it('uncovered hotfix inside the 1-day grace period does nothing', () => {
+    const d = decide(LIVE, { ...hotfix, now: t('2026-11-08T20:00:00Z') })
     expect(d.status).toBe('grace')
     expect(d.action).toBe('none')
     expect(d.announcement?.title).toBe('Hotfix 0.3.6 - now available!')
@@ -96,12 +97,15 @@ describe('live branch', () => {
   })
 
   it('honours a grace override', () => {
-    const d = decide(LIVE, {
-      ...hotfix,
-      now: t('2026-11-10T12:00:00Z'),
-      graceDays: { [LIVE]: 1, [PTB]: 10 },
-    })
-    expect(d.action).toBe('open')
+    const now = t('2026-11-10T12:00:00Z') // the hotfix was announced 11-08 09:00: past the 1-day default
+    expect(decide(LIVE, { ...hotfix, now }).action).toBe('open')
+    const d = decide(LIVE, { ...hotfix, now, graceDays: { [LIVE]: 5, [PTB]: 10 } })
+    expect(d.status).toBe('grace')
+    expect(d.action).toBe('none')
+  })
+
+  it('defaults to one day of grace for both branches', () => {
+    expect(DEFAULT_GRACE_DAYS).toEqual({ [LIVE]: 1, [PTB]: 1 })
   })
 
   it('falls back to the branch update time when no announcement matches', () => {
@@ -151,10 +155,10 @@ describe('public test branch', () => {
   })
 
   it('counts the grace period from the first announcement, not the later hotfix', () => {
-    // First PTB post 10-29 + 10 days = 11-08; the 11-06 hotfix must not push it later.
+    // First PTB post 10-29 + 1 day = 10-30; the 11-06 hotfix must not push it later.
     const d = decide(PTB, { now: t('2026-11-10T12:00:00Z') })
     expect(d.since).toBe(t('2026-10-29T10:00:00Z'))
-    expect(d.dueAt).toBe(t('2026-11-08T10:00:00Z'))
+    expect(d.dueAt).toBe(t('2026-10-30T10:00:00Z'))
     expect(d.announcement?.title).toContain('Custom Game')
     expect(d.status).toBe('due')
     expect(d.action).toBe('open')
@@ -162,8 +166,8 @@ describe('public test branch', () => {
     expect(d.body).not.toContain('https://s/ptb2')
   })
 
-  it('is inside grace before the first announcement plus 10 days', () => {
-    const d = decide(PTB, { now: t('2026-11-07T12:00:00Z') })
+  it('is inside grace before the first announcement plus 1 day', () => {
+    const d = decide(PTB, { now: t('2026-10-30T06:00:00Z') })
     expect(d.status).toBe('grace')
     expect(d.action).toBe('none')
   })
@@ -264,7 +268,7 @@ describe('announcement classification', () => {
           date: t('2026-11-08T09:00:00Z'),
         },
       ],
-      now: t('2026-11-09T12:00:00Z'),
+      now: t('2026-11-08T20:00:00Z'),
     })
     expect(d.announcement?.title).toContain('Hotfix 0.3.6')
     expect(d.status).toBe('grace')
@@ -394,12 +398,12 @@ describe('acknowledged builds count as coverage up to their update time', () => 
       ...hotfix,
       news: hotfixNews,
       issues: [closed()],
-      now: t('2026-11-13T12:00:00Z'),
+      now: t('2026-11-12T20:00:00Z'),
     })
     expect(d.status).toBe('grace')
     expect(d.action).toBe('none')
     expect(d.announcement?.title).toContain('Hotfix 2')
-    expect(d.dueAt).toBe(t('2026-11-22T09:00:00Z'))
+    expect(d.dueAt).toBe(t('2026-11-13T09:00:00Z'))
   })
 
   it('opens the issue for the hotfix once its own grace period has run out', () => {
@@ -427,7 +431,7 @@ describe('acknowledged builds count as coverage up to their update time', () => 
       ...hotfix,
       news: withOwnPost,
       issues: [closed({ createdAt: '2026-11-10T10:00:00Z' })],
-      now: t('2026-11-17T12:00:00Z'),
+      now: t('2026-11-12T20:00:00Z'),
     })
     expect(d.announcement?.title).toContain('Hotfix 2')
     expect(d.status).toBe('grace')
