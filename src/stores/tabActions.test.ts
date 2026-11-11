@@ -493,7 +493,7 @@ describe('closed-tab stack', () => {
     expect(ids(again)).toEqual(['aerogel', 'airlock', 'rotor'])
   })
 
-  it('switching the game version resets the stack with the plan', async () => {
+  it('loading a version without a plan starts with an empty stack', async () => {
     const s = await openTab(planOf(['aerogel', 'airlock']))
     s.closeTarget(tid(s, 1))
     await s.load('update1')

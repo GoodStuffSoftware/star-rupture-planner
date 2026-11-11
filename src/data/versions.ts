@@ -12,6 +12,7 @@ export const VERSIONS: VersionInfo[] = [
   { id: 'update1', label: 'Update 1' },
   { id: 'update1_PTB', label: 'Update 1 PTB' },
   { id: 'update2_QoL', label: 'Update 2 QoL' },
+  { id: 'update3_PTB', label: 'Update 3 PTB' },
 ]
 
 export const DEFAULT_VERSION = 'update2_QoL'

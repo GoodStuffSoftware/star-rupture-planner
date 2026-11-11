@@ -16,7 +16,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **New items and buildings come out complete**: The converter now derives the type of a brand-new item (raw, processed, component, material, ammo) and building from the game files, so a new game version needs no manual follow-up. Hand-curated values still win. On the Update 2 data it reproduces 104 of 104 item types and 43 of 43 building types.
 
 ### Fixed
+- **Game data publish ignores the CI tools artifact**: The scheduled publish no longer mistakes the extractor's tools artifact for a game build, so it stops posting a bogus "not usable" notice to Discord.
 - **Game data updates now go live**: When the scheduled job refreshes the game data, the site is redeployed automatically. Before, the new data sat in the repo until someone pushed. A Discord notice (when a webhook is configured) reports each deploy or failure, and a data refresh that cannot reach upstream now fails loudly instead of silently keeping the old files.
+
+---
+
+## [1.6.1] - 2026-11-10
+
+### Fixed
+- **Switching game version keeps your tabs**: Picking the version you are already on does nothing, and switching to another one keeps every tab (order, pins, item, rate) and your closed-tab list. A tab whose item is not in the other version stays, shown as "Not in this game version", and works again when you switch back.
 
 ---
 
