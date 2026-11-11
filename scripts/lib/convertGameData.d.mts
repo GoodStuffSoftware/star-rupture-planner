@@ -48,6 +48,7 @@ export interface ConvertReport {
   uncurated: { kind: string; id: string; field: string; note: string }[]
   derived: { kind: string; id: string; field: string; value: string }[]
   missingFromExtract: { kind: string; id: string; asset: string }[]
+  unavailable: { kind: string; id: string; asset: string }[]
   extractorRateFallbacks: { building: string; recipe: string }[]
   defaultedBuildTimes: string[]
   skippedCraftingBuildings: string[]
