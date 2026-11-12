@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.8.1] - 2026-11-12
+
+### Fixed
+- **Totals panel on the right no longer has its own scroll bar**: with the totals panel docked beside the tree, the whole page now scrolls as one. The panel used to stick to the top of the window and scroll on its own.
+
+---
+
 ## [1.8.0] - 2026-11-11
 
 ### Changed
