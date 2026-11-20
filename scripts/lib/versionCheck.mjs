@@ -122,6 +122,7 @@ export function coverage(branch, versions, dataChanged) {
 
 // Decision for one Steam branch.
 //  branches: { public: {buildid, timeupdated}, public_test_branch: {...} } (unix seconds)
+//            (public_test_branch is missing when Steam does not list it)
 //  news: [{title, date, url}]   versions: [{id, label}]   dataChanged: { id: unix seconds }
 //  issues: [{number, state, body, createdAt?, comments?: [{body}]}], all issues (found by marker,
 //          not label), already passed through trustedIssues
@@ -260,7 +261,10 @@ export function decideBranch({
 }
 
 export function decideAll(ctx) {
-  return [LIVE, PTB].map((branch) => decideBranch({ ...ctx, branch }))
+  // A branch Steam no longer lists is missing from ctx.branches and gets no decision.
+  return [LIVE, PTB]
+    .filter((branch) => ctx.branches[branch])
+    .map((branch) => decideBranch({ ...ctx, branch }))
 }
 
 function facts(d) {

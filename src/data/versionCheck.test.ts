@@ -5,6 +5,7 @@ import {
   PTB,
   classifyAnnouncement,
   coverage,
+  decideAll,
   decideBranch,
   escapeMarkdown,
   marker,
@@ -180,6 +181,17 @@ describe('public test branch', () => {
       ],
     })
     expect(d.since).toBe(t('2026-10-29T10:00:00Z'))
+  })
+})
+
+describe('decideAll', () => {
+  it('decides both branches when Steam lists both', () => {
+    expect(decideAll(base).map((d) => d.branch)).toEqual([LIVE, PTB])
+  })
+
+  it('decides the live branch only when Steam no longer lists the other branch', () => {
+    const branches = { [LIVE]: base.branches[LIVE] }
+    expect(decideAll({ ...base, branches }).map((d) => d.branch)).toEqual([LIVE])
   })
 })
 

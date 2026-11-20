@@ -31,10 +31,10 @@ const OUT_ROOT = resolve(PUBLIC, 'game-data')
 
 const REPO = 'flexsurfer/starrupture-planner'
 const REF = process.env.UPSTREAM_REF || 'main'
-const RAW = `https://raw.githubusercontent.com/${REPO}/${REF}/assets`
+const RAW = `https://raw.githubusercontent.com/${REPO}/${REF}`
 const API = `https://api.github.com/repos/${REPO}`
 const DATA_BASE = `${RAW}/game-data`
-const ICON_BASE = `${RAW}/icons`
+const ICON_BASE = `${RAW}/assets/icons`
 
 const FILES = [
   'buildings_and_recipes.json',
@@ -67,7 +67,7 @@ try {
   const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN
   const headers = { Accept: 'application/vnd.github+json' }
   if (token) headers.Authorization = `Bearer ${token}`
-  const res = await fetch(`${API}/contents/assets/game-data?ref=${encodeURIComponent(REF)}`, {
+  const res = await fetch(`${API}/contents/game-data?ref=${encodeURIComponent(REF)}`, {
     headers,
   })
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
