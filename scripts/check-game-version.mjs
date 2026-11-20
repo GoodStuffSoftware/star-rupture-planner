@@ -70,16 +70,22 @@ async function getJson(url) {
   fail(`could not fetch ${url}: ${lastErr?.message ?? lastErr}`)
 }
 
+// The live branch is required. Steam can stop listing the test branch, so a missing one is a
+// warning and the check goes on with the live branch only.
 async function steamBranches() {
   const json = await getJson(`https://api.steamcmd.net/v1/info/${APPID}`)
   const b = json?.data?.[String(APPID)]?.depots?.branches
+  const out = {}
   for (const name of [LIVE, PTB]) {
-    if (!b?.[name]?.buildid || !b[name].timeupdated) fail(`Steam response has no ${name} branch`)
+    if (b?.[name]?.buildid && b[name].timeupdated) {
+      out[name] = { buildid: b[name].buildid, timeupdated: b[name].timeupdated }
+    } else if (name === LIVE) {
+      fail(`Steam response has no ${name} branch`)
+    } else {
+      console.warn(`check-game-version: Steam response has no ${name} branch; checking ${LIVE} only`)
+    }
   }
-  return {
-    [LIVE]: { buildid: b[LIVE].buildid, timeupdated: b[LIVE].timeupdated },
-    [PTB]: { buildid: b[PTB].buildid, timeupdated: b[PTB].timeupdated },
-  }
+  return out
 }
 
 async function steamNews() {
